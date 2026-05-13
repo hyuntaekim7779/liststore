@@ -51,12 +51,15 @@
         if (s.lat == null || s.lng == null) return;
         const position = new naver.maps.LatLng(s.lat, s.lng);
         const marker = new naver.maps.Marker({ position, map, title: s.name });
+        const cleanMemo = stripPlaceIdToken(s.memo);
         const info = new naver.maps.InfoWindow({
           content: `
             <div style="padding:8px 12px;min-width:180px;font-size:13px">
               <strong>${escapeHtml(s.name)}</strong><br/>
               ${s.address ? escapeHtml(s.address) + '<br/>' : ''}
-              ${s.memo ? '<span style="color:#888">' + escapeHtml(s.memo) + '</span><br/>' : ''}
+              ${s.category ? '<span style="color:#888">' + escapeHtml(s.category) + '</span><br/>' : ''}
+              ${s.phone ? '<span>' + escapeHtml(s.phone) + '</span><br/>' : ''}
+              ${cleanMemo ? '<span style="color:#888">' + escapeHtml(cleanMemo) + '</span><br/>' : ''}
               ${s.url ? '<a href="' + encodeURI(s.url) + '" target="_blank" rel="noopener">네이버 지도에서 보기</a>' : ''}
             </div>`,
         });
@@ -193,6 +196,14 @@
     return String(s).replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
     );
+  }
+  /** 옛 데이터 호환: memo 안의 placeId 토큰 제거. */
+  function stripPlaceIdToken(memo) {
+    if (!memo) return '';
+    return String(memo)
+      .replace(/\s*·\s*placeId:\S+/gi, '')
+      .replace(/^placeId:\S+\s*·?\s*/i, '')
+      .trim();
   }
 
   window.Maps = Maps;

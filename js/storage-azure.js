@@ -54,6 +54,41 @@
     } catch { /* ignore */ }
   }
 
+  /** Tables 가 없으면 생성. 이미 있으면 409 → no-op. */
+  async function createTable(name) {
+    try {
+      const res = await fetch(`${BASE}/Tables?${SAS}`, {
+        method: 'POST',
+        headers: COMMON_HEADERS,
+        body: JSON.stringify({ TableName: name }),
+      });
+      if (res.status === 201) {
+        console.info(`[azure] created table "${name}"`);
+        return true;
+      }
+      if (res.status === 409) return true; // already exists
+      const t = await res.text();
+      reportError(`createTable ${name}`, res.status, t);
+      return false;
+    } catch (e) {
+      reportError(`createTable ${name}`, 'network', e.message);
+      return false;
+    }
+  }
+
+  let initPromise = null;
+  function ensureInit() {
+    if (!initPromise) {
+      initPromise = Promise.all([
+        createTable(TABLE_STORES),
+        createTable(TABLE_VOTES),
+      ]).then(([a, b]) => {
+        if (a && b) console.info('[azure] tables ready.');
+      });
+    }
+    return initPromise;
+  }
+
   async function listEntities(table, pk) {
     try {
       const res = await fetch(listUrl(table, `PartitionKey eq '${escapeOData(pk)}'`), {
@@ -135,23 +170,22 @@
 
   const AzureStorage = {
     async getStores(meal) {
+      await ensureInit();
       const entities = await listEntities(TABLE_STORES, meal);
       return entities.map(parsePayload).filter(Boolean);
     },
 
     async saveStores(meal, stores) {
-      // 1) 기존 엔티티 키 목록 가져오기
+      await ensureInit();
       let existing = [];
       try { existing = await listEntities(TABLE_STORES, meal); } catch (e) { /* ignore */ }
       const newIds = new Set(stores.map((s) => s.id));
 
-      // 2) 새 리스트에 없는 기존 엔티티는 삭제
       const toDelete = existing.filter((e) => !newIds.has(e.RowKey));
       await Promise.all(toDelete.map((e) =>
         deleteEntity(TABLE_STORES, meal, e.RowKey).catch((err) => console.error('del:', err))
       ));
 
-      // 3) 현재 리스트 전부 upsert (PUT 은 idempotent)
       await Promise.all(stores.map((s) =>
         putEntity(TABLE_STORES, meal, s.id, { Payload: JSON.stringify(s) })
           .catch((err) => console.error('put:', err))
@@ -159,18 +193,24 @@
     },
 
     async getVote(meal) {
+      await ensureInit();
       const e = await getEntity(TABLE_VOTES, meal, 'current');
       return parsePayload(e);
     },
 
     async saveVote(meal, vote) {
+      await ensureInit();
       await putEntity(TABLE_VOTES, meal, 'current', { Payload: JSON.stringify(vote) });
     },
 
     async clearVote(meal) {
+      await ensureInit();
       await deleteEntity(TABLE_VOTES, meal, 'current');
     },
   };
+
+  // 페이지 로드 직후 백그라운드로 테이블 보장
+  ensureInit();
 
   window.Storage = AzureStorage;
   console.info(`[storage-azure] using account "${ACCOUNT}" tables: ${TABLE_STORES}, ${TABLE_VOTES}`);
