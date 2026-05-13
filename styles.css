@@ -53,8 +53,8 @@ body {
   border-radius: 10px;
   border: 1px solid var(--border);
 }
-.tabs-side-img.left { transform: translateX(-110px); }
-.tabs-side-img.right { transform: translateX(110px); }
+.tabs-side-img.left { transform: translateX(-150px); }
+.tabs-side-img.right { transform: translateX(150px); }
 .meal-tab {
   border: 1px solid var(--border);
   background: var(--card);
