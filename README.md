@@ -72,6 +72,45 @@ Naver Maps API는 호출 도메인이 사전 등록되어 있어야 합니다.
 - 구 계정은 `ncpClientId` 사용
 - 인증 오류 시 두 파라미터를 서로 바꿔보세요.
 
+## 🌐 URL 자동 등록 (place 정보 자동 추출)
+
+설정 탭의 **URL로 빠른 등록**에 네이버 지도 URL을 붙여넣으면 다음 순서로 가게 정보를 자동 채웁니다:
+
+1. URL 파싱 → 이름 / placeId / c= 좌표 추출
+2. placeId 가 있으면 → 공개 CORS 프록시(`corsproxy.io`)를 통해 `m.place.naver.com` HTML 을 받아 **이름·주소·좌표·전화번호·카테고리** 파싱
+3. 여전히 좌표가 없으면 → 이름으로 Naver Geocoder 호출
+4. 그래도 못 찾으면 → 가게는 등록되되 "📍 지도에서 지정" 으로 좌표를 직접 클릭하여 지정
+
+### 한계 및 주의사항
+
+- 공식 API가 아닌 **HTML 스크래핑** 이라 네이버 페이지 구조 변경 시 파싱이 깨질 수 있습니다 (코드 수정으로 대응).
+- 공개 CORS 프록시(`corsproxy.io`)는 가끔 느리거나 다운될 수 있습니다.
+- 트래픽이 많으면 프록시에서 차단될 수 있습니다.
+
+### 프록시 교체 (선택)
+
+`js/config.js` 의 `corsProxy` 값을 자체 프록시 URL로 바꾸세요.
+
+```js
+window.AppConfig = {
+  corsProxy: 'https://your-worker.your-subdomain.workers.dev/?url=',
+  placeLookup: true,
+};
+```
+
+자체 Cloudflare Worker / Azure Function 으로 프록시를 두면 안정성·속도·신뢰성이 향상됩니다.
+
+### 정확하고 안정적인 방법 (선택)
+
+HTML 스크래핑 대신 **Naver Developers Local Search API** 를 사용하면 더 정확합니다:
+
+1. https://developers.naver.com/apps/#/register → "검색" 선택
+2. 웹 서비스 URL에 배포 도메인 등록
+3. 발급되는 Client ID + Secret 으로 `openapi.naver.com/v1/search/local.json` 호출
+4. CORS 우회를 위해 여전히 프록시 1개 필요 (비밀키도 프록시 환경변수에 보관)
+
+이 경로로 가시려면 `js/naver-api.js` 를 위 API 호출로 바꾸시면 됩니다.
+
 ## 데이터 저장
 
 모든 데이터(가게 리스트 / 투표)는 **현재 브라우저의 localStorage** 에만 저장됩니다.

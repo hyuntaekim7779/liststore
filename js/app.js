@@ -109,24 +109,47 @@
 
       let { name, placeId, lat, lng } = parsed;
       let address = null;
+      let phone = null;
+      let category = null;
       let warnNoCoords = false;
 
-      // 좌표가 없으면 이름으로 Geocoder 시도
+      // 1순위: placeId 가 있으면 Naver Map place 페이지를 프록시로 가져와 상세 정보 파싱
+      if (placeId && window.AppConfig && window.AppConfig.placeLookup && window.NaverApi) {
+        setStatus('', `🌐 네이버 지도에서 place ${placeId} 조회 중…`);
+        try {
+          const info = await NaverApi.getPlaceById(placeId);
+          if (info) {
+            if (info.name) name = info.name;
+            if (info.address) address = info.address;
+            if (info.lat != null && info.lng != null) { lat = info.lat; lng = info.lng; }
+            if (info.phone) phone = info.phone;
+            if (info.category) category = info.category;
+          }
+        } catch (e) {
+          console.warn('NaverApi lookup failed:', e);
+        }
+      }
+
+      // 2순위: 좌표가 여전히 없으면 이름으로 Geocoder
       if ((lat == null || lng == null) && name) {
         setStatus('', `🔍 "${name}" 좌표 검색 중…`);
         const geo = await Maps.geocode(name);
-        if (geo) { lat = geo.lat; lng = geo.lng; address = geo.address; }
+        if (geo) { lat = geo.lat; lng = geo.lng; if (!address) address = geo.address; }
       }
 
       if (lat == null || lng == null) warnNoCoords = true;
 
       const finalName = name || `장소 ${placeId || ''}`.trim();
+      const memoParts = [];
+      if (category) memoParts.push(category);
+      if (phone) memoParts.push(phone);
+      if (placeId) memoParts.push(`placeId:${placeId}`);
       const store = await Stores.add(meal, {
         name: finalName,
         url,
         address: address || '',
         lat, lng,
-        memo: placeId ? `placeId:${placeId}` : '',
+        memo: memoParts.join(' · '),
       });
 
       $('#reg-url').value = '';
