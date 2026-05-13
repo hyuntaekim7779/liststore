@@ -13,6 +13,7 @@
   let fixedCompanyInfo = null;
   let pickModeListener = null;
   let pickModeCallback = null;
+  const DEFAULT_ZOOM = 17; // 종로권 기준 약 50m 축척
   const FIXED_LOCATION = {
     name: '연강빌딩',
     roadAddress: '서울 종로구 종로33길 15',
@@ -44,7 +45,9 @@
       }
       map = new naver.maps.Map(containerId, {
         center: new naver.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
-        zoom: 14,
+        zoom: DEFAULT_ZOOM,
+        minZoom: DEFAULT_ZOOM,
+        maxZoom: DEFAULT_ZOOM,
       });
       ensureFixedCompanyMarker();
       this.resolveFixedLocation({ recenter: true }).catch((e) => {
@@ -66,7 +69,23 @@
       stores.forEach((s) => {
         if (s.lat == null || s.lng == null) return;
         const position = new naver.maps.LatLng(s.lat, s.lng);
-        const marker = new naver.maps.Marker({ position, map, title: s.name });
+        const marker = new naver.maps.Marker({
+          position,
+          map,
+          title: s.name,
+          // 기본적으로 가게 이름이 지도 위에 보이도록 커스텀 마커를 사용
+          icon: {
+            content:
+              '<div style="display:flex;align-items:center;gap:5px;transform:translateY(-6px)">' +
+              '<span style="width:10px;height:10px;border-radius:50%;background:#2f57e5;display:inline-block;' +
+              'box-shadow:0 0 0 2px #fff,0 1px 2px rgba(0,0,0,.35)"></span>' +
+              '<span style="background:rgba(255,255,255,.96);border:1px solid #d9dff8;border-radius:999px;' +
+              'padding:2px 8px;font-size:12px;font-weight:600;color:#1f2330;white-space:nowrap">' +
+              escapeHtml(s.name) +
+              '</span></div>',
+            anchor: new naver.maps.Point(12, 12),
+          },
+        });
         const cleanMemo = stripPlaceIdToken(s.memo);
         const info = new naver.maps.InfoWindow({
           content: `
@@ -99,7 +118,7 @@
       if (!ready() || !map || store.lat == null || store.lng == null) return;
       const pos = new naver.maps.LatLng(store.lat, store.lng);
       map.setCenter(pos);
-      map.setZoom(16);
+      map.setZoom(DEFAULT_ZOOM);
     },
 
     async moveToFixedLocation() {
@@ -108,7 +127,7 @@
       // 사용자가 지정한 고정 위치(연강빌딩)로만 이동
       const pos = new naver.maps.LatLng(FIXED_LOCATION.lat, FIXED_LOCATION.lng);
       map.setCenter(pos);
-      map.setZoom(17);
+      map.setZoom(DEFAULT_ZOOM);
       ensureFixedCompanyMarker();
       if (fixedCompanyInfo && fixedCompanyMarker) {
         fixedCompanyInfo.open(map, fixedCompanyMarker);
