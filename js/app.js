@@ -218,6 +218,7 @@
   function bindAutoAdd() {
     $('#btn-auto-add').addEventListener('click', async () => {
       const url = $('#reg-url').value.trim();
+      const memo = $('#reg-memo').value.trim();
       const meal = ($$('input[name="reg-meal"]').find((r) => r.checked) || {}).value || 'lunch';
       const statusEl = $('#auto-add-status');
 
@@ -231,13 +232,19 @@
         return;
       }
 
-      const result = await registerStoreSmart({ meal, url, statusCb: setStatus });
+      const result = await registerStoreSmart({ meal, url, memo, statusCb: setStatus });
       if (!result) return;
 
       $('#reg-url').value = '';
+      $('#reg-memo').value = '';
       state.meal = meal;
       $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === meal); });
       renderSettingsStoreList();
+      // 점심/저녁 탭이 이미 활성이라면 지도/리스트도 즉시 갱신
+      if (state.activeTab === meal) {
+        renderStoreList();
+        Maps.renderStores(Stores.get(meal));
+      }
       if (result.warnNoCoords) beginPickMode(result.store.id);
     });
   }

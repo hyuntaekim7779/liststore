@@ -54,17 +54,24 @@
         const cleanMemo = stripPlaceIdToken(s.memo);
         const info = new naver.maps.InfoWindow({
           content: `
-            <div style="padding:8px 12px;min-width:180px;font-size:13px">
-              <strong>${escapeHtml(s.name)}</strong><br/>
-              ${s.address ? escapeHtml(s.address) + '<br/>' : ''}
+            <div style="padding:8px 12px;min-width:180px;font-size:13px;line-height:1.55">
+              <strong style="font-size:14px">${escapeHtml(s.name)}</strong><br/>
+              ${s.address ? '<span style="color:#555">' + escapeHtml(s.address) + '</span><br/>' : ''}
               ${s.category ? '<span style="color:#888">' + escapeHtml(s.category) + '</span><br/>' : ''}
               ${s.phone ? '<span>' + escapeHtml(s.phone) + '</span><br/>' : ''}
-              ${cleanMemo ? '<span style="color:#888">' + escapeHtml(cleanMemo) + '</span><br/>' : ''}
+              ${cleanMemo ? '<span style="color:#5b6cff">📝 ' + escapeHtml(cleanMemo) + '</span><br/>' : ''}
               ${s.url ? '<a href="' + encodeURI(s.url) + '" target="_blank" rel="noopener">네이버 지도에서 보기</a>' : ''}
             </div>`,
+          disableAnchor: false,
         });
-        naver.maps.Event.addListener(marker, 'click', () => info.open(map, marker));
+        // 클릭 시 토글 (이미 열려있으면 닫기)
+        naver.maps.Event.addListener(marker, 'click', () => {
+          if (info.getMap()) info.close();
+          else info.open(map, marker);
+        });
         markers.push(marker);
+        // 기본 열림 상태로 표시
+        info.open(map, marker);
         bounds.extend(position);
         count++;
       });
