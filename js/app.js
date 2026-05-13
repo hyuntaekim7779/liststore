@@ -331,7 +331,7 @@
   // ---------- Settings: Store list + pick mode ----------
   function renderSettingsStoreList() {
     const list = $('#settings-store-list');
-    const stores = Stores.get(state.meal);
+    const stores = getVisibleStoresForMeal(state.meal, { includeMeta: true });
     $('#settings-store-count').textContent = `(${stores.length})`;
     list.innerHTML = '';
     if (stores.length === 0) {
@@ -340,11 +340,14 @@
     }
     stores.forEach((s) => {
       const li = document.createElement('li');
+      const sourceMeal = s.__sourceMeal || state.meal;
+      const mirrored = Boolean(s.__isMirrored);
       const noCoords = (s.lat == null || s.lng == null);
       li.innerHTML = `
         <div>
           <div class="s-name">${escapeHtml(s.name)}
             ${noCoords ? '<span class="s-badge warn">좌표 미확인</span>' : ''}
+            ${mirrored ? `<span class="s-badge">중복표시·원본:${mealLabel(sourceMeal)}</span>` : ''}
           </div>
           <div class="s-meta">
             ${buildStoreMetaHtml(s, true)}
@@ -353,22 +356,17 @@
         <div class="s-actions">
           ${s.url ? `<button data-action="open">🔗</button>` : ''}
           <button data-action="edit-memo">메모 수정</button>
-          ${(state.meal === 'lunch' || state.meal === 'dinner') ? `
-            <label class="check-action">
-              <input type="checkbox" data-action="toggle-friday-share" ${isSharedToFridayLunch(s) ? 'checked' : ''} />
-              금요일 점심 중복 표시
-            </label>
-            <button data-action="move-friday-only">금요일 점심 전용 이동</button>
-          ` : ''}
-          <button class="pick" data-action="pick">📍 지도에서 지정</button>
+          <button data-action="edit-visibility">중복 허용</button>
+          ${mirrored ? '' : '<button class="pick" data-action="pick">📍 지도에서 지정</button>'}
           <button class="delete" data-action="delete">삭제</button>
         </div>
       `;
       li.addEventListener('click', async (e) => {
         const action = e.target.dataset && e.target.dataset.action;
         if (action === 'delete') {
-          if (confirm(`"${s.name}" 삭제할까요?`)) {
-            await Stores.remove(state.meal, s.id);
+          const targetLabel = mirrored ? `${mealLabel(sourceMeal)}(원본)` : mealLabel(sourceMeal);
+          if (confirm(`"${s.name}" 삭제할까요?\n삭제 대상: ${targetLabel}`)) {
+            await Stores.remove(sourceMeal, s.id);
             renderSettingsStoreList();
           }
           return;
@@ -377,7 +375,7 @@
         if (action === 'edit-memo') {
           const edited = prompt(`"${s.name}" 메모를 수정하세요.`, s.memo || '');
           if (edited === null) return;
-          await Stores.update(state.meal, s.id, { memo: edited });
+          await Stores.update(sourceMeal, s.id, { memo: edited });
           renderSettingsStoreList();
           if (MEAL_TYPES.includes(state.activeTab) && state.activeTab === state.meal) {
             renderStoreList();
@@ -385,39 +383,12 @@
           }
           return;
         }
-        if (action === 'move-friday-only') {
-          const fromMeal = state.meal;
-          if (fromMeal !== 'lunch' && fromMeal !== 'dinner') return;
-          try {
-            await Stores.move(fromMeal, 'fridayLunch', s.id, { showInFridayLunchTab: false });
-          } catch (err) {
-            alert(err && err.message ? err.message : '금요일 점심 전용 이동 중 오류가 발생했습니다.');
-            return;
-          }
-          renderSettingsStoreList();
-          if (MEAL_TYPES.includes(state.activeTab)) {
-            renderStoreList();
-            Maps.renderStores(getVisibleStores());
-          }
+        if (action === 'edit-visibility') {
+          await openDuplicateVisibilityMenu(s, sourceMeal);
           return;
         }
         if (action === 'pick') { beginPickMode(s.id); return; }
       });
-      const shareToggle = li.querySelector('input[data-action="toggle-friday-share"]');
-      if (shareToggle) {
-        shareToggle.addEventListener('click', (e) => e.stopPropagation());
-        shareToggle.addEventListener('change', async (e) => {
-          const fromMeal = state.meal;
-          if (fromMeal !== 'lunch' && fromMeal !== 'dinner') return;
-          const checked = e.target.checked;
-          await Stores.update(fromMeal, s.id, { showInFridayLunchTab: checked });
-          renderSettingsStoreList();
-          if (MEAL_TYPES.includes(state.activeTab)) {
-            renderStoreList();
-            Maps.renderStores(getVisibleStores());
-          }
-        });
-      }
       list.appendChild(li);
     });
   }
@@ -766,14 +737,24 @@
   }
 
   function getVisibleStores() {
-    if (state.meal === 'fridayLunch') {
-      const fridayStores = Stores.get('fridayLunch');
-      const lunchShared = Stores.get('lunch').filter((s) => isSharedToFridayLunch(s));
-      const dinnerShared = Stores.get('dinner').filter((s) => isSharedToFridayLunch(s));
-      return dedupeStoresByUrl([...fridayStores, ...lunchShared, ...dinnerShared]);
-    }
-    // 기본: 현재 식사 탭의 가게만 노출
-    return Stores.get(state.meal);
+    return getVisibleStoresForMeal(state.meal, { includeMeta: false });
+  }
+
+  function getVisibleStoresForMeal(targetMeal, options = {}) {
+    const includeMeta = options.includeMeta === true;
+    const merged = [];
+    MEAL_TYPES.forEach((baseMeal) => {
+      Stores.get(baseMeal).forEach((store) => {
+        const visibleMeals = getStoreVisibleMeals(store, baseMeal);
+        if (!visibleMeals.includes(targetMeal)) return;
+        merged.push(includeMeta ? {
+          ...store,
+          __sourceMeal: baseMeal,
+          __isMirrored: baseMeal !== targetMeal,
+        } : store);
+      });
+    });
+    return dedupeStoresByUrl(merged);
   }
 
   function dedupeStoresByUrl(stores) {
@@ -813,8 +794,76 @@
     return out;
   }
 
-  function isSharedToFridayLunch(store) {
-    return Boolean(store && (store.showInFridayLunchTab || store.showInCompanionLunchTab));
+  function getStoreVisibleMeals(store, sourceMeal) {
+    if (Array.isArray(store.visibleMeals) && store.visibleMeals.length) {
+      return [...new Set(store.visibleMeals.filter((m) => MEAL_TYPES.includes(m)))];
+    }
+    const meals = [sourceMeal];
+    if (store.showInFridayLunchTab || store.showInCompanionLunchTab) meals.push('fridayLunch');
+    return [...new Set(meals)];
+  }
+
+  function mealLabel(meal) {
+    return ({
+      lunch: '점심',
+      fridayLunch: '금요일 점심',
+      dinner: '저녁',
+    }[meal] || meal);
+  }
+
+  async function openDuplicateVisibilityMenu(store, sourceMeal) {
+    const current = getStoreVisibleMeals(store, sourceMeal);
+    const selected = await showDuplicateVisibilityModal(store.name, current);
+    if (!selected) return;
+    await Stores.update(sourceMeal, store.id, {
+      visibleMeals: selected,
+      showInFridayLunchTab: false,
+      showInCompanionLunchTab: false,
+    });
+    renderSettingsStoreList();
+    if (MEAL_TYPES.includes(state.activeTab)) {
+      renderStoreList();
+      Maps.renderStores(getVisibleStores());
+    }
+  }
+
+  function showDuplicateVisibilityModal(storeName, currentMeals) {
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'visibility-modal-backdrop';
+      backdrop.innerHTML = `
+        <div class="visibility-modal" role="dialog" aria-modal="true">
+          <h3>중복 허용 설정</h3>
+          <p class="muted">"${escapeHtml(storeName)}" 노출 탭을 선택하세요.</p>
+          <label><input type="checkbox" value="lunch" ${currentMeals.includes('lunch') ? 'checked' : ''}/> 점심</label>
+          <label><input type="checkbox" value="fridayLunch" ${currentMeals.includes('fridayLunch') ? 'checked' : ''}/> 금요일 점심</label>
+          <label><input type="checkbox" value="dinner" ${currentMeals.includes('dinner') ? 'checked' : ''}/> 저녁</label>
+          <div class="actions">
+            <button type="button" data-action="cancel">취소</button>
+            <button type="button" data-action="save">저장</button>
+          </div>
+        </div>`;
+      document.body.appendChild(backdrop);
+
+      const close = (result) => {
+        backdrop.remove();
+        resolve(result);
+      };
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) close(null);
+      });
+      backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
+      backdrop.querySelector('[data-action="save"]').addEventListener('click', () => {
+        const checked = Array.from(backdrop.querySelectorAll('input[type="checkbox"]:checked'))
+          .map((el) => el.value)
+          .filter((m) => MEAL_TYPES.includes(m));
+        if (!checked.length) {
+          alert('최소 1개 탭은 선택해야 합니다.');
+          return;
+        }
+        close(checked);
+      });
+    });
   }
 
   /** UI 표시용 memo 정리 — 옛 placeId:xxx 문자열을 제거. */

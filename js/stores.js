@@ -25,6 +25,16 @@
     }
   }
 
+  function normalizeVisibleMeals(defaultMeal, inputVisibleMeals, legacyFridayFlag) {
+    const allowedMeals = new Set(['lunch', 'dinner', 'fridayLunch']);
+    const fromInput = Array.isArray(inputVisibleMeals) ? inputVisibleMeals : [];
+    const visible = fromInput.filter((m) => allowedMeals.has(m));
+    if (visible.length > 0) return Array.from(new Set(visible));
+    const out = [defaultMeal];
+    if (legacyFridayFlag) out.push('fridayLunch');
+    return Array.from(new Set(out));
+  }
+
   const Stores = {
     cache: {},
 
@@ -55,6 +65,11 @@
         phone: partial.phone ? String(partial.phone).trim() : null,
         category: partial.category ? String(partial.category).trim() : null,
         showInFridayLunchTab: Boolean(partial.showInFridayLunchTab || partial.showInCompanionLunchTab),
+        visibleMeals: normalizeVisibleMeals(
+          meal,
+          partial.visibleMeals,
+          Boolean(partial.showInFridayLunchTab || partial.showInCompanionLunchTab)
+        ),
         createdAt: Date.now(),
       };
       this.cache[meal].push(store);
@@ -75,6 +90,13 @@
       const current = this.cache[meal][idx];
       const next = { ...current, ...patch };
       if ('memo' in patch) next.memo = String(patch.memo || '').trim();
+      if ('visibleMeals' in patch || 'showInFridayLunchTab' in patch || 'showInCompanionLunchTab' in patch) {
+        next.visibleMeals = normalizeVisibleMeals(
+          meal,
+          patch.visibleMeals ?? current.visibleMeals,
+          Boolean(patch.showInFridayLunchTab || patch.showInCompanionLunchTab)
+        );
+      }
       this.cache[meal][idx] = next;
       await window.Storage.saveStores(meal, this.cache[meal]);
       return next;

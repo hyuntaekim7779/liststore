@@ -153,6 +153,50 @@ main {
   color: var(--muted);
   padding: 0 2px;
 }
+.visibility-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.visibility-modal {
+  width: min(360px, calc(100% - 24px));
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
+}
+.visibility-modal h3 { margin: 0 0 8px; font-size: 17px; }
+.visibility-modal p { margin: 0 0 10px; font-size: 13px; }
+.visibility-modal label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 14px;
+}
+.visibility-modal .actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.visibility-modal .actions button {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.visibility-modal .actions button[data-action="save"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
 .store-list .s-actions button {
   border: 1px solid var(--border);
   background: #fff;
