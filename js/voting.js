@@ -48,16 +48,21 @@
     },
 
     async cast(meal, candidateId, voterName) {
-      const vote = this.current[meal];
-      if (!vote) throw new Error('진행 중인 투표가 없습니다.');
       const name = (voterName || '').trim();
       if (!name) throw new Error('투표자 이름을 입력해주세요.');
+
+      // 동시 투표 충돌을 줄이기 위해 저장 직전 최신 상태를 다시 읽음
+      const vote = await window.Storage.getVote(meal);
+      if (!vote) {
+        this.current[meal] = null;
+        throw new Error('진행 중인 투표가 없습니다.');
+      }
+      this.current[meal] = vote;
 
       const now = Date.now();
       if (now < vote.startAt) throw new Error('아직 투표 시작 시간이 아닙니다.');
       if (now > vote.endAt)   throw new Error('투표가 이미 종료되었습니다.');
 
-      // Prevent same voter from voting twice across all candidates.
       const already = Object.values(vote.votes).some((list) => list.includes(name));
       if (already) throw new Error('이미 투표하셨습니다. (이름 기준 1회 제한)');
 

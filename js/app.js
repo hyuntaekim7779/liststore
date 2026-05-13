@@ -16,6 +16,7 @@
   document.addEventListener('DOMContentLoaded', init);
 
   async function init() {
+    updateStorageStatus();
     Maps.init('map');
     Roulette.init('roulette-canvas');
 
@@ -36,6 +37,69 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && Maps.isPickMode()) cancelPickMode();
     });
+
+    startPolling();
+  }
+
+  function updateStorageStatus() {
+    const el = $('#storage-status');
+    if (!el) return;
+    const mode = window.AppConfig && window.AppConfig.storage;
+    if (mode === 'azure') {
+      const acct = (window.AppConfig.azure && window.AppConfig.azure.account) || '?';
+      el.innerHTML = `☁️ Azure Tables 연결됨 (<code>${acct}</code>) · 실시간 공유 모드`;
+    } else {
+      el.textContent = '💾 localStorage (이 브라우저에만 저장)';
+    }
+  }
+
+  // ---------- 실시간 폴링 (Azure 모드일 때 데이터 동기화) ----------
+  let pollTimerHandle = null;
+  let pollCurrentMs = 0;
+
+  function startPolling() {
+    if (!window.AppConfig || window.AppConfig.storage !== 'azure') return;
+    schedulePoll();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        pollNow();
+        schedulePoll();
+      }
+    });
+  }
+
+  function schedulePoll() {
+    const v = Voting.get(state.meal);
+    const voteOpen = v && Voting.status(v) === 'open';
+    const desired = voteOpen
+      ? (window.AppConfig.pollIntervalVoteMs || 3000)
+      : (window.AppConfig.pollIntervalMs || 8000);
+    if (desired === pollCurrentMs && pollTimerHandle) return;
+    if (pollTimerHandle) clearInterval(pollTimerHandle);
+    pollCurrentMs = desired;
+    pollTimerHandle = setInterval(pollNow, desired);
+  }
+
+  async function pollNow() {
+    if (document.visibilityState === 'hidden') return;
+    if (state.pickingForStoreId) return; // 좌표 지정 중에는 방해 X
+    try {
+      await Stores.load('lunch');
+      await Stores.load('dinner');
+      await Voting.load(state.meal);
+    } catch (e) {
+      console.warn('poll failed:', e);
+      return;
+    }
+    // 활성 탭 기준으로 UI 갱신
+    if (state.activeTab === 'lunch' || state.activeTab === 'dinner') {
+      renderStoreList();
+      Maps.renderStores(Stores.get(state.meal));
+      renderVote();
+    } else if (state.activeTab === 'settings') {
+      renderSettingsStoreList();
+    }
+    schedulePoll();
   }
 
   // ---------- Tabs ----------

@@ -113,10 +113,28 @@ HTML 스크래핑 대신 **Naver Developers Local Search API** 를 사용하면 
 
 ## 데이터 저장
 
-모든 데이터(가게 리스트 / 투표)는 **현재 브라우저의 localStorage** 에만 저장됩니다.
+`js/config.js` 의 `storage` 값으로 저장소를 선택합니다:
 
-- 같은 PC, 같은 브라우저에서만 데이터가 보입니다.
-- 사용자 간 데이터 공유가 필요하면 → 아래 **Azure Table Storage 연동 가이드** 참고.
+- `storage: 'azure'` — **Azure Table Storage** 사용 (현재 기본값). 여러 사용자 간 실시간 공유.
+- `storage: 'local'` — 브라우저 localStorage (해당 브라우저에만 저장).
+
+현재 연결 정보 (`js/config.js`):
+- Storage Account: `agenthta1de`
+- Tables: `stores`, `votes`
+- SAS 만료: **2028-05-01** (만료 전 재발급 필요)
+
+### 폴링 (실시간 동기화)
+
+Azure 모드에서는 데이터를 주기적으로 다시 읽어와 UI를 갱신합니다.
+- 평시: 8초 (`pollIntervalMs`)
+- 투표 진행 중: 3초 (`pollIntervalVoteMs`)
+- 탭이 백그라운드일 때는 일시 중단
+
+간격은 `js/config.js` 에서 조정 가능.
+
+### 동시성 한계
+
+투표는 "최신 읽기 → 변경 → 쓰기" 패턴으로 race window 를 줄였지만, 완전한 ETag 기반 낙관적 동시성은 아닙니다. 같은 순간(수십 ms 차이)에 여러 사람이 투표하면 한 명의 표가 유실될 수 있습니다. 이때 다시 투표 버튼을 누르면 됩니다.
 
 ## (선택) Azure Table Storage 연동
 
