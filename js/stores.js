@@ -10,6 +10,21 @@
     if (!cache[meal]) cache[meal] = [];
   }
 
+  function normalizeUrl(url) {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    try {
+      const u = new URL(raw);
+      u.hash = '';
+      u.protocol = u.protocol.toLowerCase();
+      u.hostname = u.hostname.toLowerCase();
+      if (u.pathname !== '/') u.pathname = u.pathname.replace(/\/+$/, '');
+      return u.toString();
+    } catch {
+      return raw;
+    }
+  }
+
   const Stores = {
     cache: {},
 
@@ -21,6 +36,13 @@
 
     async add(meal, partial) {
       ensureMealCache(this.cache, meal);
+      const normalizedUrl = normalizeUrl(partial.url);
+      if (normalizedUrl) {
+        const duplicated = this.cache[meal].some((s) => normalizeUrl(s.url) === normalizedUrl);
+        if (duplicated) {
+          throw new Error('이미 등록된 네이버 지도 URL입니다. 중복 등록은 불가합니다.');
+        }
+      }
       const store = {
         id: uid(),
         name: partial.name.trim(),
@@ -43,6 +65,18 @@
       ensureMealCache(this.cache, meal);
       this.cache[meal] = this.cache[meal].filter((s) => s.id !== id);
       await window.Storage.saveStores(meal, this.cache[meal]);
+    },
+
+    async update(meal, id, patch) {
+      ensureMealCache(this.cache, meal);
+      const idx = this.cache[meal].findIndex((s) => s.id === id);
+      if (idx < 0) return null;
+      const current = this.cache[meal][idx];
+      const next = { ...current, ...patch };
+      if ('memo' in patch) next.memo = String(patch.memo || '').trim();
+      this.cache[meal][idx] = next;
+      await window.Storage.saveStores(meal, this.cache[meal]);
+      return next;
     },
 
     get(meal) {

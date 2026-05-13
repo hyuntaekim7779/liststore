@@ -197,16 +197,22 @@
     const warnNoCoords = (lat == null || lng == null);
     const finalName = name || (placeId ? `장소 ${placeId}` : '이름 없음');
 
-    const store = await Stores.add(meal, {
-      name: finalName,
-      url: url || '',
-      address: address || '',
-      lat, lng,
-      memo: (memo || '').trim(),
-      placeId: placeId || null,
-      phone: phone || null,
-      category: category || null,
-    });
+    let store;
+    try {
+      store = await Stores.add(meal, {
+        name: finalName,
+        url: url || '',
+        address: address || '',
+        lat, lng,
+        memo: (memo || '').trim(),
+        placeId: placeId || null,
+        phone: phone || null,
+        category: category || null,
+      });
+    } catch (e) {
+      setStatus('error', e && e.message ? e.message : '가게 등록 중 오류가 발생했습니다.');
+      return null;
+    }
 
     if (warnNoCoords) {
       setStatus('warn', `✓ "${finalName}" 등록됨. 좌표 자동 추출 실패 — 설정에서 "📍 지도에서 지정" 으로 위치를 잡아주세요.`);
@@ -287,12 +293,17 @@
         if (r) { lat = r.lat; lng = r.lng; }
       }
 
-      await Stores.add(meal, {
-        name, url, address,
-        lat: lat || null,
-        lng: lng || null,
-        memo: $('#store-memo').value.trim(),
-      });
+      try {
+        await Stores.add(meal, {
+          name, url, address,
+          lat: lat || null,
+          lng: lng || null,
+          memo: $('#store-memo').value.trim(),
+        });
+      } catch (err) {
+        alert(err && err.message ? err.message : '가게 등록 중 오류가 발생했습니다.');
+        return;
+      }
       $('#store-form').reset();
       state.meal = meal;
       $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === meal); });
@@ -341,6 +352,7 @@
         </div>
         <div class="s-actions">
           ${s.url ? `<button data-action="open">🔗</button>` : ''}
+          <button data-action="edit-memo">메모 수정</button>
           <button class="pick" data-action="pick">📍 지도에서 지정</button>
           <button class="delete" data-action="delete">삭제</button>
         </div>
@@ -355,6 +367,17 @@
           return;
         }
         if (action === 'open') { window.open(s.url, '_blank', 'noopener'); return; }
+        if (action === 'edit-memo') {
+          const edited = prompt(`"${s.name}" 메모를 수정하세요.`, s.memo || '');
+          if (edited === null) return;
+          await Stores.update(state.meal, s.id, { memo: edited });
+          renderSettingsStoreList();
+          if (MEAL_TYPES.includes(state.activeTab) && state.activeTab === state.meal) {
+            renderStoreList();
+            Maps.renderStores(getVisibleStores());
+          }
+          return;
+        }
         if (action === 'pick') { beginPickMode(s.id); return; }
       });
       list.appendChild(li);
