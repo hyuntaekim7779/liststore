@@ -45,53 +45,86 @@
     return `${BASE}/${table}()?${SAS}${f}`;
   }
 
+  function reportError(op, status, message) {
+    console.error(`[azure] ${op} → ${status}`, message || '');
+    try {
+      window.dispatchEvent(new CustomEvent('storage-error', {
+        detail: { op, status, message: String(message || '').slice(0, 300) },
+      }));
+    } catch { /* ignore */ }
+  }
+
   async function listEntities(table, pk) {
-    const res = await fetch(listUrl(table, `PartitionKey eq '${escapeOData(pk)}'`), {
-      method: 'GET', headers: COMMON_HEADERS,
-    });
-    if (!res.ok) {
-      console.error(`[azure] list ${table} ${pk} → ${res.status}`, await res.text());
+    try {
+      const res = await fetch(listUrl(table, `PartitionKey eq '${escapeOData(pk)}'`), {
+        method: 'GET', headers: COMMON_HEADERS,
+      });
+      if (!res.ok) {
+        reportError(`list ${table}/${pk}`, res.status, await res.text());
+        return [];
+      }
+      const data = await res.json();
+      return data.value || [];
+    } catch (e) {
+      reportError(`list ${table}/${pk}`, 'network', e.message);
       return [];
     }
-    const data = await res.json();
-    return data.value || [];
   }
 
   async function getEntity(table, pk, rk) {
-    const res = await fetch(entityUrl(table, pk, rk), {
-      method: 'GET', headers: COMMON_HEADERS,
-    });
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      console.error(`[azure] get ${table} ${pk}/${rk} → ${res.status}`, await res.text());
+    try {
+      const res = await fetch(entityUrl(table, pk, rk), {
+        method: 'GET', headers: COMMON_HEADERS,
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        reportError(`get ${table}/${pk}/${rk}`, res.status, await res.text());
+        return null;
+      }
+      return await res.json();
+    } catch (e) {
+      reportError(`get ${table}/${pk}/${rk}`, 'network', e.message);
       return null;
     }
-    return await res.json();
   }
 
   async function putEntity(table, pk, rk, props) {
     const body = { PartitionKey: pk, RowKey: rk, ...props };
-    const res = await fetch(entityUrl(table, pk, rk), {
-      method: 'PUT',
-      headers: { ...COMMON_HEADERS, 'If-Match': '*' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok && res.status !== 204) {
-      const t = await res.text();
-      console.error(`[azure] put ${table} ${pk}/${rk} → ${res.status}`, t);
-      throw new Error(`Azure PUT failed: ${res.status}`);
+    try {
+      const res = await fetch(entityUrl(table, pk, rk), {
+        method: 'PUT',
+        headers: { ...COMMON_HEADERS, 'If-Match': '*' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok && res.status !== 204) {
+        const t = await res.text();
+        reportError(`put ${table}/${pk}/${rk}`, res.status, t);
+        throw new Error(`Azure PUT failed: ${res.status}`);
+      }
+    } catch (e) {
+      if (!String(e.message).startsWith('Azure ')) {
+        reportError(`put ${table}/${pk}/${rk}`, 'network', e.message);
+      }
+      throw e;
     }
   }
 
   async function deleteEntity(table, pk, rk) {
-    const res = await fetch(entityUrl(table, pk, rk), {
-      method: 'DELETE',
-      headers: { ...COMMON_HEADERS, 'If-Match': '*' },
-    });
-    if (!res.ok && res.status !== 204 && res.status !== 404) {
-      const t = await res.text();
-      console.error(`[azure] delete ${table} ${pk}/${rk} → ${res.status}`, t);
-      throw new Error(`Azure DELETE failed: ${res.status}`);
+    try {
+      const res = await fetch(entityUrl(table, pk, rk), {
+        method: 'DELETE',
+        headers: { ...COMMON_HEADERS, 'If-Match': '*' },
+      });
+      if (!res.ok && res.status !== 204 && res.status !== 404) {
+        const t = await res.text();
+        reportError(`delete ${table}/${pk}/${rk}`, res.status, t);
+        throw new Error(`Azure DELETE failed: ${res.status}`);
+      }
+    } catch (e) {
+      if (!String(e.message).startsWith('Azure ')) {
+        reportError(`delete ${table}/${pk}/${rk}`, 'network', e.message);
+      }
+      throw e;
     }
   }
 

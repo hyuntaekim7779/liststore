@@ -25,7 +25,7 @@
     bindAutoAdd();
     bindRoulette();
     bindVoting();
-    bindModal();
+    bindStorageErrors();
 
     // 점심/저녁 데이터 미리 로드
     await Stores.load('lunch');
@@ -107,11 +107,6 @@
     $$('.meal-tab').forEach((btn) => {
       btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
-    $('#link-go-settings').addEventListener('click', (e) => {
-      e.preventDefault();
-      openModal();
-    });
-    $('#btn-quick-add').addEventListener('click', () => openModal());
     // settings 안의 식사 선택 라디오
     $$('input[name="reg-meal"]').forEach((r) => {
       r.addEventListener('change', () => {
@@ -197,19 +192,17 @@
     }
 
     const warnNoCoords = (lat == null || lng == null);
-    const finalName = name || `장소 ${placeId || ''}`.trim();
-    const memoParts = [];
-    if (memo) memoParts.push(memo);
-    if (category) memoParts.push(category);
-    if (phone) memoParts.push(phone);
-    if (placeId) memoParts.push(`placeId:${placeId}`);
+    const finalName = name || (placeId ? `장소 ${placeId}` : '이름 없음');
 
     const store = await Stores.add(meal, {
       name: finalName,
       url: url || '',
       address: address || '',
       lat, lng,
-      memo: memoParts.join(' · '),
+      memo: (memo || '').trim(),
+      placeId: placeId || null,
+      phone: phone || null,
+      category: category || null,
     });
 
     if (warnNoCoords) {
@@ -221,78 +214,7 @@
     return { store, warnNoCoords };
   }
 
-  // ---------- 모달: 빠른 가게 등록 ----------
-  function bindModal() {
-    const modal = $('#modal-add');
-    const close = () => modal.classList.add('hidden');
-
-    $('#modal-close').addEventListener('click', close);
-    $('#modal-cancel').addEventListener('click', close);
-    modal.querySelector('.modal-backdrop').addEventListener('click', close);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
-    });
-
-    $('#modal-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const meal = ($$('input[name="modal-meal"]').find((r) => r.checked) || {}).value || 'lunch';
-      const name = $('#modal-name').value.trim();
-      const url = $('#modal-url').value.trim();
-      const memo = $('#modal-memo').value.trim();
-      const statusEl = $('#modal-status');
-      const setStatus = (kind, msg) => {
-        statusEl.className = 'auto-status ' + (kind || '');
-        statusEl.textContent = msg;
-      };
-
-      if (!name && !url) {
-        setStatus('error', '가게 이름 또는 URL 중 최소 하나는 입력해주세요.');
-        return;
-      }
-
-      $('#modal-submit').disabled = true;
-      try {
-        const result = await registerStoreSmart({
-          meal, url, manualName: name, memo, statusCb: setStatus,
-        });
-        if (!result) return;
-
-        state.meal = meal;
-        $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === meal); });
-        renderSettingsStoreList();
-        if (state.activeTab === 'lunch' || state.activeTab === 'dinner') {
-          if (state.activeTab === meal) {
-            renderStoreList();
-            Maps.renderStores(Stores.get(meal));
-          }
-        }
-
-        setTimeout(() => {
-          close();
-          $('#modal-name').value = '';
-          $('#modal-url').value = '';
-          $('#modal-memo').value = '';
-          $('#modal-status').textContent = '';
-        }, 1000);
-      } finally {
-        $('#modal-submit').disabled = false;
-      }
-    });
-  }
-
-  function openModal() {
-    const modal = $('#modal-add');
-    $$('input[name="modal-meal"]').forEach((r) => { r.checked = (r.value === state.meal); });
-    $('#modal-name').value = '';
-    $('#modal-url').value = '';
-    $('#modal-memo').value = '';
-    $('#modal-status').textContent = '';
-    $('#modal-status').className = 'auto-status';
-    modal.classList.remove('hidden');
-    setTimeout(() => $('#modal-name').focus(), 60);
-  }
-
-  // ---------- Settings: Auto-add (기존 URL 폼) ----------
+  // ---------- Settings: Auto-add (URL 폼) ----------
   function bindAutoAdd() {
     $('#btn-auto-add').addEventListener('click', async () => {
       const url = $('#reg-url').value.trim();
@@ -391,9 +313,7 @@
             ${noCoords ? '<span class="s-badge warn">좌표 미확인</span>' : ''}
           </div>
           <div class="s-meta">
-            ${s.address ? escapeHtml(s.address) + ' · ' : ''}
-            ${s.memo ? escapeHtml(s.memo) : ''}
-            ${!noCoords ? `· ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}` : ''}
+            ${buildStoreMetaHtml(s, true)}
           </div>
         </div>
         <div class="s-actions">
@@ -525,8 +445,7 @@
             ${noCoords ? '<span class="s-badge warn">좌표 미확인</span>' : ''}
           </div>
           <div class="s-meta">
-            ${s.address ? escapeHtml(s.address) + ' · ' : ''}
-            ${s.memo ? escapeHtml(s.memo) : ''}
+            ${buildStoreMetaHtml(s, false)}
           </div>
         </div>
         <div class="s-actions">
@@ -728,5 +647,51 @@
     return String(s).replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
     );
+  }
+
+  /** UI 표시용 memo 정리 — 옛 placeId:xxx 문자열을 제거. */
+  function cleanMemoForDisplay(memo) {
+    if (!memo) return '';
+    return String(memo)
+      .replace(/\s*·\s*placeId:\S+/gi, '')
+      .replace(/^placeId:\S+\s*·?\s*/i, '')
+      .trim();
+  }
+
+  /**
+   * 가게 한 줄 메타 표시. placeId 는 의도적으로 노출하지 않음.
+   * @param {boolean} showCoords - 좌표 텍스트를 함께 표시할지 여부
+   */
+  function buildStoreMetaHtml(s, showCoords) {
+    const parts = [];
+    if (s.address) parts.push(escapeHtml(s.address));
+    if (s.category) parts.push(escapeHtml(s.category));
+    if (s.phone) parts.push(escapeHtml(s.phone));
+    const cleanedMemo = cleanMemoForDisplay(s.memo);
+    if (cleanedMemo) parts.push(escapeHtml(cleanedMemo));
+    if (showCoords && s.lat != null && s.lng != null) {
+      parts.push(`${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`);
+    }
+    return parts.join(' · ');
+  }
+
+  // ---------- Storage 오류 배너 ----------
+  function bindStorageErrors() {
+    let lastShownAt = 0;
+    window.addEventListener('storage-error', (e) => {
+      const now = Date.now();
+      if (now - lastShownAt < 4000) return;
+      lastShownAt = now;
+      const banner = $('#storage-error-banner');
+      if (!banner) return;
+      const detail = (e.detail || {});
+      banner.innerHTML = `
+        ⚠️ Azure 저장소 연결 오류 (${escapeHtml(String(detail.status || 'network'))}).
+        브라우저 콘솔(F12)에서 자세한 메시지를 확인하세요.
+        <br/><small>가능한 원인: 테이블 미생성 / CORS 미설정 / SAS 만료.</small>
+      `;
+      banner.classList.remove('hidden');
+      setTimeout(() => banner.classList.add('hidden'), 8000);
+    });
   }
 })();

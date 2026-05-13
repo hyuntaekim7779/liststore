@@ -23,6 +23,9 @@
         lat: partial.lat != null && partial.lat !== '' ? Number(partial.lat) : null,
         lng: partial.lng != null && partial.lng !== '' ? Number(partial.lng) : null,
         memo: (partial.memo || '').trim(),
+        placeId: partial.placeId ? String(partial.placeId).trim() : null,
+        phone: partial.phone ? String(partial.phone).trim() : null,
+        category: partial.category ? String(partial.category).trim() : null,
         createdAt: Date.now(),
       };
       this.cache[meal].push(store);
