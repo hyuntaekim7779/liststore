@@ -8,19 +8,19 @@
 </head>
 <body>
   <header class="app-header">
-    <div class="hero-top">
-      <img class="hero-side-img" src="assets/header-left.png" alt="헤더 왼쪽 이미지" />
-      <h1>밥먹자!</h1>
-      <img class="hero-side-img" src="assets/header-right.png" alt="헤더 오른쪽 이미지" />
-    </div>
+    <h1>밥먹자!</h1>
   </header>
 
-  <nav class="meal-tabs">
-    <button class="meal-tab active" data-tab="lunch" type="button">🥗 점심</button>
-    <button class="meal-tab" data-tab="fridayLunch" type="button">📅 금요일 점심</button>
-    <button class="meal-tab" data-tab="dinner" type="button">🍻 저녁</button>
-    <button class="meal-tab" data-tab="settings" type="button">⚙️ 설정</button>
-  </nav>
+  <div class="tabs-banner-row">
+    <img class="tabs-side-img left" src="assets/tabs-left.png" alt="점심 버튼 왼쪽 이미지" />
+    <nav class="meal-tabs">
+      <button class="meal-tab active" data-tab="lunch" type="button">🥗 점심</button>
+      <button class="meal-tab" data-tab="fridayLunch" type="button">📅 금요일 점심</button>
+      <button class="meal-tab" data-tab="dinner" type="button">🍻 저녁</button>
+      <button class="meal-tab" data-tab="settings" type="button">⚙️ 설정</button>
+    </nav>
+    <img class="tabs-side-img right" src="assets/tabs-right.png" alt="설정 버튼 오른쪽 이미지" />
+  </div>
 
   <div id="storage-error-banner" class="storage-error hidden"></div>
 

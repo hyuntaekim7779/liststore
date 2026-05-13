@@ -27,26 +27,26 @@ body {
   padding: 10px 10px 4px;
 }
 .app-header h1 { margin: 0; font-size: 40px; line-height: 1; }
-.hero-top {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-.hero-side-img {
-  width: 132px;
-  height: 56px;
-  object-fit: contain;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: #fff;
-}
 
 .meal-tabs {
   display: flex;
   justify-content: center;
   gap: 8px;
-  padding: 8px 16px 16px;
+  padding: 0;
+}
+.tabs-banner-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 10px 16px;
+}
+.tabs-side-img {
+  width: 400px;
+  height: 247px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
 }
 .meal-tab {
   border: 1px solid var(--border);
@@ -310,12 +310,13 @@ main {
 .app-footer code { background: #eef0ff; padding: 1px 6px; border-radius: 4px; }
 
 @media (max-width: 560px) {
-  .hero-top {
-    gap: 6px;
+  .tabs-banner-row {
+    gap: 8px;
+    flex-wrap: wrap;
   }
-  .hero-side-img {
-    width: 96px;
-    height: 42px;
+  .tabs-side-img {
+    width: 180px;
+    height: 111px;
   }
   .app-header h1 { font-size: 28px; }
   #panel-meal { grid-template-columns: 1fr; }
