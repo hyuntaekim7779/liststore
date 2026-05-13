@@ -30,7 +30,7 @@ body {
   margin: 0;
   font-size: 40px;
   line-height: 1;
-  transform: translateY(16px);
+  transform: translateY(30px);
 }
 
 .meal-tabs {
@@ -53,8 +53,8 @@ body {
   border-radius: 10px;
   border: 1px solid var(--border);
 }
-.tabs-side-img.left { transform: translateX(-40px); }
-.tabs-side-img.right { transform: translateX(40px); }
+.tabs-side-img.left { transform: translateX(-72px); }
+.tabs-side-img.right { transform: translateX(72px); }
 .meal-tab {
   border: 1px solid var(--border);
   background: var(--card);
@@ -328,7 +328,7 @@ main {
   }
   .app-header h1 {
     font-size: 28px;
-    transform: translateY(10px);
+    transform: translateY(16px);
   }
   #panel-meal { grid-template-columns: 1fr; }
   #panel-meal .meal-list-card,
