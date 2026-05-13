@@ -15,6 +15,7 @@
   <nav class="meal-tabs">
     <button class="meal-tab active" data-tab="lunch" type="button">🥗 점심</button>
     <button class="meal-tab" data-tab="dinner" type="button">🍻 저녁</button>
+    <button class="meal-tab" data-tab="fridayLunch" type="button">📅 금요일 점심</button>
     <button class="meal-tab" data-tab="settings" type="button">⚙️ 설정</button>
   </nav>
 
@@ -31,7 +32,10 @@
     </section>
 
     <section class="card">
-      <h2>🗺️ 지도</h2>
+      <div class="card-header map-header">
+        <h2>🗺️ 지도</h2>
+        <button id="btn-map-my-location" class="btn btn-secondary" type="button">📍 내 위치로 이동</button>
+      </div>
       <div id="map" class="map"></div>
       <p class="hint" id="map-hint">가게를 클릭하면 지도에서 위치를 확인할 수 있어요.</p>
     </section>
@@ -106,6 +110,7 @@
           <div class="radio-group" id="reg-meal-group">
             <label><input type="radio" name="reg-meal" value="lunch" checked /> 🥗 점심</label>
             <label><input type="radio" name="reg-meal" value="dinner" /> 🍻 저녁</label>
+            <label><input type="radio" name="reg-meal" value="fridayLunch" /> 📅 금요일 점심</label>
           </div>
         </label>
       </div>

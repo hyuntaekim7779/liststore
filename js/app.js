@@ -1,13 +1,14 @@
 /**
- * App orchestrator. 3-tab UI: 점심 / 저녁 / 설정
+ * App orchestrator. meal tabs + settings UI.
  */
 (function () {
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const MEAL_TYPES = ['lunch', 'dinner', 'fridayLunch'];
 
   const state = {
-    activeTab: 'lunch',           // 'lunch' | 'dinner' | 'settings'
-    meal: 'lunch',                // 'lunch' | 'dinner' (현재 작업 대상 식사)
+    activeTab: 'lunch',           // meal tab key | 'settings'
+    meal: 'lunch',                // 현재 작업 대상 식사 타입
     selectedStoreId: null,
     voteTimer: null,
     pickingForStoreId: null,      // 좌표 지정 모드 대상
@@ -25,13 +26,14 @@
     bindAutoAdd();
     bindRoulette();
     bindVoting();
+    bindMapActions();
     bindStorageErrors();
 
-    // 점심/저녁 데이터 미리 로드
-    await Stores.load('lunch');
-    await Stores.load('dinner');
-    await Voting.load('lunch');
-    await Voting.load('dinner');
+    // 식사 타입 데이터 미리 로드
+    for (const meal of MEAL_TYPES) {
+      await Stores.load(meal);
+      await Voting.load(meal);
+    }
 
     await switchTab('lunch');
     document.addEventListener('keydown', (e) => {
@@ -84,17 +86,18 @@
     if (document.visibilityState === 'hidden') return;
     if (state.pickingForStoreId) return; // 좌표 지정 중에는 방해 X
     try {
-      await Stores.load('lunch');
-      await Stores.load('dinner');
+      for (const meal of MEAL_TYPES) {
+        await Stores.load(meal);
+      }
       await Voting.load(state.meal);
     } catch (e) {
       console.warn('poll failed:', e);
       return;
     }
     // 활성 탭 기준으로 UI 갱신
-    if (state.activeTab === 'lunch' || state.activeTab === 'dinner') {
+    if (MEAL_TYPES.includes(state.activeTab)) {
       renderStoreList();
-      Maps.renderStores(Stores.get(state.meal));
+      Maps.renderStores(getVisibleStores());
       renderVote();
     } else if (state.activeTab === 'settings') {
       renderSettingsStoreList();
@@ -129,14 +132,14 @@
       return;
     }
 
-    // lunch/dinner
+    // meal tabs
     state.meal = tab;
     state.selectedStoreId = null;
     $('#panel-settings').classList.add('hidden');
     $('#panel-meal').classList.remove('hidden');
 
     renderStoreList();
-    Maps.renderStores(Stores.get(state.meal));
+    Maps.renderStores(getVisibleStores());
     Roulette.setItems([]);
     $('#roulette-result').textContent = '';
     $('#btn-spin').disabled = true;
@@ -240,12 +243,25 @@
       state.meal = meal;
       $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === meal); });
       renderSettingsStoreList();
-      // 점심/저녁 탭이 이미 활성이라면 지도/리스트도 즉시 갱신
+      // 현재 선택한 식사 탭이 활성이라면 지도/리스트도 즉시 갱신
       if (state.activeTab === meal) {
         renderStoreList();
-        Maps.renderStores(Stores.get(meal));
+        Maps.renderStores(getVisibleStores());
       }
       if (result.warnNoCoords) beginPickMode(result.store.id);
+    });
+  }
+
+  function bindMapActions() {
+    const moveBtn = $('#btn-map-my-location');
+    if (!moveBtn) return;
+    moveBtn.addEventListener('click', async () => {
+      const loc = await Maps.moveToFixedLocation();
+      if (!loc) return;
+      const hint = $('#map-hint');
+      if (hint) {
+        hint.textContent = `📍 ${loc.name} (${loc.address}) 위치로 이동했습니다.`;
+      }
     });
   }
 
@@ -434,7 +450,7 @@
   // ---------- Meal panel: Store list (read-only) ----------
   function renderStoreList() {
     const list = $('#store-list');
-    const stores = Stores.get(state.meal);
+    const stores = getVisibleStores();
     $('#store-count').textContent = `(${stores.length})`;
     list.innerHTML = '';
     if (stores.length === 0) {
@@ -654,6 +670,11 @@
     return String(s).replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
     );
+  }
+
+  function getVisibleStores() {
+    // 탭별로 해당 식사 타입의 가게만 지도/리스트에 노출
+    return Stores.get(state.meal);
   }
 
   /** UI 표시용 memo 정리 — 옛 placeId:xxx 문자열을 제거. */

@@ -3,7 +3,7 @@
  * Vote object shape:
  *   {
  *     id: string,
- *     meal: 'lunch' | 'dinner',
+ *     meal: string,
  *     candidates: [{ id, name }],
  *     startAt: number (ms),
  *     endAt: number (ms),
@@ -17,17 +17,26 @@
     return 'v_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
   }
 
+  function ensureMealCurrent(current, meal) {
+    if (!(meal in current)) current[meal] = null;
+  }
+
   const Voting = {
-    current: { lunch: null, dinner: null },
+    current: {},
 
     async load(meal) {
+      ensureMealCurrent(this.current, meal);
       this.current[meal] = await window.Storage.getVote(meal);
       return this.current[meal];
     },
 
-    get(meal) { return this.current[meal]; },
+    get(meal) {
+      ensureMealCurrent(this.current, meal);
+      return this.current[meal];
+    },
 
     async create(meal, candidates, startAt, endAt) {
+      ensureMealCurrent(this.current, meal);
       if (!candidates || candidates.length < 2) {
         throw new Error('후보는 최소 2개 이상이어야 합니다.');
       }
@@ -48,6 +57,7 @@
     },
 
     async cast(meal, candidateId, voterName) {
+      ensureMealCurrent(this.current, meal);
       const name = (voterName || '').trim();
       if (!name) throw new Error('투표자 이름을 입력해주세요.');
 
@@ -73,6 +83,7 @@
     },
 
     async clear(meal) {
+      ensureMealCurrent(this.current, meal);
       this.current[meal] = null;
       await window.Storage.clearVote(meal);
     },

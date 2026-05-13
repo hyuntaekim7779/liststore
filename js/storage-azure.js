@@ -2,9 +2,9 @@
  * Azure Table Storage adapter.
  *
  * 데이터 모델:
- *   stores 테이블: PartitionKey = 'lunch' | 'dinner', RowKey = store.id,
+ *   stores 테이블: PartitionKey = meal key (예: lunch | dinner | fridayLunch), RowKey = store.id,
  *                  Payload (JSON 문자열, 가게 정보 전체)
- *   votes  테이블: PartitionKey = 'lunch' | 'dinner', RowKey = 'current',
+ *   votes  테이블: PartitionKey = meal key (예: lunch | dinner | fridayLunch), RowKey = 'current',
  *                  Payload (JSON 문자열, 투표 정보 전체)
  *
  * window.AppConfig.storage === 'azure' 일 때 자동으로 window.Storage 를 덮어씁니다.

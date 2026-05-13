@@ -12,6 +12,11 @@
   let pickModeListener = null;
   let pickModeCallback = null;
   const DEFAULT_CENTER = { lat: 37.5666103, lng: 126.9783882 }; // 서울 시청
+  const FIXED_LOCATION = {
+    name: '연강빌딩',
+    address: '서울 종로구 종로33길 15',
+    fallback: { lat: 37.5705, lng: 126.9914 },
+  };
 
   function ready() {
     return typeof naver !== 'undefined' && naver.maps;
@@ -83,6 +88,25 @@
       const pos = new naver.maps.LatLng(store.lat, store.lng);
       map.setCenter(pos);
       map.setZoom(16);
+    },
+
+    async moveToFixedLocation() {
+      if (!ready() || !map) return null;
+      const geocoded = await this.geocode(FIXED_LOCATION.address);
+      const target = geocoded || {
+        lat: FIXED_LOCATION.fallback.lat,
+        lng: FIXED_LOCATION.fallback.lng,
+        address: FIXED_LOCATION.address,
+      };
+      const pos = new naver.maps.LatLng(target.lat, target.lng);
+      map.setCenter(pos);
+      map.setZoom(17);
+      return {
+        name: FIXED_LOCATION.name,
+        address: target.address || FIXED_LOCATION.address,
+        lat: target.lat,
+        lng: target.lng,
+      };
     },
 
     geocode(address) {

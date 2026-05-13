@@ -1,20 +1,26 @@
 /**
- * Stores module — CRUD for restaurants per meal type (lunch/dinner).
+ * Stores module — CRUD for restaurants per meal type.
  */
 (function () {
   function uid() {
     return 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
   }
 
+  function ensureMealCache(cache, meal) {
+    if (!cache[meal]) cache[meal] = [];
+  }
+
   const Stores = {
-    cache: { lunch: [], dinner: [] },
+    cache: {},
 
     async load(meal) {
+      ensureMealCache(this.cache, meal);
       this.cache[meal] = await window.Storage.getStores(meal);
       return this.cache[meal];
     },
 
     async add(meal, partial) {
+      ensureMealCache(this.cache, meal);
       const store = {
         id: uid(),
         name: partial.name.trim(),
@@ -34,11 +40,13 @@
     },
 
     async remove(meal, id) {
+      ensureMealCache(this.cache, meal);
       this.cache[meal] = this.cache[meal].filter((s) => s.id !== id);
       await window.Storage.saveStores(meal, this.cache[meal]);
     },
 
     get(meal) {
+      ensureMealCache(this.cache, meal);
       return this.cache[meal] || [];
     },
 
