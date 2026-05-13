@@ -54,6 +54,7 @@
         placeId: partial.placeId ? String(partial.placeId).trim() : null,
         phone: partial.phone ? String(partial.phone).trim() : null,
         category: partial.category ? String(partial.category).trim() : null,
+        showInCompanionLunchTab: Boolean(partial.showInCompanionLunchTab),
         createdAt: Date.now(),
       };
       this.cache[meal].push(store);
@@ -77,6 +78,29 @@
       this.cache[meal][idx] = next;
       await window.Storage.saveStores(meal, this.cache[meal]);
       return next;
+    },
+
+    async move(mealFrom, mealTo, id, patch = {}) {
+      ensureMealCache(this.cache, mealFrom);
+      ensureMealCache(this.cache, mealTo);
+      const idx = this.cache[mealFrom].findIndex((s) => s.id === id);
+      if (idx < 0) return null;
+
+      const source = this.cache[mealFrom][idx];
+      const normalizedUrl = normalizeUrl(source.url);
+      if (normalizedUrl) {
+        const duplicated = this.cache[mealTo].some((s) => normalizeUrl(s.url) === normalizedUrl);
+        if (duplicated) {
+          throw new Error('이동 대상 탭에 동일한 네이버 지도 URL이 이미 등록되어 있습니다.');
+        }
+      }
+
+      const moved = { ...source, ...patch };
+      this.cache[mealFrom].splice(idx, 1);
+      this.cache[mealTo].push(moved);
+      await window.Storage.saveStores(mealFrom, this.cache[mealFrom]);
+      await window.Storage.saveStores(mealTo, this.cache[mealTo]);
+      return moved;
     },
 
     get(meal) {

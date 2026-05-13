@@ -353,6 +353,7 @@
         <div class="s-actions">
           ${s.url ? `<button data-action="open">🔗</button>` : ''}
           <button data-action="edit-memo">메모 수정</button>
+          ${state.meal === 'lunch' ? '<button data-action="visibility">노출 설정</button>' : ''}
           <button class="pick" data-action="pick">📍 지도에서 지정</button>
           <button class="delete" data-action="delete">삭제</button>
         </div>
@@ -376,6 +377,10 @@
             renderStoreList();
             Maps.renderStores(getVisibleStores());
           }
+          return;
+        }
+        if (action === 'visibility') {
+          await configureLunchFridayVisibility(s);
           return;
         }
         if (action === 'pick') { beginPickMode(s.id); return; }
@@ -512,7 +517,7 @@
   // ---------- Roulette ----------
   function bindRoulette() {
     $('#btn-pick-roulette').addEventListener('click', () => {
-      const picks = Stores.pickRandom(state.meal, 5);
+      const picks = pickRandomFromVisible(5);
       if (picks.length < 2) {
         alert('가게를 최소 2곳 이상 등록해주세요.');
         return;
@@ -544,7 +549,7 @@
 
     $('#btn-pick-vote').addEventListener('click', () => {
       const count = Math.max(2, Math.min(10, parseInt($('#vote-candidate-count').value, 10) || 4));
-      const picks = Stores.pickRandom(state.meal, count);
+      const picks = pickRandomFromVisible(count);
       if (picks.length < 2) {
         alert('가게를 최소 2곳 이상 등록해주세요.');
         return;
@@ -728,8 +733,87 @@
   }
 
   function getVisibleStores() {
-    // 탭별로 해당 식사 타입의 가게만 지도/리스트에 노출
+    if (state.meal === 'fridayLunch') {
+      const fridayStores = Stores.get('fridayLunch');
+      const lunchShared = Stores.get('lunch').filter((s) => s.showInCompanionLunchTab);
+      return dedupeStoresByUrl([...fridayStores, ...lunchShared]);
+    }
+    // 기본: 현재 식사 탭의 가게만 노출
     return Stores.get(state.meal);
+  }
+
+  function dedupeStoresByUrl(stores) {
+    const seen = new Set();
+    const out = [];
+    stores.forEach((s) => {
+      const key = normalizeUrlForCompare(s.url) || `${s.name}|${s.address || ''}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(s);
+    });
+    return out;
+  }
+
+  function normalizeUrlForCompare(url) {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    try {
+      const u = new URL(raw);
+      u.hash = '';
+      u.protocol = u.protocol.toLowerCase();
+      u.hostname = u.hostname.toLowerCase();
+      if (u.pathname !== '/') u.pathname = u.pathname.replace(/\/+$/, '');
+      return u.toString();
+    } catch {
+      return raw;
+    }
+  }
+
+  function pickRandomFromVisible(n) {
+    const arr = [...getVisibleStores()];
+    const out = [];
+    while (arr.length && out.length < n) {
+      const idx = Math.floor(Math.random() * arr.length);
+      out.push(arr.splice(idx, 1)[0]);
+    }
+    return out;
+  }
+
+  async function configureLunchFridayVisibility(store) {
+    if (state.meal !== 'lunch') return;
+    const current = store.showInCompanionLunchTab ? '점심 + 금요일 점심(중복 노출)' : '점심만';
+    const input = prompt(
+      `"${store.name}" 노출 설정\n` +
+      `현재: ${current}\n\n` +
+      `1: 점심만 노출\n` +
+      `2: 점심 + 금요일 점심 모두 노출 (중복 허용)\n` +
+      `3: 금요일 점심만 노출 (점심에서 이동)\n\n` +
+      `번호를 입력하세요.`,
+      store.showInCompanionLunchTab ? '2' : '1'
+    );
+    if (input == null) return;
+    const choice = String(input).trim();
+    try {
+      if (choice === '1') {
+        await Stores.update('lunch', store.id, { showInCompanionLunchTab: false });
+      } else if (choice === '2') {
+        await Stores.update('lunch', store.id, { showInCompanionLunchTab: true });
+      } else if (choice === '3') {
+        await Stores.move('lunch', 'fridayLunch', store.id, { showInCompanionLunchTab: false });
+      } else {
+        alert('1, 2, 3 중에서 선택해주세요.');
+        return;
+      }
+    } catch (e) {
+      alert(e && e.message ? e.message : '노출 설정 변경 중 오류가 발생했습니다.');
+      return;
+    }
+
+    renderSettingsStoreList();
+    if (MEAL_TYPES.includes(state.activeTab)) {
+      renderStoreList();
+      Maps.renderStores(getVisibleStores());
+    }
   }
 
   /** UI 표시용 memo 정리 — 옛 placeId:xxx 문자열을 제거. */
