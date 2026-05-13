@@ -65,7 +65,7 @@ Naver Maps API는 호출 도메인이 사전 등록되어 있어야 합니다.
 현재 `index.html` 의 스크립트 태그:
 
 ```html
-<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=rbk7lbrudl&submodules=geocoder"></script>
+<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=ufhtl7ialy&submodules=geocoder"></script>
 ```
 
 - 새 NCP 계정은 `ncpKeyId` 사용
