@@ -35,7 +35,7 @@
       await Voting.load(meal);
     }
 
-    await switchTab('lunch');
+    await switchTab(getInitialMealTabBySeoulTime());
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && Maps.isPickMode()) cancelPickMode();
     });
@@ -661,6 +661,38 @@
   }
 
   function pad(n) { return String(n).padStart(2, '0'); }
+
+  function getInitialMealTabBySeoulTime() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date());
+
+    const weekday = parts.find((p) => p.type === 'weekday')?.value;
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value || 0);
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value || 0);
+    const minutesFromMidnight = hour * 60 + minute;
+
+    const monToThu = ['Mon', 'Tue', 'Wed', 'Thu'];
+    const isFriday = weekday === 'Fri';
+    const isWeekday = monToThu.includes(weekday) || isFriday;
+
+    // 09:00 ~ 13:00
+    const inMorningLunchWindow = minutesFromMidnight >= (9 * 60) && minutesFromMidnight <= (13 * 60);
+    if (inMorningLunchWindow) {
+      if (isFriday) return 'fridayLunch';
+      if (monToThu.includes(weekday)) return 'lunch';
+    }
+
+    // 13:30 ~ 19:00
+    const inDinnerWindow = minutesFromMidnight >= (13 * 60 + 30) && minutesFromMidnight <= (19 * 60);
+    if (isWeekday && inDinnerWindow) return 'dinner';
+
+    return 'lunch';
+  }
 
   function toLocalDtInput(d) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
