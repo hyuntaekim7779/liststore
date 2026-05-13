@@ -13,52 +13,17 @@
   </header>
 
   <nav class="meal-tabs">
-    <button class="meal-tab active" data-meal="lunch">🥗 점심</button>
-    <button class="meal-tab" data-meal="dinner">🍻 저녁</button>
+    <button class="meal-tab active" data-tab="lunch">🥗 점심</button>
+    <button class="meal-tab" data-tab="dinner">🍻 저녁</button>
+    <button class="meal-tab" data-tab="settings">⚙️ 설정</button>
   </nav>
 
-  <main>
-    <section class="card">
-      <h2>가게 등록</h2>
-      <form id="store-form" class="store-form">
-        <div class="form-row">
-          <label>가게 이름 *
-            <input type="text" id="store-name" required placeholder="예: 김밥천국 강남점" />
-          </label>
-        </div>
-        <div class="form-row">
-          <label>네이버 지도 URL
-            <input type="url" id="store-url" placeholder="https://map.naver.com/... (선택)" />
-          </label>
-        </div>
-        <div class="form-row">
-          <label>주소 (지도 표시용)
-            <input type="text" id="store-address" placeholder="예: 서울시 강남구 테헤란로 123" />
-          </label>
-          <button type="button" id="btn-geocode" class="btn btn-secondary">📍 좌표 찾기</button>
-        </div>
-        <div class="form-row two">
-          <label>위도(lat)
-            <input type="number" step="any" id="store-lat" placeholder="자동 채워짐" />
-          </label>
-          <label>경도(lng)
-            <input type="number" step="any" id="store-lng" placeholder="자동 채워짐" />
-          </label>
-        </div>
-        <div class="form-row">
-          <label>메모
-            <input type="text" id="store-memo" placeholder="예: 점심특선 9,000원" />
-          </label>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary">+ 등록</button>
-        </div>
-      </form>
-    </section>
-
+  <!-- ============ MEAL PANEL (점심/저녁) ============ -->
+  <main id="panel-meal" class="panel">
     <section class="card">
       <div class="card-header">
         <h2>가게 리스트 <span id="store-count" class="muted">(0)</span></h2>
+        <a href="#" id="link-go-settings" class="muted" style="font-size:13px">＋ 설정에서 가게 등록</a>
       </div>
       <ul id="store-list" class="store-list"></ul>
     </section>
@@ -125,12 +90,93 @@
     </section>
   </main>
 
+  <!-- ============ SETTINGS PANEL ============ -->
+  <main id="panel-settings" class="panel hidden">
+    <section class="card">
+      <h2>🪄 URL로 빠른 등록</h2>
+      <p class="hint">
+        네이버 지도에서 가게 페이지의 URL을 복사해 붙여넣으면 가게 이름과 좌표를 자동으로 추출합니다.
+        <br/>예: <code>https://map.naver.com/p/search/김밥천국/place/1194911319?c=...</code>
+      </p>
+
+      <div class="form-row">
+        <label>등록할 식사
+          <div class="radio-group" id="reg-meal-group">
+            <label><input type="radio" name="reg-meal" value="lunch" checked /> 🥗 점심</label>
+            <label><input type="radio" name="reg-meal" value="dinner" /> 🍻 저녁</label>
+          </div>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>네이버 지도 URL *
+          <input id="reg-url" type="url" placeholder="https://map.naver.com/p/search/.../place/..." />
+        </label>
+      </div>
+      <div class="form-actions">
+        <button id="btn-auto-add" class="btn btn-primary">URL로 자동 등록</button>
+      </div>
+      <div id="auto-add-status" class="auto-status"></div>
+
+      <details class="manual-form">
+        <summary>수동으로 직접 입력하기</summary>
+        <form id="store-form" class="store-form">
+          <div class="form-row">
+            <label>가게 이름 *
+              <input type="text" id="store-name" required placeholder="예: 김밥천국 강남점" />
+            </label>
+          </div>
+          <div class="form-row">
+            <label>네이버 지도 URL
+              <input type="url" id="store-url" placeholder="https://map.naver.com/... (선택)" />
+            </label>
+          </div>
+          <div class="form-row">
+            <label>주소 (지도 표시용)
+              <input type="text" id="store-address" placeholder="예: 서울시 강남구 테헤란로 123" />
+            </label>
+            <button type="button" id="btn-geocode" class="btn btn-secondary">📍 좌표 찾기</button>
+          </div>
+          <div class="form-row two">
+            <label>위도(lat)
+              <input type="number" step="any" id="store-lat" placeholder="자동 채워짐" />
+            </label>
+            <label>경도(lng)
+              <input type="number" step="any" id="store-lng" placeholder="자동 채워짐" />
+            </label>
+          </div>
+          <div class="form-row">
+            <label>메모
+              <input type="text" id="store-memo" placeholder="예: 점심특선 9,000원" />
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">+ 등록</button>
+          </div>
+        </form>
+      </details>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2>등록된 가게 <span id="settings-store-count" class="muted">(0)</span></h2>
+      </div>
+      <p class="hint">선택한 식사 탭의 등록된 가게입니다. 좌표가 없는 가게는 “📍 지도에서 지정” 버튼으로 위치를 잡아주세요.</p>
+      <ul id="settings-store-list" class="store-list"></ul>
+
+      <div id="settings-map-wrap" class="hidden">
+        <h3>📍 지도에서 좌표 지정</h3>
+        <p class="hint" id="pick-mode-hint">지도 위에서 정확한 위치를 클릭해주세요. ESC로 취소.</p>
+        <div id="settings-map" class="map"></div>
+      </div>
+    </section>
+  </main>
+
   <footer class="app-footer">
     <small>데이터는 이 브라우저에만 저장됩니다 (localStorage).</small>
   </footer>
 
   <!-- Naver Maps JavaScript API. Client ID is safe to expose in browser code. -->
-  <!-- 만약 인증 오류가 발생하면 ncpClientId → ncpKeyId 로 바꿔보세요. -->
+  <!-- 만약 인증 오류가 발생하면 ncpKeyId → ncpClientId 로 바꿔보세요. -->
   <script type="text/javascript"
     src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=ufhtl7ialy&submodules=geocoder">
   </script>

@@ -1,11 +1,17 @@
 /**
- * App orchestrator. Wires UI events to Stores / Maps / Roulette / Voting modules.
+ * App orchestrator. 3-tab UI: 점심 / 저녁 / 설정
  */
 (function () {
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  const state = { meal: 'lunch', selectedStoreId: null, voteTimer: null };
+  const state = {
+    activeTab: 'lunch',           // 'lunch' | 'dinner' | 'settings'
+    meal: 'lunch',                // 'lunch' | 'dinner' (현재 작업 대상 식사)
+    selectedStoreId: null,
+    voteTimer: null,
+    pickingForStoreId: null,      // 좌표 지정 모드 대상
+  };
 
   document.addEventListener('DOMContentLoaded', init);
 
@@ -13,39 +19,149 @@
     Maps.init('map');
     Roulette.init('roulette-canvas');
 
-    bindMealTabs();
+    bindTabs();
     bindStoreForm();
+    bindAutoAdd();
     bindRoulette();
     bindVoting();
 
-    await switchMeal('lunch');
-  }
+    // 점심/저녁 데이터 미리 로드
+    await Stores.load('lunch');
+    await Stores.load('dinner');
+    await Voting.load('lunch');
+    await Voting.load('dinner');
 
-  // ---------- Meal tabs ----------
-  function bindMealTabs() {
-    $$('.meal-tab').forEach((btn) => {
-      btn.addEventListener('click', () => switchMeal(btn.dataset.meal));
+    await switchTab('lunch');
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && Maps.isPickMode()) cancelPickMode();
     });
   }
 
-  async function switchMeal(meal) {
-    state.meal = meal;
+  // ---------- Tabs ----------
+  function bindTabs() {
+    $$('.meal-tab').forEach((btn) => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+    $('#link-go-settings').addEventListener('click', (e) => {
+      e.preventDefault();
+      switchTab('settings');
+    });
+    // settings 안의 식사 선택 라디오
+    $$('input[name="reg-meal"]').forEach((r) => {
+      r.addEventListener('change', () => {
+        state.meal = r.value;
+        renderSettingsStoreList();
+      });
+    });
+  }
+
+  async function switchTab(tab) {
+    cancelPickMode();
+    state.activeTab = tab;
+    $$('.meal-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+
+    if (tab === 'settings') {
+      $('#panel-meal').classList.add('hidden');
+      $('#panel-settings').classList.remove('hidden');
+      $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === state.meal); });
+      renderSettingsStoreList();
+      return;
+    }
+
+    // lunch/dinner
+    state.meal = tab;
     state.selectedStoreId = null;
-    $$('.meal-tab').forEach((b) => b.classList.toggle('active', b.dataset.meal === meal));
-    await Stores.load(meal);
-    await Voting.load(meal);
+    $('#panel-settings').classList.add('hidden');
+    $('#panel-meal').classList.remove('hidden');
+
     renderStoreList();
-    Maps.renderStores(Stores.get(meal));
+    Maps.renderStores(Stores.get(state.meal));
     Roulette.setItems([]);
     $('#roulette-result').textContent = '';
     $('#btn-spin').disabled = true;
     renderVote();
   }
 
-  // ---------- Store form ----------
+  // ---------- Settings: Auto-add ----------
+  function bindAutoAdd() {
+    $('#btn-auto-add').addEventListener('click', async () => {
+      const url = $('#reg-url').value.trim();
+      const meal = $$('input[name="reg-meal"]').find((r) => r.checked).value;
+      const statusEl = $('#auto-add-status');
+      statusEl.className = 'auto-status';
+      statusEl.textContent = '';
+
+      if (!url) {
+        setStatus('error', 'URL을 입력해주세요.');
+        return;
+      }
+
+      setStatus('', '🔍 URL 분석 중…');
+      const parsed = Maps.parseUrl(url);
+      if (!parsed) {
+        setStatus('error', 'URL을 해석할 수 없습니다. 정확한 네이버 지도 URL인지 확인해주세요.');
+        return;
+      }
+      if (!parsed.name && !parsed.placeId) {
+        setStatus('error', '가게 이름 또는 place ID를 URL에서 찾지 못했습니다.');
+        return;
+      }
+
+      let { name, placeId, lat, lng } = parsed;
+      let address = null;
+      let warnNoCoords = false;
+
+      // 좌표가 없으면 이름으로 Geocoder 시도
+      if ((lat == null || lng == null) && name) {
+        setStatus('', `🔍 "${name}" 좌표 검색 중…`);
+        const geo = await Maps.geocode(name);
+        if (geo) { lat = geo.lat; lng = geo.lng; address = geo.address; }
+      }
+
+      if (lat == null || lng == null) warnNoCoords = true;
+
+      const finalName = name || `장소 ${placeId || ''}`.trim();
+      const store = await Stores.add(meal, {
+        name: finalName,
+        url,
+        address: address || '',
+        lat, lng,
+        memo: placeId ? `placeId:${placeId}` : '',
+      });
+
+      $('#reg-url').value = '';
+      if (warnNoCoords) {
+        setStatus(
+          'warn',
+          `✓ "${finalName}" 등록됨. 좌표를 자동으로 찾지 못했어요. 아래 리스트에서 "📍 지도에서 지정"으로 위치를 설정해주세요.`
+        );
+      } else {
+        setStatus('success', `✅ "${finalName}" 등록 완료. (${lat.toFixed(5)}, ${lng.toFixed(5)})`);
+      }
+
+      // 만약 settings에서 다른 meal에 등록했다면 그 meal로 표시 전환
+      state.meal = meal;
+      $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === meal); });
+      renderSettingsStoreList();
+
+      // 좌표 없으면 자동으로 픽모드 진입 유도
+      if (warnNoCoords) {
+        beginPickMode(store.id);
+      }
+    });
+
+    function setStatus(kind, msg) {
+      const el = $('#auto-add-status');
+      el.className = 'auto-status ' + (kind || '');
+      el.textContent = msg;
+    }
+  }
+
+  // ---------- Settings: Manual form ----------
   function bindStoreForm() {
     $('#store-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const meal = $$('input[name="reg-meal"]').find((r) => r.checked).value;
       const name = $('#store-name').value.trim();
       if (!name) return;
 
@@ -54,31 +170,35 @@
       const url = $('#store-url').value.trim();
       const address = $('#store-address').value.trim();
 
-      // Try URL parse first if coordinates not provided.
       if ((!lat || !lng) && url) {
         const parsed = Maps.parseUrl(url);
-        if (parsed) { lat = parsed.lat; lng = parsed.lng; }
+        if (parsed && parsed.lat != null) { lat = parsed.lat; lng = parsed.lng; }
       }
-      // Then geocode address if still missing.
       if ((!lat || !lng) && address) {
         const r = await Maps.geocode(address);
         if (r) { lat = r.lat; lng = r.lng; }
       }
 
-      await Stores.add(state.meal, {
-        name, url, address, lat, lng,
+      await Stores.add(meal, {
+        name, url, address,
+        lat: lat || null,
+        lng: lng || null,
         memo: $('#store-memo').value.trim(),
       });
       $('#store-form').reset();
-      renderStoreList();
-      Maps.renderStores(Stores.get(state.meal));
+      state.meal = meal;
+      $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === meal); });
+      renderSettingsStoreList();
     });
 
     $('#btn-geocode').addEventListener('click', async () => {
       const address = $('#store-address').value.trim();
       const url = $('#store-url').value.trim();
       let result = null;
-      if (url) result = Maps.parseUrl(url);
+      if (url) {
+        const p = Maps.parseUrl(url);
+        if (p && p.lat != null) result = { lat: p.lat, lng: p.lng };
+      }
       if (!result && address) result = await Maps.geocode(address);
       if (result) {
         $('#store-lat').value = result.lat;
@@ -89,10 +209,11 @@
     });
   }
 
-  function renderStoreList() {
-    const list = $('#store-list');
+  // ---------- Settings: Store list + pick mode ----------
+  function renderSettingsStoreList() {
+    const list = $('#settings-store-list');
     const stores = Stores.get(state.meal);
-    $('#store-count').textContent = `(${stores.length})`;
+    $('#settings-store-count').textContent = `(${stores.length})`;
     list.innerHTML = '';
     if (stores.length === 0) {
       list.innerHTML = '<li style="border:none;background:transparent;color:#888;justify-content:center">등록된 가게가 없습니다.</li>';
@@ -100,33 +221,157 @@
     }
     stores.forEach((s) => {
       const li = document.createElement('li');
-      li.dataset.id = s.id;
-      if (state.selectedStoreId === s.id) li.classList.add('selected');
+      const noCoords = (s.lat == null || s.lng == null);
       li.innerHTML = `
         <div>
-          <div class="s-name">${escapeHtml(s.name)}</div>
+          <div class="s-name">${escapeHtml(s.name)}
+            ${noCoords ? '<span class="s-badge warn">좌표 미확인</span>' : ''}
+          </div>
           <div class="s-meta">
             ${s.address ? escapeHtml(s.address) + ' · ' : ''}
             ${s.memo ? escapeHtml(s.memo) : ''}
-            ${s.lat == null ? '<span style="color:#e44">좌표 없음</span>' : ''}
+            ${!noCoords ? `· ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}` : ''}
           </div>
         </div>
         <div class="s-actions">
           ${s.url ? `<button data-action="open">🔗</button>` : ''}
+          <button class="pick" data-action="pick">📍 지도에서 지정</button>
           <button class="delete" data-action="delete">삭제</button>
+        </div>
+      `;
+      li.addEventListener('click', async (e) => {
+        const action = e.target.dataset && e.target.dataset.action;
+        if (action === 'delete') {
+          if (confirm(`"${s.name}" 삭제할까요?`)) {
+            await Stores.remove(state.meal, s.id);
+            renderSettingsStoreList();
+          }
+          return;
+        }
+        if (action === 'open') { window.open(s.url, '_blank', 'noopener'); return; }
+        if (action === 'pick') { beginPickMode(s.id); return; }
+      });
+      list.appendChild(li);
+    });
+  }
+
+  let settingsMap = null;
+  let settingsMarkers = [];
+
+  function ensureSettingsMap() {
+    if (settingsMap || typeof naver === 'undefined') return;
+    settingsMap = new naver.maps.Map('settings-map', {
+      center: new naver.maps.LatLng(37.5666103, 126.9783882),
+      zoom: 14,
+    });
+  }
+
+  function renderSettingsMapMarkers(focusStore) {
+    if (!settingsMap) return;
+    settingsMarkers.forEach((m) => m.setMap(null));
+    settingsMarkers = [];
+    const stores = Stores.get(state.meal);
+    const bounds = new naver.maps.LatLngBounds();
+    let count = 0;
+    stores.forEach((s) => {
+      if (s.lat == null) return;
+      const pos = new naver.maps.LatLng(s.lat, s.lng);
+      const marker = new naver.maps.Marker({ position: pos, map: settingsMap, title: s.name });
+      settingsMarkers.push(marker);
+      bounds.extend(pos);
+      count++;
+    });
+    if (focusStore && focusStore.lat != null) {
+      settingsMap.setCenter(new naver.maps.LatLng(focusStore.lat, focusStore.lng));
+      settingsMap.setZoom(16);
+    } else if (count > 0) {
+      settingsMap.fitBounds(bounds);
+    }
+  }
+
+  function beginPickMode(storeId) {
+    const store = Stores.getById(state.meal, storeId);
+    if (!store) return;
+    state.pickingForStoreId = storeId;
+    $('#settings-map-wrap').classList.remove('hidden');
+    $('#pick-mode-hint').textContent =
+      `"${store.name}" 의 위치를 지도에서 클릭해주세요. (ESC로 취소)`;
+
+    ensureSettingsMap();
+    renderSettingsMapMarkers(store);
+
+    if (typeof naver === 'undefined') return;
+    // Use a dedicated click listener on the settings map.
+    if (settingsMap._pickListener) {
+      naver.maps.Event.removeListener(settingsMap._pickListener);
+    }
+    settingsMap.getElement().style.cursor = 'crosshair';
+    settingsMap._pickListener = naver.maps.Event.addListener(settingsMap, 'click', async (e) => {
+      const lat = e.coord.lat();
+      const lng = e.coord.lng();
+      const sid = state.pickingForStoreId;
+      if (!sid) return;
+      const stores = Stores.get(state.meal);
+      const idx = stores.findIndex((x) => x.id === sid);
+      if (idx >= 0) {
+        stores[idx].lat = lat;
+        stores[idx].lng = lng;
+        await Storage.saveStores(state.meal, stores);
+      }
+      cancelPickMode();
+      renderSettingsStoreList();
+      renderSettingsMapMarkers(stores[idx]);
+      // 잠시 후 패널 닫기
+      setTimeout(() => $('#settings-map-wrap').classList.add('hidden'), 1500);
+    });
+
+    // 스크롤
+    setTimeout(() => $('#settings-map-wrap').scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+  }
+
+  function cancelPickMode() {
+    if (settingsMap) {
+      if (settingsMap._pickListener) {
+        naver.maps.Event.removeListener(settingsMap._pickListener);
+        settingsMap._pickListener = null;
+      }
+      const el = settingsMap.getElement && settingsMap.getElement();
+      if (el) el.style.cursor = '';
+    }
+    state.pickingForStoreId = null;
+  }
+
+  // ---------- Meal panel: Store list (read-only) ----------
+  function renderStoreList() {
+    const list = $('#store-list');
+    const stores = Stores.get(state.meal);
+    $('#store-count').textContent = `(${stores.length})`;
+    list.innerHTML = '';
+    if (stores.length === 0) {
+      list.innerHTML = '<li style="border:none;background:transparent;color:#888;justify-content:center">등록된 가게가 없습니다. 설정에서 추가해주세요.</li>';
+      return;
+    }
+    stores.forEach((s) => {
+      const li = document.createElement('li');
+      li.dataset.id = s.id;
+      if (state.selectedStoreId === s.id) li.classList.add('selected');
+      const noCoords = (s.lat == null || s.lng == null);
+      li.innerHTML = `
+        <div>
+          <div class="s-name">${escapeHtml(s.name)}
+            ${noCoords ? '<span class="s-badge warn">좌표 미확인</span>' : ''}
+          </div>
+          <div class="s-meta">
+            ${s.address ? escapeHtml(s.address) + ' · ' : ''}
+            ${s.memo ? escapeHtml(s.memo) : ''}
+          </div>
+        </div>
+        <div class="s-actions">
+          ${s.url ? `<button data-action="open">🔗</button>` : ''}
         </div>
       `;
       li.addEventListener('click', (e) => {
         const action = e.target.dataset && e.target.dataset.action;
-        if (action === 'delete') {
-          if (confirm(`"${s.name}" 삭제할까요?`)) {
-            Stores.remove(state.meal, s.id).then(() => {
-              renderStoreList();
-              Maps.renderStores(Stores.get(state.meal));
-            });
-          }
-          return;
-        }
         if (action === 'open') { window.open(s.url, '_blank', 'noopener'); return; }
         state.selectedStoreId = s.id;
         renderStoreList();
@@ -164,7 +409,6 @@
 
   // ---------- Voting ----------
   function bindVoting() {
-    // Pre-fill datetime-local fields with sensible defaults.
     const now = new Date();
     const later = new Date(now.getTime() + 30 * 60 * 1000);
     $('#vote-start').value = toLocalDtInput(now);
@@ -177,14 +421,7 @@
         alert('가게를 최소 2곳 이상 등록해주세요.');
         return;
       }
-      // Show candidate preview in vote-candidates list before creating
-      const previewVote = {
-        candidates: picks.map((s) => ({ id: s.id, name: s.name })),
-        votes: Object.fromEntries(picks.map((s) => [s.id, []])),
-        startAt: Date.now() + 999999,
-        endAt: Date.now() + 9999999,
-      };
-      renderVotePreview(previewVote);
+      renderVotePreview(picks);
     });
 
     $('#btn-create-vote').addEventListener('click', async () => {
@@ -209,11 +446,11 @@
     });
   }
 
-  function renderVotePreview(previewVote) {
-    window.__pendingVoteCandidates = previewVote.candidates;
+  function renderVotePreview(picks) {
+    window.__pendingVoteCandidates = picks.map((s) => ({ id: s.id, name: s.name }));
     const ul = $('#vote-candidates');
     ul.innerHTML = '';
-    previewVote.candidates.forEach((c) => {
+    picks.forEach((c) => {
       const li = document.createElement('li');
       li.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="muted">대기 중</span>`;
       ul.appendChild(li);
@@ -242,7 +479,6 @@
     $('#vote-status-label').textContent = statusLabel;
     $('#vote-timer').textContent = formatVoteRange(vote);
 
-    // Candidate buttons
     const ul = $('#vote-candidates');
     ul.innerHTML = '';
     vote.candidates.forEach((c) => {
@@ -264,7 +500,6 @@
       ul.appendChild(li);
     });
 
-    // Results
     const res = $('#vote-results');
     res.innerHTML = '';
     const totalVotes = Object.values(vote.votes).reduce((a, list) => a + list.length, 0);
@@ -284,7 +519,6 @@
       res.appendChild(li);
     });
 
-    // Re-render every second while pending/open to update countdown + auto status transitions.
     if (status !== 'ended') {
       state.voteTimer = setInterval(() => {
         $('#vote-timer').textContent = formatVoteRange(vote);
