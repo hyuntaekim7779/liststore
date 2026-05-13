@@ -126,9 +126,11 @@
   async function putEntity(table, pk, rk, props) {
     const body = { PartitionKey: pk, RowKey: rk, ...props };
     try {
+      // If-Match 없이 PUT = Insert Or Replace Entity (upsert).
+      // If-Match: * 를 붙이면 Update Entity 가 되어 신규 엔티티 등록 시 404 발생.
       const res = await fetch(entityUrl(table, pk, rk), {
         method: 'PUT',
-        headers: { ...COMMON_HEADERS, 'If-Match': '*' },
+        headers: COMMON_HEADERS,
         body: JSON.stringify(body),
       });
       if (!res.ok && res.status !== 204) {
