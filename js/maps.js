@@ -13,13 +13,16 @@
   let fixedCompanyInfo = null;
   let pickModeListener = null;
   let pickModeCallback = null;
-  const DEFAULT_CENTER = { lat: 37.5666103, lng: 126.9783882 }; // 서울 시청
   const FIXED_LOCATION = {
     name: '연강빌딩',
+    roadAddress: '서울 종로구 종로33길 15',
+    jibunAddress: '서울 종로구 연지동 270',
     address: '서울 종로구 종로33길 15',
     lat: 37.5705075,
     lng: 126.9924185,
+    resolved: false,
   };
+  const DEFAULT_CENTER = { lat: FIXED_LOCATION.lat, lng: FIXED_LOCATION.lng };
 
   function ready() {
     return typeof naver !== 'undefined' && naver.maps;
@@ -42,6 +45,10 @@
       map = new naver.maps.Map(containerId, {
         center: new naver.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
         zoom: 14,
+      });
+      ensureFixedCompanyMarker();
+      this.resolveFixedLocation({ recenter: true }).catch((e) => {
+        console.warn('fixed location geocode failed:', e);
       });
     },
 
@@ -98,6 +105,7 @@
 
     async moveToFixedLocation() {
       if (!ready() || !map) return null;
+      await this.resolveFixedLocation();
       // 사용자가 지정한 고정 위치(연강빌딩)로만 이동
       const pos = new naver.maps.LatLng(FIXED_LOCATION.lat, FIXED_LOCATION.lng);
       map.setCenter(pos);
@@ -105,6 +113,32 @@
       ensureFixedCompanyMarker();
       if (fixedCompanyInfo && fixedCompanyMarker) {
         fixedCompanyInfo.open(map, fixedCompanyMarker);
+      }
+      return {
+        name: FIXED_LOCATION.name,
+        address: FIXED_LOCATION.address,
+        lat: FIXED_LOCATION.lat,
+        lng: FIXED_LOCATION.lng,
+      };
+    },
+
+    async resolveFixedLocation(options = {}) {
+      if (!ready() || !map) return null;
+      if (!FIXED_LOCATION.resolved) {
+        const candidates = [FIXED_LOCATION.roadAddress, FIXED_LOCATION.jibunAddress, FIXED_LOCATION.address];
+        for (const query of candidates) {
+          const geo = await this.geocode(query);
+          if (!geo || geo.lat == null || geo.lng == null) continue;
+          FIXED_LOCATION.lat = geo.lat;
+          FIXED_LOCATION.lng = geo.lng;
+          FIXED_LOCATION.address = FIXED_LOCATION.roadAddress;
+          FIXED_LOCATION.resolved = true;
+          break;
+        }
+      }
+      ensureFixedCompanyMarker();
+      if (options.recenter === true) {
+        map.setCenter(new naver.maps.LatLng(FIXED_LOCATION.lat, FIXED_LOCATION.lng));
       }
       return {
         name: FIXED_LOCATION.name,
@@ -248,7 +282,8 @@
         content: `
           <div style="padding:8px 12px;min-width:190px;font-size:13px;line-height:1.5">
             <strong style="font-size:14px">🏢 ${escapeHtml(FIXED_LOCATION.name)}</strong><br/>
-            <span style="color:#555">${escapeHtml(FIXED_LOCATION.address)}</span>
+            <span style="color:#555">도로명: ${escapeHtml(FIXED_LOCATION.roadAddress)}</span><br/>
+            <span style="color:#777">지번: ${escapeHtml(FIXED_LOCATION.jibunAddress)}</span>
           </div>`,
       });
       naver.maps.Event.addListener(fixedCompanyMarker, 'click', () => {
@@ -260,6 +295,14 @@
     }
     fixedCompanyMarker.setPosition(position);
     fixedCompanyMarker.setMap(map);
+    if (fixedCompanyInfo) {
+      fixedCompanyInfo.setContent(`
+        <div style="padding:8px 12px;min-width:190px;font-size:13px;line-height:1.5">
+          <strong style="font-size:14px">🏢 ${escapeHtml(FIXED_LOCATION.name)}</strong><br/>
+          <span style="color:#555">도로명: ${escapeHtml(FIXED_LOCATION.roadAddress)}</span><br/>
+          <span style="color:#777">지번: ${escapeHtml(FIXED_LOCATION.jibunAddress)}</span>
+        </div>`);
+    }
   }
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) =>
