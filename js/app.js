@@ -24,6 +24,7 @@
     bindAutoAdd();
     bindRoulette();
     bindVoting();
+    bindModal();
 
     // 점심/저녁 데이터 미리 로드
     await Stores.load('lunch');
@@ -44,8 +45,9 @@
     });
     $('#link-go-settings').addEventListener('click', (e) => {
       e.preventDefault();
-      switchTab('settings');
+      openModal();
     });
+    $('#btn-quick-add').addEventListener('click', () => openModal());
     // settings 안의 식사 선택 라디오
     $$('input[name="reg-meal"]').forEach((r) => {
       r.addEventListener('change', () => {
@@ -82,102 +84,176 @@
     renderVote();
   }
 
-  // ---------- Settings: Auto-add ----------
+  // ---------- 공통: URL로 가게 등록 ----------
+  /**
+   * URL(필수가 아님) + 이름(선택)으로 가게 등록.
+   * statusCb(kind, msg): 'success' | 'warn' | 'error' | '' (info)
+   * 반환: { store, warnNoCoords }
+   */
+  async function registerStoreSmart({ meal, url, manualName, memo, statusCb }) {
+    const setStatus = (kind, msg) => { if (statusCb) statusCb(kind, msg); };
+
+    let name = (manualName || '').trim() || null;
+    let placeId = null;
+    let lat = null, lng = null, address = null, phone = null, category = null;
+
+    if (url) {
+      setStatus('', '🔍 URL 분석 중…');
+      const parsed = Maps.parseUrl(url);
+      if (parsed) {
+        if (!name && parsed.name) name = parsed.name;
+        placeId = parsed.placeId;
+        if (parsed.lat != null) { lat = parsed.lat; lng = parsed.lng; }
+      }
+    }
+
+    if (!name && !placeId) {
+      setStatus('error', '가게 이름이나 URL의 place ID를 찾을 수 없습니다.');
+      return null;
+    }
+
+    if (placeId && window.AppConfig && window.AppConfig.placeLookup && window.NaverApi) {
+      setStatus('', `🌐 네이버 지도에서 place ${placeId} 조회 중…`);
+      try {
+        const info = await NaverApi.getPlaceById(placeId);
+        if (info) {
+          if (info.name && !manualName) name = info.name;
+          if (info.address) address = info.address;
+          if (info.lat != null && info.lng != null) { lat = info.lat; lng = info.lng; }
+          if (info.phone) phone = info.phone;
+          if (info.category) category = info.category;
+        }
+      } catch (e) { console.warn('NaverApi lookup failed:', e); }
+    }
+
+    if ((lat == null || lng == null) && name) {
+      setStatus('', `🔍 "${name}" 좌표 검색 중…`);
+      const geo = await Maps.geocode(name);
+      if (geo) { lat = geo.lat; lng = geo.lng; if (!address) address = geo.address; }
+    }
+
+    const warnNoCoords = (lat == null || lng == null);
+    const finalName = name || `장소 ${placeId || ''}`.trim();
+    const memoParts = [];
+    if (memo) memoParts.push(memo);
+    if (category) memoParts.push(category);
+    if (phone) memoParts.push(phone);
+    if (placeId) memoParts.push(`placeId:${placeId}`);
+
+    const store = await Stores.add(meal, {
+      name: finalName,
+      url: url || '',
+      address: address || '',
+      lat, lng,
+      memo: memoParts.join(' · '),
+    });
+
+    if (warnNoCoords) {
+      setStatus('warn', `✓ "${finalName}" 등록됨. 좌표 자동 추출 실패 — 설정에서 "📍 지도에서 지정" 으로 위치를 잡아주세요.`);
+    } else {
+      setStatus('success', `✅ "${finalName}" 등록 완료. (${lat.toFixed(5)}, ${lng.toFixed(5)})`);
+    }
+
+    return { store, warnNoCoords };
+  }
+
+  // ---------- 모달: 빠른 가게 등록 ----------
+  function bindModal() {
+    const modal = $('#modal-add');
+    const close = () => modal.classList.add('hidden');
+
+    $('#modal-close').addEventListener('click', close);
+    $('#modal-cancel').addEventListener('click', close);
+    modal.querySelector('.modal-backdrop').addEventListener('click', close);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
+    });
+
+    $('#modal-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const meal = ($$('input[name="modal-meal"]').find((r) => r.checked) || {}).value || 'lunch';
+      const name = $('#modal-name').value.trim();
+      const url = $('#modal-url').value.trim();
+      const memo = $('#modal-memo').value.trim();
+      const statusEl = $('#modal-status');
+      const setStatus = (kind, msg) => {
+        statusEl.className = 'auto-status ' + (kind || '');
+        statusEl.textContent = msg;
+      };
+
+      if (!name && !url) {
+        setStatus('error', '가게 이름 또는 URL 중 최소 하나는 입력해주세요.');
+        return;
+      }
+
+      $('#modal-submit').disabled = true;
+      try {
+        const result = await registerStoreSmart({
+          meal, url, manualName: name, memo, statusCb: setStatus,
+        });
+        if (!result) return;
+
+        state.meal = meal;
+        $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === meal); });
+        renderSettingsStoreList();
+        if (state.activeTab === 'lunch' || state.activeTab === 'dinner') {
+          if (state.activeTab === meal) {
+            renderStoreList();
+            Maps.renderStores(Stores.get(meal));
+          }
+        }
+
+        setTimeout(() => {
+          close();
+          $('#modal-name').value = '';
+          $('#modal-url').value = '';
+          $('#modal-memo').value = '';
+          $('#modal-status').textContent = '';
+        }, 1000);
+      } finally {
+        $('#modal-submit').disabled = false;
+      }
+    });
+  }
+
+  function openModal() {
+    const modal = $('#modal-add');
+    $$('input[name="modal-meal"]').forEach((r) => { r.checked = (r.value === state.meal); });
+    $('#modal-name').value = '';
+    $('#modal-url').value = '';
+    $('#modal-memo').value = '';
+    $('#modal-status').textContent = '';
+    $('#modal-status').className = 'auto-status';
+    modal.classList.remove('hidden');
+    setTimeout(() => $('#modal-name').focus(), 60);
+  }
+
+  // ---------- Settings: Auto-add (기존 URL 폼) ----------
   function bindAutoAdd() {
     $('#btn-auto-add').addEventListener('click', async () => {
       const url = $('#reg-url').value.trim();
-      const meal = $$('input[name="reg-meal"]').find((r) => r.checked).value;
+      const meal = ($$('input[name="reg-meal"]').find((r) => r.checked) || {}).value || 'lunch';
       const statusEl = $('#auto-add-status');
-      statusEl.className = 'auto-status';
-      statusEl.textContent = '';
+
+      const setStatus = (kind, msg) => {
+        statusEl.className = 'auto-status ' + (kind || '');
+        statusEl.textContent = msg;
+      };
 
       if (!url) {
         setStatus('error', 'URL을 입력해주세요.');
         return;
       }
 
-      setStatus('', '🔍 URL 분석 중…');
-      const parsed = Maps.parseUrl(url);
-      if (!parsed) {
-        setStatus('error', 'URL을 해석할 수 없습니다. 정확한 네이버 지도 URL인지 확인해주세요.');
-        return;
-      }
-      if (!parsed.name && !parsed.placeId) {
-        setStatus('error', '가게 이름 또는 place ID를 URL에서 찾지 못했습니다.');
-        return;
-      }
-
-      let { name, placeId, lat, lng } = parsed;
-      let address = null;
-      let phone = null;
-      let category = null;
-      let warnNoCoords = false;
-
-      // 1순위: placeId 가 있으면 Naver Map place 페이지를 프록시로 가져와 상세 정보 파싱
-      if (placeId && window.AppConfig && window.AppConfig.placeLookup && window.NaverApi) {
-        setStatus('', `🌐 네이버 지도에서 place ${placeId} 조회 중…`);
-        try {
-          const info = await NaverApi.getPlaceById(placeId);
-          if (info) {
-            if (info.name) name = info.name;
-            if (info.address) address = info.address;
-            if (info.lat != null && info.lng != null) { lat = info.lat; lng = info.lng; }
-            if (info.phone) phone = info.phone;
-            if (info.category) category = info.category;
-          }
-        } catch (e) {
-          console.warn('NaverApi lookup failed:', e);
-        }
-      }
-
-      // 2순위: 좌표가 여전히 없으면 이름으로 Geocoder
-      if ((lat == null || lng == null) && name) {
-        setStatus('', `🔍 "${name}" 좌표 검색 중…`);
-        const geo = await Maps.geocode(name);
-        if (geo) { lat = geo.lat; lng = geo.lng; if (!address) address = geo.address; }
-      }
-
-      if (lat == null || lng == null) warnNoCoords = true;
-
-      const finalName = name || `장소 ${placeId || ''}`.trim();
-      const memoParts = [];
-      if (category) memoParts.push(category);
-      if (phone) memoParts.push(phone);
-      if (placeId) memoParts.push(`placeId:${placeId}`);
-      const store = await Stores.add(meal, {
-        name: finalName,
-        url,
-        address: address || '',
-        lat, lng,
-        memo: memoParts.join(' · '),
-      });
+      const result = await registerStoreSmart({ meal, url, statusCb: setStatus });
+      if (!result) return;
 
       $('#reg-url').value = '';
-      if (warnNoCoords) {
-        setStatus(
-          'warn',
-          `✓ "${finalName}" 등록됨. 좌표를 자동으로 찾지 못했어요. 아래 리스트에서 "📍 지도에서 지정"으로 위치를 설정해주세요.`
-        );
-      } else {
-        setStatus('success', `✅ "${finalName}" 등록 완료. (${lat.toFixed(5)}, ${lng.toFixed(5)})`);
-      }
-
-      // 만약 settings에서 다른 meal에 등록했다면 그 meal로 표시 전환
       state.meal = meal;
       $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === meal); });
       renderSettingsStoreList();
-
-      // 좌표 없으면 자동으로 픽모드 진입 유도
-      if (warnNoCoords) {
-        beginPickMode(store.id);
-      }
+      if (result.warnNoCoords) beginPickMode(result.store.id);
     });
-
-    function setStatus(kind, msg) {
-      const el = $('#auto-add-status');
-      el.className = 'auto-status ' + (kind || '');
-      el.textContent = msg;
-    }
   }
 
   // ---------- Settings: Manual form ----------

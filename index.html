@@ -10,12 +10,13 @@
   <header class="app-header">
     <h1>🍽️ 오늘 뭐 먹지?</h1>
     <p class="subtitle">점심 / 저녁 가게 리스트 · 룰렛 · 투표</p>
+    <button id="btn-quick-add" class="btn btn-primary btn-add-top" type="button">＋ 가게 등록</button>
   </header>
 
   <nav class="meal-tabs">
-    <button class="meal-tab active" data-tab="lunch">🥗 점심</button>
-    <button class="meal-tab" data-tab="dinner">🍻 저녁</button>
-    <button class="meal-tab" data-tab="settings">⚙️ 설정</button>
+    <button class="meal-tab active" data-tab="lunch" type="button">🥗 점심</button>
+    <button class="meal-tab" data-tab="dinner" type="button">🍻 저녁</button>
+    <button class="meal-tab" data-tab="settings" type="button">⚙️ 설정</button>
   </nav>
 
   <!-- ============ MEAL PANEL (점심/저녁) ============ -->
@@ -23,7 +24,7 @@
     <section class="card">
       <div class="card-header">
         <h2>가게 리스트 <span id="store-count" class="muted">(0)</span></h2>
-        <a href="#" id="link-go-settings" class="muted" style="font-size:13px">＋ 설정에서 가게 등록</a>
+        <a href="#" id="link-go-settings" class="muted" style="font-size:13px">＋ 가게 등록</a>
       </div>
       <ul id="store-list" class="store-list"></ul>
     </section>
@@ -175,19 +176,60 @@
     <small>데이터는 이 브라우저에만 저장됩니다 (localStorage).</small>
   </footer>
 
+  <!-- ============ 가게 등록 모달 ============ -->
+  <div id="modal-add" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button type="button" class="modal-close" id="modal-close" aria-label="닫기">×</button>
+      <h2 id="modal-title">＋ 가게 등록</h2>
+      <p class="hint">가게 이름과 네이버 지도 URL을 입력하면 좌표·주소를 자동으로 가져옵니다.</p>
+
+      <form id="modal-form">
+        <div class="form-row">
+          <label>등록할 식사
+            <div class="radio-group" id="modal-meal-group">
+              <label><input type="radio" name="modal-meal" value="lunch" checked /> 🥗 점심</label>
+              <label><input type="radio" name="modal-meal" value="dinner" /> 🍻 저녁</label>
+            </div>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>가게 이름 *
+            <input type="text" id="modal-name" required placeholder="예: 김밥천국 강남점" />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>네이버 지도 URL
+            <input type="url" id="modal-url" placeholder="https://map.naver.com/p/search/.../place/..." />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>메모 (선택)
+            <input type="text" id="modal-memo" placeholder="예: 점심특선 9,000원" />
+          </label>
+        </div>
+        <div id="modal-status" class="auto-status"></div>
+        <div class="modal-actions">
+          <button type="button" id="modal-cancel" class="btn btn-secondary">취소</button>
+          <button type="submit" id="modal-submit" class="btn btn-primary">＋ 등록</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Naver Maps JavaScript API. Client ID is safe to expose in browser code. -->
   <!-- 만약 인증 오류가 발생하면 ncpKeyId → ncpClientId 로 바꿔보세요. -->
   <script type="text/javascript"
     src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=ufhtl7ialy&submodules=geocoder">
   </script>
 
-  <script src="js/config.js"></script>
-  <script src="js/storage.js"></script>
-  <script src="js/stores.js"></script>
-  <script src="js/maps.js"></script>
-  <script src="js/naver-api.js"></script>
-  <script src="js/roulette.js"></script>
-  <script src="js/voting.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/config.js?v=4"></script>
+  <script src="js/storage.js?v=4"></script>
+  <script src="js/stores.js?v=4"></script>
+  <script src="js/maps.js?v=4"></script>
+  <script src="js/naver-api.js?v=4"></script>
+  <script src="js/roulette.js?v=4"></script>
+  <script src="js/voting.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>
