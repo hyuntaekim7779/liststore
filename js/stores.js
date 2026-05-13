@@ -54,7 +54,7 @@
         placeId: partial.placeId ? String(partial.placeId).trim() : null,
         phone: partial.phone ? String(partial.phone).trim() : null,
         category: partial.category ? String(partial.category).trim() : null,
-        showInCompanionLunchTab: Boolean(partial.showInCompanionLunchTab),
+        showInFridayLunchTab: Boolean(partial.showInFridayLunchTab || partial.showInCompanionLunchTab),
         createdAt: Date.now(),
       };
       this.cache[meal].push(store);

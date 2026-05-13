@@ -353,7 +353,13 @@
         <div class="s-actions">
           ${s.url ? `<button data-action="open">🔗</button>` : ''}
           <button data-action="edit-memo">메모 수정</button>
-          ${state.meal === 'lunch' ? '<button data-action="visibility">노출 설정</button>' : ''}
+          ${(state.meal === 'lunch' || state.meal === 'dinner') ? `
+            <label class="check-action">
+              <input type="checkbox" data-action="toggle-friday-share" ${isSharedToFridayLunch(s) ? 'checked' : ''} />
+              금요일 점심 중복 표시
+            </label>
+            <button data-action="move-friday-only">금요일 점심 전용 이동</button>
+          ` : ''}
           <button class="pick" data-action="pick">📍 지도에서 지정</button>
           <button class="delete" data-action="delete">삭제</button>
         </div>
@@ -379,12 +385,39 @@
           }
           return;
         }
-        if (action === 'visibility') {
-          await configureLunchFridayVisibility(s);
+        if (action === 'move-friday-only') {
+          const fromMeal = state.meal;
+          if (fromMeal !== 'lunch' && fromMeal !== 'dinner') return;
+          try {
+            await Stores.move(fromMeal, 'fridayLunch', s.id, { showInFridayLunchTab: false });
+          } catch (err) {
+            alert(err && err.message ? err.message : '금요일 점심 전용 이동 중 오류가 발생했습니다.');
+            return;
+          }
+          renderSettingsStoreList();
+          if (MEAL_TYPES.includes(state.activeTab)) {
+            renderStoreList();
+            Maps.renderStores(getVisibleStores());
+          }
           return;
         }
         if (action === 'pick') { beginPickMode(s.id); return; }
       });
+      const shareToggle = li.querySelector('input[data-action="toggle-friday-share"]');
+      if (shareToggle) {
+        shareToggle.addEventListener('click', (e) => e.stopPropagation());
+        shareToggle.addEventListener('change', async (e) => {
+          const fromMeal = state.meal;
+          if (fromMeal !== 'lunch' && fromMeal !== 'dinner') return;
+          const checked = e.target.checked;
+          await Stores.update(fromMeal, s.id, { showInFridayLunchTab: checked });
+          renderSettingsStoreList();
+          if (MEAL_TYPES.includes(state.activeTab)) {
+            renderStoreList();
+            Maps.renderStores(getVisibleStores());
+          }
+        });
+      }
       list.appendChild(li);
     });
   }
@@ -735,8 +768,9 @@
   function getVisibleStores() {
     if (state.meal === 'fridayLunch') {
       const fridayStores = Stores.get('fridayLunch');
-      const lunchShared = Stores.get('lunch').filter((s) => s.showInCompanionLunchTab);
-      return dedupeStoresByUrl([...fridayStores, ...lunchShared]);
+      const lunchShared = Stores.get('lunch').filter((s) => isSharedToFridayLunch(s));
+      const dinnerShared = Stores.get('dinner').filter((s) => isSharedToFridayLunch(s));
+      return dedupeStoresByUrl([...fridayStores, ...lunchShared, ...dinnerShared]);
     }
     // 기본: 현재 식사 탭의 가게만 노출
     return Stores.get(state.meal);
@@ -779,41 +813,8 @@
     return out;
   }
 
-  async function configureLunchFridayVisibility(store) {
-    if (state.meal !== 'lunch') return;
-    const current = store.showInCompanionLunchTab ? '점심 + 금요일 점심(중복 노출)' : '점심만';
-    const input = prompt(
-      `"${store.name}" 노출 설정\n` +
-      `현재: ${current}\n\n` +
-      `1: 점심만 노출\n` +
-      `2: 점심 + 금요일 점심 모두 노출 (중복 허용)\n` +
-      `3: 금요일 점심만 노출 (점심에서 이동)\n\n` +
-      `번호를 입력하세요.`,
-      store.showInCompanionLunchTab ? '2' : '1'
-    );
-    if (input == null) return;
-    const choice = String(input).trim();
-    try {
-      if (choice === '1') {
-        await Stores.update('lunch', store.id, { showInCompanionLunchTab: false });
-      } else if (choice === '2') {
-        await Stores.update('lunch', store.id, { showInCompanionLunchTab: true });
-      } else if (choice === '3') {
-        await Stores.move('lunch', 'fridayLunch', store.id, { showInCompanionLunchTab: false });
-      } else {
-        alert('1, 2, 3 중에서 선택해주세요.');
-        return;
-      }
-    } catch (e) {
-      alert(e && e.message ? e.message : '노출 설정 변경 중 오류가 발생했습니다.');
-      return;
-    }
-
-    renderSettingsStoreList();
-    if (MEAL_TYPES.includes(state.activeTab)) {
-      renderStoreList();
-      Maps.renderStores(getVisibleStores());
-    }
+  function isSharedToFridayLunch(store) {
+    return Boolean(store && (store.showInFridayLunchTab || store.showInCompanionLunchTab));
   }
 
   /** UI 표시용 memo 정리 — 옛 placeId:xxx 문자열을 제거. */

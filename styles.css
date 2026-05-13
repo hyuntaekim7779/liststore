@@ -145,6 +145,14 @@ main {
 .store-list .s-name { font-weight: 600; }
 .store-list .s-meta { font-size: 12px; color: var(--muted); }
 .store-list .s-actions { display: flex; gap: 6px; }
+.store-list .s-actions .check-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 2px;
+}
 .store-list .s-actions button {
   border: 1px solid var(--border);
   background: #fff;
