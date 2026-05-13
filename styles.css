@@ -223,6 +223,23 @@ main {
 .panel { max-width: 820px; margin: 0 auto; padding: 0 16px 60px; display: grid; gap: 16px; }
 .panel.hidden { display: none; }
 
+#panel-meal {
+  max-width: 1200px;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  align-items: start;
+}
+#panel-meal .meal-list-card { grid-column: 1; grid-row: 1; }
+#panel-meal .meal-map-card { grid-column: 2; grid-row: 1; }
+#panel-meal .roulette-card { grid-column: 1; grid-row: 2; }
+#panel-meal .vote-card { grid-column: 2; grid-row: 2; }
+
+.meal-list-card #store-list {
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.meal-map-card .map { height: 520px; }
+
 .radio-group { display: flex; gap: 14px; padding: 4px 0; }
 .radio-group label {
   flex-direction: row !important; align-items: center !important;
@@ -277,6 +294,16 @@ main {
 .app-footer code { background: #eef0ff; padding: 1px 6px; border-radius: 4px; }
 
 @media (max-width: 560px) {
+  #panel-meal { grid-template-columns: 1fr; }
+  #panel-meal .meal-list-card,
+  #panel-meal .meal-map-card,
+  #panel-meal .roulette-card,
+  #panel-meal .vote-card {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .meal-list-card #store-list { max-height: none; overflow: visible; }
+  .meal-map-card .map { height: 360px; }
   .store-form .form-row { flex-direction: column; align-items: stretch; }
   .store-form .form-row.two { flex-direction: row; }
   .vote-setup .form-row { flex-direction: column; align-items: stretch; }

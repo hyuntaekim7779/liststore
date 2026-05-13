@@ -79,6 +79,7 @@
               ${s.url ? '<a href="' + encodeURI(s.url) + '" target="_blank" rel="noopener">네이버 지도에서 보기</a>' : ''}
             </div>`,
           disableAnchor: false,
+          disableAutoPan: true,
         });
         // 클릭 시 토글 (이미 열려있으면 닫기)
         naver.maps.Event.addListener(marker, 'click', () => {
@@ -86,8 +87,6 @@
           else info.open(map, marker);
         });
         markers.push(marker);
-        // 기본 열림 상태로 표시
-        info.open(map, marker);
         if (autoFit) {
           bounds.extend(position);
           count++;
@@ -285,6 +284,7 @@
             <span style="color:#555">도로명: ${escapeHtml(FIXED_LOCATION.roadAddress)}</span><br/>
             <span style="color:#777">지번: ${escapeHtml(FIXED_LOCATION.jibunAddress)}</span>
           </div>`,
+        disableAutoPan: true,
       });
       naver.maps.Event.addListener(fixedCompanyMarker, 'click', () => {
         if (!fixedCompanyInfo) return;
