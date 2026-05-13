@@ -28,18 +28,18 @@ body {
 }
 .app-header h1 { margin: 0; font-size: 40px; line-height: 1; }
 .hero-top {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(140px, 220px) auto minmax(140px, 220px);
+  display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 10px;
 }
 .hero-side-img {
-  width: 100%;
-  height: 84px;
-  object-fit: cover;
+  width: 132px;
+  height: 56px;
+  object-fit: contain;
   border-radius: 8px;
   border: 1px solid var(--border);
+  background: #fff;
 }
 
 .meal-tabs {
@@ -311,10 +311,12 @@ main {
 
 @media (max-width: 560px) {
   .hero-top {
-    grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 6px;
   }
-  .hero-side-img { height: 64px; }
+  .hero-side-img {
+    width: 96px;
+    height: 42px;
+  }
   .app-header h1 { font-size: 28px; }
   #panel-meal { grid-template-columns: 1fr; }
   #panel-meal .meal-list-card,
