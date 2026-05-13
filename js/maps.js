@@ -46,8 +46,6 @@
       map = new naver.maps.Map(containerId, {
         center: new naver.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
         zoom: DEFAULT_ZOOM,
-        minZoom: DEFAULT_ZOOM,
-        maxZoom: DEFAULT_ZOOM,
       });
       ensureFixedCompanyMarker();
       this.resolveFixedLocation({ recenter: true }).catch((e) => {
