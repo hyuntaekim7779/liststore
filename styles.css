@@ -30,7 +30,7 @@ body {
   margin: 0;
   font-size: 40px;
   line-height: 1;
-  transform: translateY(30px);
+  transform: translateY(44px);
 }
 
 .meal-tabs {
@@ -48,13 +48,13 @@ body {
 }
 .tabs-side-img {
   width: 400px;
-  height: 247px;
+  height: 200px;
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid var(--border);
 }
-.tabs-side-img.left { transform: translateX(-72px); }
-.tabs-side-img.right { transform: translateX(72px); }
+.tabs-side-img.left { transform: translateX(-110px); }
+.tabs-side-img.right { transform: translateX(110px); }
 .meal-tab {
   border: 1px solid var(--border);
   background: var(--card);
@@ -323,12 +323,12 @@ main {
   }
   .tabs-side-img {
     width: 180px;
-    height: 111px;
+    height: 90px;
     transform: none !important;
   }
   .app-header h1 {
     font-size: 28px;
-    transform: translateY(16px);
+    transform: translateY(24px);
   }
   #panel-meal { grid-template-columns: 1fr; }
   #panel-meal .meal-list-card,
