@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>점심 / 저녁 가게 리스트</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>🍽️ 오늘 뭐 먹지?</h1>
+    <p class="subtitle">점심 / 저녁 가게 리스트 · 룰렛 · 투표</p>
+  </header>
+
+  <nav class="meal-tabs">
+    <button class="meal-tab active" data-meal="lunch">🥗 점심</button>
+    <button class="meal-tab" data-meal="dinner">🍻 저녁</button>
+  </nav>
+
+  <main>
+    <section class="card">
+      <h2>가게 등록</h2>
+      <form id="store-form" class="store-form">
+        <div class="form-row">
+          <label>가게 이름 *
+            <input type="text" id="store-name" required placeholder="예: 김밥천국 강남점" />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>네이버 지도 URL
+            <input type="url" id="store-url" placeholder="https://map.naver.com/... (선택)" />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>주소 (지도 표시용)
+            <input type="text" id="store-address" placeholder="예: 서울시 강남구 테헤란로 123" />
+          </label>
+          <button type="button" id="btn-geocode" class="btn btn-secondary">📍 좌표 찾기</button>
+        </div>
+        <div class="form-row two">
+          <label>위도(lat)
+            <input type="number" step="any" id="store-lat" placeholder="자동 채워짐" />
+          </label>
+          <label>경도(lng)
+            <input type="number" step="any" id="store-lng" placeholder="자동 채워짐" />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>메모
+            <input type="text" id="store-memo" placeholder="예: 점심특선 9,000원" />
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">+ 등록</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2>가게 리스트 <span id="store-count" class="muted">(0)</span></h2>
+      </div>
+      <ul id="store-list" class="store-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>🗺️ 지도</h2>
+      <div id="map" class="map"></div>
+      <p class="hint" id="map-hint">가게를 클릭하면 지도에서 위치를 확인할 수 있어요.</p>
+    </section>
+
+    <section class="card">
+      <h2>🎯 랜덤 룰렛</h2>
+      <p class="hint">등록된 가게 중에서 최대 <strong>5개</strong>를 무작위로 뽑아 룰렛을 돌립니다.</p>
+      <div class="roulette-controls">
+        <button id="btn-pick-roulette" class="btn btn-secondary">🎲 랜덤 5개 뽑기</button>
+        <button id="btn-spin" class="btn btn-primary" disabled>▶ 룰렛 돌리기</button>
+      </div>
+      <div class="roulette-stage">
+        <canvas id="roulette-canvas" width="360" height="360"></canvas>
+        <div id="roulette-pointer">▼</div>
+      </div>
+      <div id="roulette-result" class="roulette-result"></div>
+    </section>
+
+    <section class="card">
+      <h2>🗳️ 투표</h2>
+      <p class="hint">랜덤으로 후보 가게를 뽑은 뒤, 투표 시작/종료 시간을 설정하세요. 해당 시간대에만 투표할 수 있습니다.</p>
+
+      <div class="vote-setup">
+        <div class="form-row two">
+          <label>후보 개수
+            <input type="number" id="vote-candidate-count" min="2" max="10" value="4" />
+          </label>
+          <button type="button" id="btn-pick-vote" class="btn btn-secondary">🎲 후보 무작위 선정</button>
+        </div>
+        <div class="form-row two">
+          <label>투표 시작 시간
+            <input type="datetime-local" id="vote-start" />
+          </label>
+          <label>투표 종료 시간
+            <input type="datetime-local" id="vote-end" />
+          </label>
+        </div>
+        <div class="form-actions">
+          <button id="btn-create-vote" class="btn btn-primary">투표 생성</button>
+        </div>
+      </div>
+
+      <div id="vote-active" class="vote-active hidden">
+        <div class="vote-header">
+          <strong id="vote-status-label"></strong>
+          <span id="vote-timer" class="muted"></span>
+          <button id="btn-cancel-vote" class="btn btn-link">투표 종료/삭제</button>
+        </div>
+        <ul id="vote-candidates" class="vote-candidates"></ul>
+        <div class="form-row">
+          <label>투표자 이름 *
+            <input type="text" id="voter-name" required placeholder="이름 필수 입력" />
+          </label>
+        </div>
+        <h3>투표 현황</h3>
+        <ul id="vote-results" class="vote-results"></ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <small>데이터는 이 브라우저에만 저장됩니다 (localStorage).</small>
+  </footer>
+
+  <!-- Naver Maps JavaScript API. Client ID is safe to expose in browser code. -->
+  <!-- 만약 인증 오류가 발생하면 ncpClientId → ncpKeyId 로 바꿔보세요. -->
+  <script type="text/javascript"
+    src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=rbk7lbrudl&submodules=geocoder">
+  </script>
+
+  <script src="js/storage.js"></script>
+  <script src="js/stores.js"></script>
+  <script src="js/maps.js"></script>
+  <script src="js/roulette.js"></script>
+  <script src="js/voting.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
