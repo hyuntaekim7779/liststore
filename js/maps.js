@@ -9,6 +9,8 @@
 (function () {
   let map = null;
   let markers = [];
+  let fixedCompanyMarker = null;
+  let fixedCompanyInfo = null;
   let pickModeListener = null;
   let pickModeCallback = null;
   const DEFAULT_CENTER = { lat: 37.5666103, lng: 126.9783882 }; // 서울 시청
@@ -48,10 +50,11 @@
       markers = [];
     },
 
-    renderStores(stores) {
+    renderStores(stores, options = {}) {
       if (!ready() || !map) return;
       this.clearMarkers();
-      const bounds = new naver.maps.LatLngBounds();
+      const autoFit = options.autoFit === true;
+      const bounds = autoFit ? new naver.maps.LatLngBounds() : null;
       let count = 0;
       stores.forEach((s) => {
         if (s.lat == null || s.lng == null) return;
@@ -78,10 +81,12 @@
         markers.push(marker);
         // 기본 열림 상태로 표시
         info.open(map, marker);
-        bounds.extend(position);
-        count++;
+        if (autoFit) {
+          bounds.extend(position);
+          count++;
+        }
       });
-      if (count > 0) map.fitBounds(bounds);
+      if (autoFit && bounds && count > 0) map.fitBounds(bounds);
     },
 
     focus(store) {
@@ -97,6 +102,10 @@
       const pos = new naver.maps.LatLng(FIXED_LOCATION.lat, FIXED_LOCATION.lng);
       map.setCenter(pos);
       map.setZoom(17);
+      ensureFixedCompanyMarker();
+      if (fixedCompanyInfo && fixedCompanyMarker) {
+        fixedCompanyInfo.open(map, fixedCompanyMarker);
+      }
       return {
         name: FIXED_LOCATION.name,
         address: FIXED_LOCATION.address,
@@ -218,6 +227,39 @@
 
   function safeDecode(s) {
     try { return decodeURIComponent(s); } catch { return s; }
+  }
+  function ensureFixedCompanyMarker() {
+    if (!ready() || !map) return;
+    const position = new naver.maps.LatLng(FIXED_LOCATION.lat, FIXED_LOCATION.lng);
+    if (!fixedCompanyMarker) {
+      fixedCompanyMarker = new naver.maps.Marker({
+        position,
+        map,
+        title: FIXED_LOCATION.name,
+        icon: {
+          content:
+            '<div style="width:32px;height:32px;border-radius:50%;background:#1f4b99;color:#fff;' +
+            'display:flex;align-items:center;justify-content:center;font-size:16px;' +
+            'box-shadow:0 2px 6px rgba(0,0,0,.3);border:2px solid #fff;">🏢</div>',
+          anchor: new naver.maps.Point(16, 16),
+        },
+      });
+      fixedCompanyInfo = new naver.maps.InfoWindow({
+        content: `
+          <div style="padding:8px 12px;min-width:190px;font-size:13px;line-height:1.5">
+            <strong style="font-size:14px">🏢 ${escapeHtml(FIXED_LOCATION.name)}</strong><br/>
+            <span style="color:#555">${escapeHtml(FIXED_LOCATION.address)}</span>
+          </div>`,
+      });
+      naver.maps.Event.addListener(fixedCompanyMarker, 'click', () => {
+        if (!fixedCompanyInfo) return;
+        if (fixedCompanyInfo.getMap()) fixedCompanyInfo.close();
+        else fixedCompanyInfo.open(map, fixedCompanyMarker);
+      });
+      return;
+    }
+    fixedCompanyMarker.setPosition(position);
+    fixedCompanyMarker.setMap(map);
   }
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) =>
