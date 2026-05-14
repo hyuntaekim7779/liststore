@@ -1797,6 +1797,7 @@
         byMeal[meal].push({
           value: key,
           label: store.name,
+          memo: cleanMemoForDisplay(store.memo || ''),
         });
       });
     });
@@ -1862,7 +1863,10 @@
         listEl.innerHTML = options.map((op) => `
           <label class="store-block-option">
             <input type="checkbox" value="${escapeHtml(op.value)}" ${selectedSet.has(op.value) ? 'checked' : ''}/>
-            <span>${escapeHtml(op.label)}</span>
+            <span class="store-block-option-text">
+              <span class="store-block-option-name">${escapeHtml(op.label)}</span>
+              ${op.memo ? `<span class="store-block-option-memo">${escapeHtml(op.memo)}</span>` : ''}
+            </span>
           </label>
         `).join('');
         Array.from(listEl.querySelectorAll('input[type="checkbox"]')).forEach((cb) => {

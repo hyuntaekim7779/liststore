@@ -319,10 +319,26 @@ main {
 }
 .store-block-option {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 4px 2px;
   font-size: 14px;
+}
+.store-block-option input[type="checkbox"] {
+  margin-top: 2px;
+}
+.store-block-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.store-block-option-name {
+  font-size: 14px;
+  color: var(--text);
+}
+.store-block-option-memo {
+  font-size: 12px;
+  color: var(--muted);
 }
 .store-block-modal .actions {
   margin-top: 10px;
