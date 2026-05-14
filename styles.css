@@ -376,13 +376,13 @@ main {
   align-items: center;
   padding: 0 6px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: #1f2330;
   border: 1px solid #dbe2ff;
   background: #f4f7ff;
   cursor: grab;
-  width: 72px;
+  width: 134px;
   height: 26px;
   justify-content: center;
   white-space: nowrap;

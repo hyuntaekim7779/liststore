@@ -349,10 +349,12 @@
   }
 
   function buildPersonTag(name) {
+    const matched = state.people.find((p) => p.name === name);
+    const role = matched && matched.role ? matched.role : '';
     const tag = document.createElement('span');
     tag.className = 'person-tag';
     tag.draggable = true;
-    tag.textContent = name;
+    tag.textContent = role ? `${name} · ${role}` : name;
     tag.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', name);
       e.dataTransfer.effectAllowed = 'move';
