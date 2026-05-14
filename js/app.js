@@ -1936,6 +1936,11 @@
             <button type="button" class="store-block-tab" data-meal="fridayLunch">금요일 점심</button>
             <button type="button" class="store-block-tab" data-meal="dinner">저녁</button>
           </div>
+          <div class="store-block-search-row">
+            <input type="text" id="store-block-search" class="store-search-input" placeholder="가게 이름 검색" />
+            <button type="button" class="store-block-bulk-btn" data-action="check-filtered">검색결과 전체 체크</button>
+            <button type="button" class="store-block-bulk-btn" data-action="uncheck-filtered">검색결과 전체 해제</button>
+          </div>
           <div class="store-block-list" id="store-block-list"></div>
           <div class="actions">
             <button type="button" data-action="cancel">취소</button>
@@ -1946,14 +1951,19 @@
       document.body.appendChild(backdrop);
 
       const listEl = backdrop.querySelector('#store-block-list');
+      const searchEl = backdrop.querySelector('#store-block-search');
       let activeMeal = 'lunch';
+      let keyword = '';
       const renderMealList = () => {
         const options = byMeal[activeMeal] || [];
-        if (!options.length) {
+        const filtered = keyword
+          ? options.filter((op) => op.label.toLowerCase().includes(keyword))
+          : options;
+        if (!filtered.length) {
           listEl.innerHTML = '<div class="vote-history-meta">해당 식사 탭에 등록된 가게가 없습니다.</div>';
           return;
         }
-        listEl.innerHTML = options.map((op) => `
+        listEl.innerHTML = filtered.map((op) => `
           <label class="store-block-option">
             <input type="checkbox" value="${escapeHtml(op.value)}" ${selectedSet.has(op.value) ? 'checked' : ''}/>
             <span class="store-block-option-text">
@@ -1980,11 +1990,41 @@
       Array.from(backdrop.querySelectorAll('.store-block-tab')).forEach((btn) => {
         btn.addEventListener('click', () => {
           activeMeal = btn.dataset.meal;
+          keyword = '';
+          if (searchEl) searchEl.value = '';
           Array.from(backdrop.querySelectorAll('.store-block-tab'))
             .forEach((el) => el.classList.toggle('active', el === btn));
           renderMealList();
         });
       });
+      if (searchEl) {
+        searchEl.addEventListener('input', () => {
+          keyword = (searchEl.value || '').trim().toLowerCase();
+          renderMealList();
+        });
+      }
+      const checkFilteredBtn = backdrop.querySelector('[data-action="check-filtered"]');
+      if (checkFilteredBtn) {
+        checkFilteredBtn.addEventListener('click', () => {
+          const options = byMeal[activeMeal] || [];
+          const filtered = keyword
+            ? options.filter((op) => op.label.toLowerCase().includes(keyword))
+            : options;
+          filtered.forEach((op) => selectedSet.add(op.value));
+          renderMealList();
+        });
+      }
+      const uncheckFilteredBtn = backdrop.querySelector('[data-action="uncheck-filtered"]');
+      if (uncheckFilteredBtn) {
+        uncheckFilteredBtn.addEventListener('click', () => {
+          const options = byMeal[activeMeal] || [];
+          const filtered = keyword
+            ? options.filter((op) => op.label.toLowerCase().includes(keyword))
+            : options;
+          filtered.forEach((op) => selectedSet.delete(op.value));
+          renderMealList();
+        });
+      }
       backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
       backdrop.querySelector('[data-action="save"]').addEventListener('click', () => {
         close(Array.from(selectedSet));

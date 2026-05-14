@@ -310,6 +310,28 @@ main {
   margin: 8px 0 10px;
   flex-wrap: wrap;
 }
+.store-block-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  flex-wrap: wrap;
+}
+.store-block-search-row .store-search-input {
+  width: 200px;
+  max-width: 200px;
+}
+.store-block-bulk-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.store-block-bulk-btn:hover {
+  background: #f5f7ff;
+}
 .store-block-tab {
   border: 1px solid var(--border);
   background: #fff;
@@ -742,5 +764,8 @@ main {
     width: 100%;
     max-width: none;
     margin-top: 8px;
+  }
+  .store-block-search-row .store-search-input {
+    max-width: none;
   }
 }
