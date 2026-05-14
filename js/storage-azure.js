@@ -214,6 +214,22 @@
       await deleteEntity(TABLE_VOTES, meal, 'current');
     },
 
+    async getVoteHistory(meal) {
+      await ensureInit();
+      const entities = await listEntities(TABLE_VOTES, meal);
+      return entities
+        .filter((e) => String(e.RowKey || '').startsWith('history_'))
+        .map(parsePayload)
+        .filter(Boolean);
+    },
+
+    async saveVoteHistory(meal, record) {
+      await ensureInit();
+      const safe = (record && typeof record === 'object') ? record : {};
+      const rowKey = `history_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      await putEntity(TABLE_VOTES, meal, rowKey, { Payload: JSON.stringify(safe) });
+    },
+
     async getPeopleBundle() {
       await ensureInit();
       const e = await getEntity(TABLE_PEOPLE, 'shared', 'current');

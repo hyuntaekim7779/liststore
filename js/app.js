@@ -51,6 +51,7 @@
 
     startPolling();
     startDailyAssignmentsResetWatcher();
+    startVoteAutoResetWatcher();
     renderPeopleAndAssignments();
     renderCautions();
   }
@@ -248,6 +249,26 @@
         schedulePoll();
       }
     });
+  }
+
+  function startVoteAutoResetWatcher() {
+    let running = false;
+    setInterval(async () => {
+      if (running) return;
+      running = true;
+      try {
+        for (const meal of MEAL_TYPES) {
+          await Voting.load(meal);
+        }
+        if (MEAL_TYPES.includes(state.activeTab)) {
+          renderVote();
+        }
+      } catch (e) {
+        console.warn('vote auto reset watcher failed:', e);
+      } finally {
+        running = false;
+      }
+    }, 60 * 1000);
   }
 
   function schedulePoll() {
@@ -576,6 +597,7 @@
     // meal tabs
     state.meal = tab;
     state.selectedStoreId = null;
+    await Voting.load(state.meal);
     $('#panel-settings').classList.add('hidden');
     $('#panel-meal').classList.remove('hidden');
 
@@ -1035,6 +1057,14 @@
       await Voting.clear(state.meal);
       renderVote();
     });
+
+    const historyBtn = $('#btn-vote-history');
+    if (historyBtn) {
+      historyBtn.addEventListener('click', async () => {
+        await Voting.loadHistory(state.meal);
+        openVoteHistoryModal(state.meal);
+      });
+    }
   }
 
   function renderVotePreview(picks) {
@@ -1117,6 +1147,74 @@
         if (newStatus !== status) renderVote();
       }, 1000);
     }
+  }
+
+  function openVoteHistoryModal(meal) {
+    const rows = [...Voting.getHistory(meal)]
+      .sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
+    const backdrop = document.createElement('div');
+    backdrop.className = 'visibility-modal-backdrop';
+    const mealName = mealLabel(meal);
+    const itemsHtml = rows.length
+      ? rows.map((row) => {
+        const when = formatSeoulDateTime(row.endAt || row.createdAt || row.archivedAt);
+        const winnerText = formatWinnerText(row);
+        return `
+          <li>
+            <div class="vote-history-title">${escapeHtml(when)} · ${escapeHtml(mealName)}</div>
+            <div><strong>결과:</strong> ${escapeHtml(winnerText)}</div>
+            <div class="vote-history-meta">${escapeHtml(formatScoreText(row))}</div>
+          </li>
+        `;
+      }).join('')
+      : '<li><div class="vote-history-meta">기록된 이전 투표가 없습니다.</div></li>';
+    backdrop.innerHTML = `
+      <div class="visibility-modal" role="dialog" aria-modal="true">
+        <h3>🕘 이전 투표 기록</h3>
+        <p class="muted">${escapeHtml(mealName)} 탭의 과거 최종 결과입니다.</p>
+        <ul class="vote-history-list">${itemsHtml}</ul>
+        <div class="actions">
+          <button type="button" data-action="close">닫기</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    const close = () => backdrop.remove();
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) close();
+    });
+    const closeBtn = backdrop.querySelector('[data-action="close"]');
+    if (closeBtn) closeBtn.addEventListener('click', close);
+  }
+
+  function formatWinnerText(row) {
+    const winners = Array.isArray(row && row.winners) ? row.winners : [];
+    if (!winners.length) return '무효(득표 없음)';
+    if (winners.length === 1) {
+      return `${winners[0].name} (${winners[0].count}표)`;
+    }
+    return `공동 1위: ${winners.map((w) => `${w.name}(${w.count}표)`).join(', ')}`;
+  }
+
+  function formatScoreText(row) {
+    const scores = Array.isArray(row && row.scores) ? row.scores : [];
+    if (!scores.length) return '후보 정보 없음';
+    return scores.map((s) => `${s.name} ${s.count}표`).join(' · ');
+  }
+
+  function formatSeoulDateTime(ts) {
+    if (!ts) return '-';
+    const d = new Date(ts);
+    const date = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(d);
+    return date.replace(/\.\s*$/, '');
   }
 
   function clearVoteTimer() {

@@ -14,6 +14,7 @@
 (function () {
   const KEY_STORES = (meal) => `ls.stores.${meal}`;
   const KEY_VOTE   = (meal) => `ls.vote.${meal}`;
+  const KEY_VOTE_HISTORY = (meal) => `ls.vote.history.${meal}`;
   const KEY_PEOPLE = 'ls.people.v1';
   const KEY_CAUTION = 'ls.cautions.v1';
   const KEY_ASSIGN = 'ls.assignments.v1';
@@ -40,6 +41,15 @@
     },
     async clearVote(meal) {
       localStorage.removeItem(KEY_VOTE(meal));
+    },
+    async getVoteHistory(meal) {
+      const rows = safeParse(localStorage.getItem(KEY_VOTE_HISTORY(meal)), []);
+      return Array.isArray(rows) ? rows : [];
+    },
+    async saveVoteHistory(meal, record) {
+      const rows = await this.getVoteHistory(meal);
+      rows.push(record);
+      localStorage.setItem(KEY_VOTE_HISTORY(meal), JSON.stringify(rows));
     },
     async getPeopleBundle() {
       const bundle = safeParse(localStorage.getItem(KEY_PEOPLE_BUNDLE), null);
