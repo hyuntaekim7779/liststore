@@ -433,19 +433,7 @@
           alert('먼저 대상자를 선택해주세요.');
           return;
         }
-        const options = getStoreBlockOptions();
-        if (!options.length) {
-          alert('등록된 가게가 없어 선택할 수 없습니다.');
-          return;
-        }
-        const selected = await showMultiSelectModal({
-          title: '못가는 가게 선택',
-          subtitle: `${personName} 대상자의 제외 가게를 선택하세요.`,
-          options,
-          selected: Array.isArray(state.cautionStoreBlocks[personName]) ? state.cautionStoreBlocks[personName] : [],
-          saveLabel: '저장',
-          requireAtLeastOne: false,
-        });
+        const selected = await openCautionStoreBlocksEditor(personName);
         if (!selected) return;
         if (selected.length) state.cautionStoreBlocks[personName] = selected;
         else delete state.cautionStoreBlocks[personName];
@@ -648,10 +636,24 @@
           </div>
           ${blockedNames.length ? `<div class="s-meta">못가는 가게: ${escapeHtml(blockedNames.join(', '))}</div>` : ''}
         </div>
-        <div class="s-actions"></div>`;
+        <div class="s-actions">
+          <button data-action="edit-blocks" data-name="${escapeHtml(name)}">못가는 가게 수정</button>
+        </div>`;
       li.addEventListener('click', (e) => {
         const action = e.target.dataset && e.target.dataset.action;
         const targetId = e.target.dataset && e.target.dataset.id;
+        const targetName = e.target.dataset && e.target.dataset.name;
+        if (action === 'edit-blocks' && targetName) {
+          openCautionStoreBlocksEditor(targetName).then((selected) => {
+            if (!selected) return;
+            if (selected.length) state.cautionStoreBlocks[targetName] = selected;
+            else delete state.cautionStoreBlocks[targetName];
+            saveCautions();
+            renderCautions();
+            renderPeopleAndAssignments();
+          });
+          return;
+        }
         if (action !== 'delete' || !targetId) return;
         state.cautions = state.cautions.filter((x) => x.id !== targetId);
         saveCautions();
@@ -1782,6 +1784,30 @@
     return out.sort((a, b) => a.label.localeCompare(b.label, 'ko'));
   }
 
+  function getStoreBlockOptionsByMeal() {
+    const byMeal = {
+      lunch: [],
+      fridayLunch: [],
+      dinner: [],
+    };
+    const seen = new Set();
+    MEAL_TYPES.forEach((meal) => {
+      Stores.get(meal).forEach((store) => {
+        const key = getStoreBlockKeyFromStore(store, meal);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        byMeal[meal].push({
+          value: key,
+          label: store.name,
+        });
+      });
+    });
+    MEAL_TYPES.forEach((meal) => {
+      byMeal[meal].sort((a, b) => a.label.localeCompare(b.label, 'ko'));
+    });
+    return byMeal;
+  }
+
   function getStoreLabelByBlockKey(blockKey) {
     const options = getStoreBlockOptions();
     const found = options.find((op) => op.value === blockKey);
@@ -1793,6 +1819,82 @@
     if (normUrl) return `url:${normUrl}`;
     const meal = mealFallback || state.meal || 'lunch';
     return `id:${meal}:${store && store.id ? store.id : ''}`;
+  }
+
+  function openCautionStoreBlocksEditor(personName) {
+    const byMeal = getStoreBlockOptionsByMeal();
+    const totalCount = MEAL_TYPES.reduce((sum, meal) => sum + byMeal[meal].length, 0);
+    if (!totalCount) {
+      alert('등록된 가게가 없어 선택할 수 없습니다.');
+      return Promise.resolve(null);
+    }
+    const selectedSet = new Set(
+      Array.isArray(state.cautionStoreBlocks[personName]) ? state.cautionStoreBlocks[personName] : []
+    );
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'visibility-modal-backdrop';
+      backdrop.innerHTML = `
+        <div class="visibility-modal store-block-modal" role="dialog" aria-modal="true">
+          <h3>못가는 가게 선택</h3>
+          <p class="muted">${escapeHtml(personName)} 대상자의 제외 가게를 설정하세요.</p>
+          <div class="store-block-tabs">
+            <button type="button" class="store-block-tab active" data-meal="lunch">점심</button>
+            <button type="button" class="store-block-tab" data-meal="fridayLunch">금요일 점심</button>
+            <button type="button" class="store-block-tab" data-meal="dinner">저녁</button>
+          </div>
+          <div class="store-block-list" id="store-block-list"></div>
+          <div class="actions">
+            <button type="button" data-action="cancel">취소</button>
+            <button type="button" data-action="save">저장</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+
+      const listEl = backdrop.querySelector('#store-block-list');
+      let activeMeal = 'lunch';
+      const renderMealList = () => {
+        const options = byMeal[activeMeal] || [];
+        if (!options.length) {
+          listEl.innerHTML = '<div class="vote-history-meta">해당 식사 탭에 등록된 가게가 없습니다.</div>';
+          return;
+        }
+        listEl.innerHTML = options.map((op) => `
+          <label class="store-block-option">
+            <input type="checkbox" value="${escapeHtml(op.value)}" ${selectedSet.has(op.value) ? 'checked' : ''}/>
+            <span>${escapeHtml(op.label)}</span>
+          </label>
+        `).join('');
+        Array.from(listEl.querySelectorAll('input[type="checkbox"]')).forEach((cb) => {
+          cb.addEventListener('change', () => {
+            if (cb.checked) selectedSet.add(cb.value);
+            else selectedSet.delete(cb.value);
+          });
+        });
+      };
+
+      const close = (result) => {
+        backdrop.remove();
+        resolve(result);
+      };
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) close(null);
+      });
+      Array.from(backdrop.querySelectorAll('.store-block-tab')).forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeMeal = btn.dataset.meal;
+          Array.from(backdrop.querySelectorAll('.store-block-tab'))
+            .forEach((el) => el.classList.toggle('active', el === btn));
+          renderMealList();
+        });
+      });
+      backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
+      backdrop.querySelector('[data-action="save"]').addEventListener('click', () => {
+        close(Array.from(selectedSet));
+      });
+      renderMealList();
+    });
   }
 
   function renderCautionPersonOptions() {

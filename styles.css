@@ -283,6 +283,43 @@ main {
   padding: 6px 10px;
   font-size: 12px;
 }
+.store-block-modal {
+  width: min(760px, calc(100% - 24px));
+}
+.store-block-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.store-block-tab {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.store-block-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.store-block-list {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+  min-height: 340px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.store-block-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: 14px;
+}
 .vote-history-list {
   list-style: none;
   margin: 10px 0 0;
