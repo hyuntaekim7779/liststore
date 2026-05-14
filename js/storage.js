@@ -15,6 +15,7 @@
   const KEY_STORES = (meal) => `ls.stores.${meal}`;
   const KEY_VOTE   = (meal) => `ls.vote.${meal}`;
   const KEY_VOTE_HISTORY = (meal) => `ls.vote.history.${meal}`;
+  const KEY_RANDOM_HISTORY = (meal) => `ls.random.history.${meal}`;
   const KEY_PEOPLE = 'ls.people.v1';
   const KEY_CAUTION = 'ls.cautions.v1';
   const KEY_ASSIGN = 'ls.assignments.v1';
@@ -50,6 +51,25 @@
       const rows = await this.getVoteHistory(meal);
       rows.push(record);
       localStorage.setItem(KEY_VOTE_HISTORY(meal), JSON.stringify(rows));
+    },
+    async getRandomHistory(meal) {
+      const rows = safeParse(localStorage.getItem(KEY_RANDOM_HISTORY(meal)), []);
+      return Array.isArray(rows) ? rows : [];
+    },
+    async saveRandomHistory(meal, record) {
+      const rows = await this.getRandomHistory(meal);
+      rows.push(record);
+      localStorage.setItem(KEY_RANDOM_HISTORY(meal), JSON.stringify(rows));
+    },
+    async deleteRandomHistory(meal, recordId) {
+      const rows = await this.getRandomHistory(meal);
+      localStorage.setItem(
+        KEY_RANDOM_HISTORY(meal),
+        JSON.stringify(rows.filter((r) => String(r.id) !== String(recordId)))
+      );
+    },
+    async clearRandomHistory(meal) {
+      localStorage.removeItem(KEY_RANDOM_HISTORY(meal));
     },
     async getPeopleBundle() {
       const bundle = safeParse(localStorage.getItem(KEY_PEOPLE_BUNDLE), null);

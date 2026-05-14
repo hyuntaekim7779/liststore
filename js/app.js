@@ -17,6 +17,7 @@
     assignments: { outside: [], lunchbox: [] },
     assignmentsResetDate: '',
     settingsSubtab: 'people',
+    randomHistoryByMeal: { lunch: [], dinner: [], fridayLunch: [] },
   };
 
   document.addEventListener('DOMContentLoaded', init);
@@ -33,6 +34,7 @@
     bindVoting();
     bindPeopleAndCautions();
     bindSettingsSubtabs();
+    bindRandomHistoryManager();
     bindTitleQuickSwitch();
     bindMapActions();
     bindStorageErrors();
@@ -41,6 +43,7 @@
     for (const meal of MEAL_TYPES) {
       await Stores.load(meal);
       await Voting.load(meal);
+      await loadRandomHistoryForMeal(meal);
     }
     await loadPeopleData();
 
@@ -73,6 +76,8 @@
   const ASSIGN_KEY = 'ls.assignments.v1';
   const ASSIGN_RESET_KEY = 'ls.assignments.reset.date.v1';
   const ROLE_OPTIONS = ['사원 (선임)', '대리', '과장', '차장', '부장', '이사', '팀장님'];
+  const RANDOM_BLOCK_WINDOW_MS = 5 * 24 * 60 * 60 * 1000;
+  const HISTORY_ADMIN_PASSWORD = 'MTP2026';
 
   async function loadPeopleData() {
     let bundle = null;
@@ -289,6 +294,7 @@
     try {
       for (const meal of MEAL_TYPES) {
         await Stores.load(meal);
+        await loadRandomHistoryForMeal(meal);
       }
       await Voting.load(state.meal);
       await loadPeopleData();
@@ -305,6 +311,7 @@
       renderVote();
     } else if (state.activeTab === 'settings') {
       renderSettingsStoreList();
+      if (state.settingsSubtab === 'history') renderRandomHistoryManager();
     }
     schedulePoll();
   }
@@ -337,6 +344,10 @@
     );
     if (tab === 'taste-care') {
       renderCautionPersonOptions();
+    }
+    if (tab === 'history') {
+      Promise.all(MEAL_TYPES.map((meal) => loadRandomHistoryForMeal(meal)))
+        .then(() => renderRandomHistoryManager());
     }
   }
 
@@ -996,16 +1007,21 @@
 
   // ---------- Roulette ----------
   function bindRoulette() {
-    $('#btn-pick-roulette').addEventListener('click', () => {
-      const picks = pickRandomFromVisible(5);
-      if (picks.length < 2) {
-        alert('가게를 최소 2곳 이상 등록해주세요.');
-        return;
+    $('#btn-pick-roulette').addEventListener('click', async () => {
+      try {
+        const picks = await pickRandomFromVisible(5, { source: 'roulette' });
+        if (picks.length < 2) {
+          alert('5일 제외 규칙으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
+          return;
+        }
+        Roulette.setItems(picks);
+        $('#btn-spin').disabled = false;
+        $('#roulette-result').textContent = `후보 ${picks.length}곳을 무작위로 선정했습니다.`;
+        $('#roulette-result').classList.remove('winner');
+      } catch (e) {
+        console.warn('roulette pick failed:', e);
+        alert('후보 선정 중 오류가 발생했습니다.');
       }
-      Roulette.setItems(picks);
-      $('#btn-spin').disabled = false;
-      $('#roulette-result').textContent = `후보 ${picks.length}곳을 무작위로 선정했습니다.`;
-      $('#roulette-result').classList.remove('winner');
     });
 
     $('#btn-spin').addEventListener('click', () => {
@@ -1027,14 +1043,19 @@
     $('#vote-start').value = toLocalDtInput(now);
     $('#vote-end').value = toLocalDtInput(later);
 
-    $('#btn-pick-vote').addEventListener('click', () => {
+    $('#btn-pick-vote').addEventListener('click', async () => {
       const count = Math.max(2, Math.min(10, parseInt($('#vote-candidate-count').value, 10) || 4));
-      const picks = pickRandomFromVisible(count);
-      if (picks.length < 2) {
-        alert('가게를 최소 2곳 이상 등록해주세요.');
-        return;
+      try {
+        const picks = await pickRandomFromVisible(count, { source: 'voteCandidate' });
+        if (picks.length < 2) {
+          alert('5일 제외 규칙으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
+          return;
+        }
+        renderVotePreview(picks);
+      } catch (e) {
+        console.warn('vote candidate pick failed:', e);
+        alert('후보 선정 중 오류가 발생했습니다.');
       }
-      renderVotePreview(picks);
     });
 
     $('#btn-create-vote').addEventListener('click', async () => {
@@ -1217,6 +1238,130 @@
     return date.replace(/\.\s*$/, '');
   }
 
+  async function loadRandomHistoryForMeal(meal) {
+    if (!window.Storage || typeof window.Storage.getRandomHistory !== 'function') {
+      state.randomHistoryByMeal[meal] = [];
+      return [];
+    }
+    try {
+      const rows = await window.Storage.getRandomHistory(meal);
+      const list = Array.isArray(rows) ? rows : [];
+      state.randomHistoryByMeal[meal] = list
+        .filter((r) => r && r.storeId && r.createdAt)
+        .map((r) => ({
+          id: String(r.id || uid('rh')),
+          storeId: String(r.storeId),
+          storeName: String(r.storeName || ''),
+          source: String(r.source || 'roulette'),
+          createdAt: Number(r.createdAt || 0),
+          meal: meal,
+        }));
+    } catch (e) {
+      console.warn('getRandomHistory failed:', e);
+      state.randomHistoryByMeal[meal] = [];
+    }
+    return state.randomHistoryByMeal[meal];
+  }
+
+  function getRecentRandomBlockedIds(meal) {
+    const rows = Array.isArray(state.randomHistoryByMeal[meal]) ? state.randomHistoryByMeal[meal] : [];
+    const minTs = Date.now() - RANDOM_BLOCK_WINDOW_MS;
+    return new Set(rows.filter((r) => r.createdAt >= minTs).map((r) => r.storeId));
+  }
+
+  async function appendRandomHistory(meal, stores, source) {
+    if (!window.Storage || typeof window.Storage.saveRandomHistory !== 'function') return;
+    const now = Date.now();
+    const records = stores.map((s) => ({
+      id: uid('rh'),
+      storeId: s.id,
+      storeName: s.name,
+      source: source || 'roulette',
+      createdAt: now,
+    }));
+    for (const rec of records) {
+      await window.Storage.saveRandomHistory(meal, rec);
+    }
+    await loadRandomHistoryForMeal(meal);
+    if (state.settingsSubtab === 'history') renderRandomHistoryManager();
+  }
+
+  function bindRandomHistoryManager() {
+    const mealFilter = $('#random-history-meal');
+    if (mealFilter) {
+      mealFilter.addEventListener('change', () => {
+        renderRandomHistoryManager();
+      });
+    }
+    const clearAllBtn = $('#btn-random-history-clear-all');
+    if (clearAllBtn) {
+      clearAllBtn.addEventListener('click', async () => {
+        if (!verifyHistoryAdminPassword()) return;
+        const targetMeal = (mealFilter && mealFilter.value) || 'all';
+        const meals = targetMeal === 'all' ? MEAL_TYPES : [targetMeal];
+        if (!confirm(`${targetMeal === 'all' ? '전체 식사 탭' : mealLabel(targetMeal)} 기록을 모두 삭제할까요?`)) return;
+        for (const meal of meals) {
+          if (window.Storage && typeof window.Storage.clearRandomHistory === 'function') {
+            await window.Storage.clearRandomHistory(meal);
+          }
+          state.randomHistoryByMeal[meal] = [];
+        }
+        renderRandomHistoryManager();
+      });
+    }
+  }
+
+  function renderRandomHistoryManager() {
+    const list = $('#random-history-list');
+    if (!list) return;
+    const mealFilter = ($('#random-history-meal') && $('#random-history-meal').value) || 'all';
+    const meals = mealFilter === 'all' ? MEAL_TYPES : [mealFilter];
+    const rows = meals
+      .flatMap((meal) => (state.randomHistoryByMeal[meal] || []).map((r) => ({ ...r, meal })))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    list.innerHTML = '';
+    if (!rows.length) {
+      list.innerHTML = '<li style="border:none;background:transparent;color:#888;justify-content:center">기록이 없습니다.</li>';
+      return;
+    }
+    rows.forEach((row) => {
+      const li = document.createElement('li');
+      const sourceText = row.source === 'voteCandidate' ? '투표 후보 선정' : '랜덤 룰렛 후보';
+      const until = formatSeoulDateTime(row.createdAt + RANDOM_BLOCK_WINDOW_MS);
+      li.innerHTML = `
+        <div>
+          <div class="s-name">${escapeHtml(row.storeName || row.storeId)}</div>
+          <div class="s-meta">${escapeHtml(mealLabel(row.meal))} · ${escapeHtml(sourceText)} · ${escapeHtml(formatSeoulDateTime(row.createdAt))} (차단 만료: ${escapeHtml(until)})</div>
+        </div>
+        <div class="s-actions"><button data-action="delete" data-meal="${escapeHtml(row.meal)}" data-id="${escapeHtml(row.id)}">삭제</button></div>
+      `;
+      li.addEventListener('click', async (e) => {
+        const action = e.target.dataset && e.target.dataset.action;
+        const rid = e.target.dataset && e.target.dataset.id;
+        const meal = e.target.dataset && e.target.dataset.meal;
+        if (action !== 'delete' || !rid || !meal) return;
+        if (!verifyHistoryAdminPassword()) return;
+        if (!confirm('해당 기록을 삭제할까요?')) return;
+        if (window.Storage && typeof window.Storage.deleteRandomHistory === 'function') {
+          await window.Storage.deleteRandomHistory(meal, rid);
+        }
+        await loadRandomHistoryForMeal(meal);
+        renderRandomHistoryManager();
+      });
+      list.appendChild(li);
+    });
+  }
+
+  function verifyHistoryAdminPassword() {
+    const input = prompt('기록 삭제 비밀번호를 입력하세요.');
+    if (input === null) return false;
+    if (input !== HISTORY_ADMIN_PASSWORD) {
+      alert('비밀번호가 올바르지 않습니다.');
+      return false;
+    }
+    return true;
+  }
+
   function clearVoteTimer() {
     if (state.voteTimer) { clearInterval(state.voteTimer); state.voteTimer = null; }
   }
@@ -1340,12 +1485,18 @@
     }
   }
 
-  function pickRandomFromVisible(n) {
-    const arr = getVisibleStores().filter((s) => !isBlockedByCaution(s));
+  async function pickRandomFromVisible(n, options = {}) {
+    const source = options.source || 'roulette';
+    await loadRandomHistoryForMeal(state.meal);
+    const blockedByRecent = getRecentRandomBlockedIds(state.meal);
+    const arr = getVisibleStores().filter((s) => !isBlockedByCaution(s) && !blockedByRecent.has(s.id));
     const out = [];
     while (arr.length && out.length < n) {
       const idx = Math.floor(Math.random() * arr.length);
       out.push(arr.splice(idx, 1)[0]);
+    }
+    if (out.length) {
+      await appendRandomHistory(state.meal, out, source);
     }
     return out;
   }

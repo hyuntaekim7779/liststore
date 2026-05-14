@@ -120,7 +120,7 @@ HTML 스크래핑 대신 **Naver Developers Local Search API** 를 사용하면 
 
 현재 연결 정보 (`js/config.js`):
 - Storage Account: `agenthta1de`
-- Tables: `stores`, `votes`, `people`
+- Tables: `stores`, `votes`, `people`, `randomhistory`
 - SAS 만료: **2028-05-01** (만료 전 재발급 필요)
 
 ### 폴링 (실시간 동기화)
@@ -153,10 +153,11 @@ window.Storage = {
 ### Azure 측 사전 작업
 
 1. Azure Storage Account 생성
-2. Table Service → 테이블 세 개 생성 (예: `stores`, `votes`, `people`)
+2. Table Service → 테이블 네 개 생성 (예: `stores`, `votes`, `people`, `randomhistory`)
    - `stores`: 가게 목록
    - `votes`: 투표 데이터
    - `people`: 대상자/입맛 보호 대상자/오늘 점심 구분(외식·도시락) 데이터
+   - `randomhistory`: 랜덤 룰렛/투표 후보 무작위 선정 5일 제외 기록
 3. **CORS 설정** (Storage account → Resource sharing (CORS) → Table service):
    - Allowed origins: `https://<USERNAME>.github.io`
    - Allowed methods: `GET, POST, PUT, DELETE, OPTIONS, MERGE`

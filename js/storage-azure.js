@@ -8,6 +8,8 @@
  *                  Payload (JSON 문자열, 투표 정보 전체)
  *   people 테이블: PartitionKey = 'shared', RowKey = 'current',
  *                  Payload (JSON 문자열, 대상자/입맛보호/오늘점심구분 데이터)
+ *   randomhistory 테이블: PartitionKey = meal key, RowKey = random history id,
+ *                  Payload (JSON 문자열, 룰렛/투표 후보 무작위 선정 기록)
  *
  * window.AppConfig.storage === 'azure' 일 때 자동으로 window.Storage 를 덮어씁니다.
  * 그렇지 않으면 storage.js 의 localStorage 어댑터가 유지됩니다.
@@ -26,6 +28,7 @@
   const TABLE_STORES = cfg.tableStores || 'stores';
   const TABLE_VOTES  = cfg.tableVotes  || 'votes';
   const TABLE_PEOPLE = cfg.tablePeople || 'people';
+  const TABLE_RANDOM_HISTORY = cfg.tableRandomHistory || 'randomhistory';
 
   if (!ACCOUNT || !SAS) {
     console.error('[storage-azure] account 또는 sas 가 설정되지 않았습니다. localStorage 로 폴백.');
@@ -86,8 +89,9 @@
         createTable(TABLE_STORES),
         createTable(TABLE_VOTES),
         createTable(TABLE_PEOPLE),
-      ]).then(([a, b, c]) => {
-        if (a && b && c) console.info('[azure] tables ready.');
+        createTable(TABLE_RANDOM_HISTORY),
+      ]).then(([a, b, c, d]) => {
+        if (a && b && c && d) console.info('[azure] tables ready.');
       });
     }
     return initPromise;
@@ -230,6 +234,33 @@
       await putEntity(TABLE_VOTES, meal, rowKey, { Payload: JSON.stringify(safe) });
     },
 
+    async getRandomHistory(meal) {
+      await ensureInit();
+      const entities = await listEntities(TABLE_RANDOM_HISTORY, meal);
+      return entities.map(parsePayload).filter(Boolean);
+    },
+
+    async saveRandomHistory(meal, record) {
+      await ensureInit();
+      const safe = (record && typeof record === 'object') ? record : {};
+      const rowKey = String(safe.id || `rh_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+      if (!safe.id) safe.id = rowKey;
+      await putEntity(TABLE_RANDOM_HISTORY, meal, rowKey, { Payload: JSON.stringify(safe) });
+    },
+
+    async deleteRandomHistory(meal, recordId) {
+      await ensureInit();
+      await deleteEntity(TABLE_RANDOM_HISTORY, meal, String(recordId));
+    },
+
+    async clearRandomHistory(meal) {
+      await ensureInit();
+      const entities = await listEntities(TABLE_RANDOM_HISTORY, meal);
+      await Promise.all(entities.map((e) =>
+        deleteEntity(TABLE_RANDOM_HISTORY, meal, e.RowKey).catch((err) => console.error('clear random history delete:', err))
+      ));
+    },
+
     async getPeopleBundle() {
       await ensureInit();
       const e = await getEntity(TABLE_PEOPLE, 'shared', 'current');
@@ -256,5 +287,5 @@
   ensureInit();
 
   window.Storage = AzureStorage;
-  console.info(`[storage-azure] using account "${ACCOUNT}" tables: ${TABLE_STORES}, ${TABLE_VOTES}, ${TABLE_PEOPLE}`);
+  console.info(`[storage-azure] using account "${ACCOUNT}" tables: ${TABLE_STORES}, ${TABLE_VOTES}, ${TABLE_PEOPLE}, ${TABLE_RANDOM_HISTORY}`);
 })();

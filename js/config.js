@@ -8,8 +8,8 @@
  * azure: storage === 'azure' 일 때만 사용
  *   - account: Storage Account 이름
  *   - sas:     SAS Token 문자열 (선행 '?' 없이)
- *   - tableStores / tableVotes / tablePeople: 사용할 테이블 이름
- *     (기본 stores/votes/people)
+ *   - tableStores / tableVotes / tablePeople / tableRandomHistory: 사용할 테이블 이름
+ *     (기본 stores/votes/people/randomhistory)
  *
  * corsProxy: 네이버 place 페이지 HTML 을 가져오는 데 사용하는 CORS 프록시.
  * placeLookup: URL 자동 등록 시 좌표/주소 자동 추출 활성화 여부.
@@ -23,6 +23,7 @@ window.AppConfig = {
     tableStores: 'stores',
     tableVotes: 'votes',
     tablePeople: 'people',
+    tableRandomHistory: 'randomhistory',
   },
 
   corsProxy: 'https://corsproxy.io/?url=',
