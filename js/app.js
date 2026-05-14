@@ -14,6 +14,7 @@
     pickingForStoreId: null,      // 좌표 지정 모드 대상
     people: [],
     cautions: [],
+    cautionStoreBlocks: {},
     assignments: { outside: [], lunchbox: [] },
     assignmentsResetDate: '',
     settingsSubtab: 'people',
@@ -92,14 +93,19 @@
       bundle = {
         people: safeLocalParse(PEOPLE_KEY, []),
         cautions: safeLocalParse(CAUTION_KEY, []),
+        cautionStoreBlocks: {},
         assignments: safeLocalParse(ASSIGN_KEY, { outside: [], lunchbox: [] }),
         resetDate: localStorage.getItem(ASSIGN_RESET_KEY) || '',
       };
     }
     state.people = normalizePeople(bundle.people || []);
     state.cautions = normalizeCautions(bundle.cautions || []);
+    state.cautionStoreBlocks = normalizeCautionStoreBlocks(bundle.cautionStoreBlocks || {});
     const peopleNames = new Set(state.people.map((p) => p.name));
     state.cautions = state.cautions.filter((c) => peopleNames.has(c.name));
+    Object.keys(state.cautionStoreBlocks).forEach((name) => {
+      if (!peopleNames.has(name)) delete state.cautionStoreBlocks[name];
+    });
     const loadedAssign = bundle.assignments || { outside: [], lunchbox: [] };
     state.assignments = {
       outside: Array.isArray(loadedAssign.outside) ? loadedAssign.outside : [],
@@ -150,6 +156,19 @@
       .filter((c) => c.name && c.note);
   }
 
+  function normalizeCautionStoreBlocks(input) {
+    if (!input || typeof input !== 'object') return {};
+    const out = {};
+    Object.entries(input).forEach(([name, keys]) => {
+      const normalizedName = String(name || '').trim();
+      if (!normalizedName) return;
+      const list = Array.isArray(keys) ? keys : [];
+      const cleaned = Array.from(new Set(list.map((k) => String(k || '').trim()).filter(Boolean)));
+      if (cleaned.length) out[normalizedName] = cleaned;
+    });
+    return out;
+  }
+
   function saveAssignments() {
     normalizeAssignments();
     persistPeopleBundle();
@@ -159,6 +178,7 @@
     const bundle = {
       people: state.people,
       cautions: state.cautions,
+      cautionStoreBlocks: state.cautionStoreBlocks,
       assignments: state.assignments,
       resetDate: state.assignmentsResetDate || '',
     };
@@ -397,6 +417,44 @@
       });
     }
 
+    const cautionPersonEl = $('#caution-person');
+    if (cautionPersonEl) {
+      cautionPersonEl.addEventListener('change', () => {
+        renderCautionStoreBlockSummary();
+      });
+    }
+
+    const cautionStoreBtn = $('#btn-caution-store-blocks');
+    if (cautionStoreBtn) {
+      cautionStoreBtn.addEventListener('click', async () => {
+        const personEl = $('#caution-person');
+        const personName = (personEl && personEl.value || '').trim();
+        if (!personName) {
+          alert('먼저 대상자를 선택해주세요.');
+          return;
+        }
+        const options = getStoreBlockOptions();
+        if (!options.length) {
+          alert('등록된 가게가 없어 선택할 수 없습니다.');
+          return;
+        }
+        const selected = await showMultiSelectModal({
+          title: '못가는 가게 선택',
+          subtitle: `${personName} 대상자의 제외 가게를 선택하세요.`,
+          options,
+          selected: Array.isArray(state.cautionStoreBlocks[personName]) ? state.cautionStoreBlocks[personName] : [],
+          saveLabel: '저장',
+          requireAtLeastOne: false,
+        });
+        if (!selected) return;
+        if (selected.length) state.cautionStoreBlocks[personName] = selected;
+        else delete state.cautionStoreBlocks[personName];
+        saveCautions();
+        renderCautions();
+        renderCautionStoreBlockSummary();
+      });
+    }
+
     ['outside', 'lunchbox', 'pool'].forEach((group) => {
       const zone = $(`#drop-${group}`);
       if (!zone) return;
@@ -505,6 +563,7 @@
         }
         if (action !== 'delete') return;
         state.cautions = state.cautions.filter((c) => c.name !== p.name);
+        delete state.cautionStoreBlocks[p.name];
         state.people = state.people.filter((x) => x.id !== p.id);
         savePeopleData();
         saveCautions();
@@ -547,6 +606,10 @@
     state.assignments.outside = state.assignments.outside.map((n) => (n === oldName ? name : n));
     state.assignments.lunchbox = state.assignments.lunchbox.map((n) => (n === oldName ? name : n));
     state.cautions = state.cautions.map((c) => (c.name === oldName ? { ...c, name } : c));
+    if (state.cautionStoreBlocks[oldName]) {
+      state.cautionStoreBlocks[name] = [...state.cautionStoreBlocks[oldName]];
+      delete state.cautionStoreBlocks[oldName];
+    }
     savePeopleData();
     saveAssignments();
     saveCautions();
@@ -557,9 +620,11 @@
   function renderCautions() {
     const list = $('#caution-list');
     renderCautionPersonOptions();
+    renderCautionStoreBlockSummary();
     if (!list) return;
     list.innerHTML = '';
-    if (!state.cautions.length) {
+    const hasBlocks = Object.keys(state.cautionStoreBlocks).length > 0;
+    if (!state.cautions.length && !hasBlocks) {
       list.innerHTML = '<li style="border:none;background:transparent;color:#888;justify-content:center">등록된 입맛 보호 태그가 없습니다.</li>';
       return;
     }
@@ -568,14 +633,20 @@
       if (!grouped.has(c.name)) grouped.set(c.name, []);
       grouped.get(c.name).push(c);
     });
+    Object.keys(state.cautionStoreBlocks).forEach((name) => {
+      if (!grouped.has(name)) grouped.set(name, []);
+    });
     Array.from(grouped.entries()).forEach(([name, entries]) => {
       const li = document.createElement('li');
+      const blockedKeys = Array.isArray(state.cautionStoreBlocks[name]) ? state.cautionStoreBlocks[name] : [];
+      const blockedNames = blockedKeys.map((k) => getStoreLabelByBlockKey(k)).filter(Boolean);
       li.innerHTML = `
         <div>
           <div class="s-name">${escapeHtml(name)}</div>
           <div class="caution-tags">
             ${entries.map((c) => `<button class="caution-chip" data-action="delete" data-id="${escapeHtml(c.id)}" title="삭제">${escapeHtml(c.note)} ✕</button>`).join('')}
           </div>
+          ${blockedNames.length ? `<div class="s-meta">못가는 가게: ${escapeHtml(blockedNames.join(', '))}</div>` : ''}
         </div>
         <div class="s-actions"></div>`;
       li.addEventListener('click', (e) => {
@@ -1504,9 +1575,21 @@
   function isBlockedByCaution(store) {
     const cautionNames = new Set(state.cautions.map((c) => c.name));
     const eatingOut = state.assignments.outside.filter((n) => cautionNames.has(n));
-    if (!eatingOut.length) return false;
+    const hasStoreBlocks = state.assignments.outside.some((name) => {
+      const keys = state.cautionStoreBlocks[name];
+      return Array.isArray(keys) && keys.length > 0;
+    });
+    if (!eatingOut.length && !hasStoreBlocks) return false;
     const blockedFor = Array.isArray(store.avoidFor) ? store.avoidFor : [];
-    return blockedFor.some((name) => eatingOut.includes(name));
+    if (blockedFor.some((name) => eatingOut.includes(name))) return true;
+    const blockedStoreKeys = new Set();
+    state.assignments.outside.forEach((name) => {
+      const keys = Array.isArray(state.cautionStoreBlocks[name]) ? state.cautionStoreBlocks[name] : [];
+      keys.forEach((k) => blockedStoreKeys.add(k));
+    });
+    if (!blockedStoreKeys.size) return false;
+    const storeKey = getStoreBlockKeyFromStore(store, state.meal);
+    return blockedStoreKeys.has(storeKey);
   }
 
   function getStoreVisibleMeals(store, sourceMeal) {
@@ -1664,6 +1747,54 @@
       .filter((note, idx, arr) => note && arr.indexOf(note) === idx);
   }
 
+  function renderCautionStoreBlockSummary() {
+    const summary = $('#caution-store-block-summary');
+    const personEl = $('#caution-person');
+    if (!summary || !personEl) return;
+    const personName = (personEl.value || '').trim();
+    if (!personName) {
+      summary.textContent = '선택된 못가는 가게가 없습니다.';
+      return;
+    }
+    const blockedKeys = Array.isArray(state.cautionStoreBlocks[personName]) ? state.cautionStoreBlocks[personName] : [];
+    if (!blockedKeys.length) {
+      summary.textContent = `${personName} 대상자의 못가는 가게가 없습니다.`;
+      return;
+    }
+    const blockedNames = blockedKeys.map((k) => getStoreLabelByBlockKey(k)).filter(Boolean);
+    summary.textContent = `${personName} 제외 가게: ${blockedNames.join(', ')}`;
+  }
+
+  function getStoreBlockOptions() {
+    const seen = new Set();
+    const out = [];
+    MEAL_TYPES.forEach((meal) => {
+      Stores.get(meal).forEach((store) => {
+        const key = getStoreBlockKeyFromStore(store, meal);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        out.push({
+          value: key,
+          label: `${mealLabel(meal)} · ${store.name}`,
+        });
+      });
+    });
+    return out.sort((a, b) => a.label.localeCompare(b.label, 'ko'));
+  }
+
+  function getStoreLabelByBlockKey(blockKey) {
+    const options = getStoreBlockOptions();
+    const found = options.find((op) => op.value === blockKey);
+    return found ? found.label : blockKey;
+  }
+
+  function getStoreBlockKeyFromStore(store, mealFallback) {
+    const normUrl = normalizeUrlForCompare(store && store.url);
+    if (normUrl) return `url:${normUrl}`;
+    const meal = mealFallback || state.meal || 'lunch';
+    return `id:${meal}:${store && store.id ? store.id : ''}`;
+  }
+
   function renderCautionPersonOptions() {
     const personSelect = $('#caution-person');
     if (!personSelect) return;
@@ -1680,6 +1811,7 @@
     } else {
       personSelect.value = '';
     }
+    renderCautionStoreBlockSummary();
   }
 
   // ---------- Storage 오류 배너 ----------

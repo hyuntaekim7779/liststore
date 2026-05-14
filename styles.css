@@ -122,6 +122,13 @@ main {
 .store-form input:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
 .store-form textarea:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
 .form-actions { display: flex; justify-content: flex-end; }
+.taste-care-panel .form-actions {
+  gap: 8px;
+}
+#caution-store-block-summary {
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
 #caution-note {
   min-height: 92px;
 }
