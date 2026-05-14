@@ -48,6 +48,7 @@
     });
 
     startPolling();
+    startDailyAssignmentsResetWatcher();
     renderPeopleAndAssignments();
     renderCautions();
   }
@@ -67,6 +68,7 @@
   const PEOPLE_KEY = 'ls.people.v1';
   const CAUTION_KEY = 'ls.cautions.v1';
   const ASSIGN_KEY = 'ls.assignments.v1';
+  const ASSIGN_RESET_KEY = 'ls.assignments.reset.date.v1';
 
   function loadPeopleData() {
     state.people = safeLocalParse(PEOPLE_KEY, []);
@@ -77,6 +79,7 @@
       lunchbox: Array.isArray(loadedAssign.lunchbox) ? loadedAssign.lunchbox : [],
     };
     normalizeAssignments();
+    maybeResetAssignmentsAtTwoPm();
   }
 
   function savePeopleData() {
@@ -108,6 +111,51 @@
     state.assignments.lunchbox = Array.from(new Set(state.assignments.lunchbox.filter((n) => all.has(n))));
     const outsideSet = new Set(state.assignments.outside);
     state.assignments.lunchbox = state.assignments.lunchbox.filter((n) => !outsideSet.has(n));
+  }
+
+  function maybeResetAssignmentsAtTwoPm() {
+    const seoul = getSeoulDateTimeParts();
+    if (seoul.hour < 14) return false;
+    const lastResetDate = localStorage.getItem(ASSIGN_RESET_KEY);
+    if (lastResetDate === seoul.dateKey) return false;
+    state.assignments = { outside: [], lunchbox: [] };
+    saveAssignments();
+    localStorage.setItem(ASSIGN_RESET_KEY, seoul.dateKey);
+    return true;
+  }
+
+  function startDailyAssignmentsResetWatcher() {
+    setInterval(() => {
+      const resetDone = maybeResetAssignmentsAtTwoPm();
+      if (!resetDone) return;
+      renderPeopleAndAssignments();
+      if (MEAL_TYPES.includes(state.activeTab)) {
+        renderStoreList();
+        Maps.renderStores(getVisibleStores());
+      }
+    }, 60 * 1000);
+  }
+
+  function getSeoulDateTimeParts() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date());
+    const year = parts.find((p) => p.type === 'year')?.value || '0000';
+    const month = parts.find((p) => p.type === 'month')?.value || '01';
+    const day = parts.find((p) => p.type === 'day')?.value || '01';
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value || 0);
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value || 0);
+    return {
+      dateKey: `${year}-${month}-${day}`,
+      hour,
+      minute,
+    };
   }
 
   // ---------- 실시간 폴링 (Azure 모드일 때 데이터 동기화) ----------
@@ -280,6 +328,8 @@
 
     $('#count-outside').textContent = `(${state.assignments.outside.length})`;
     $('#count-lunchbox').textContent = `(${state.assignments.lunchbox.length})`;
+    const poolCount = $('#count-pool');
+    if (poolCount) poolCount.textContent = `(${poolNames.length})`;
   }
 
   function buildPersonTag(name) {
