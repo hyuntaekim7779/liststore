@@ -8,7 +8,7 @@
 </head>
 <body>
   <header class="app-header">
-    <h1>밥먹자!</h1>
+    <h1 id="app-title">밥먹자!</h1>
   </header>
 
   <div class="tabs-banner-row">
@@ -132,10 +132,23 @@
 
     <section class="card settings-subpanel" data-settings-panel="people">
       <h2>👥 대상자 관리</h2>
-      <div class="form-row">
+      <div class="form-row two">
         <label>대상자 이름
           <input id="person-name" type="text" placeholder="예: 홍길동" />
         </label>
+        <label>직책
+          <select id="person-role">
+            <option value="사원">사원</option>
+            <option value="대리">대리</option>
+            <option value="과장">과장</option>
+            <option value="차장">차장</option>
+            <option value="부장">부장</option>
+            <option value="이사">이사</option>
+            <option value="상무">상무</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-actions">
         <button id="btn-add-person" type="button" class="btn btn-secondary">추가</button>
       </div>
       <ul id="person-list" class="store-list"></ul>

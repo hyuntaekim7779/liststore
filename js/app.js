@@ -32,6 +32,7 @@
     bindVoting();
     bindPeopleAndCautions();
     bindSettingsSubtabs();
+    bindTitleQuickSwitch();
     bindMapActions();
     bindStorageErrors();
 
@@ -69,9 +70,10 @@
   const CAUTION_KEY = 'ls.cautions.v1';
   const ASSIGN_KEY = 'ls.assignments.v1';
   const ASSIGN_RESET_KEY = 'ls.assignments.reset.date.v1';
+  const ROLE_OPTIONS = ['사원', '대리', '과장', '차장', '부장', '이사', '상무'];
 
   function loadPeopleData() {
-    state.people = safeLocalParse(PEOPLE_KEY, []);
+    state.people = normalizePeople(safeLocalParse(PEOPLE_KEY, []));
     state.cautions = safeLocalParse(CAUTION_KEY, []);
     const loadedAssign = safeLocalParse(ASSIGN_KEY, { outside: [], lunchbox: [] });
     state.assignments = {
@@ -84,6 +86,17 @@
 
   function savePeopleData() {
     localStorage.setItem(PEOPLE_KEY, JSON.stringify(state.people));
+  }
+
+  function normalizePeople(input) {
+    if (!Array.isArray(input)) return [];
+    return input
+      .map((p) => ({
+        id: p && p.id ? String(p.id) : uid('p'),
+        name: p && p.name ? String(p.name).trim() : '',
+        role: ROLE_OPTIONS.includes(p && p.role) ? p.role : '사원',
+      }))
+      .filter((p) => p.name);
   }
 
   function saveCautions() {
@@ -241,14 +254,17 @@
     if (addPersonBtn) {
       addPersonBtn.addEventListener('click', () => {
         const input = $('#person-name');
+        const roleEl = $('#person-role');
         const name = (input && input.value || '').trim();
+        const role = roleEl && ROLE_OPTIONS.includes(roleEl.value) ? roleEl.value : '사원';
         if (!name) return;
         if (state.people.some((p) => p.name === name)) {
           alert('이미 등록된 대상자입니다.');
           return;
         }
-        state.people.push({ id: uid('p'), name });
+        state.people.push({ id: uid('p'), name, role });
         if (input) input.value = '';
+        if (roleEl) roleEl.value = '사원';
         savePeopleData();
         saveAssignments();
         renderPeopleAndAssignments();
@@ -354,9 +370,22 @@
     }
     state.people.forEach((p) => {
       const li = document.createElement('li');
-      li.innerHTML = `<div><div class="s-name">${escapeHtml(p.name)}</div></div><div class="s-actions"><button data-action="delete">삭제</button></div>`;
+      li.innerHTML = `
+        <div>
+          <div class="s-name">${escapeHtml(p.name)}</div>
+          <div class="s-meta">${escapeHtml(p.role)}</div>
+        </div>
+        <div class="s-actions">
+          <button data-action="edit">✏️</button>
+          <button data-action="delete">삭제</button>
+        </div>`;
       li.addEventListener('click', (e) => {
-        if (!(e.target.dataset && e.target.dataset.action === 'delete')) return;
+        const action = e.target.dataset && e.target.dataset.action;
+        if (action === 'edit') {
+          editPerson(p.id);
+          return;
+        }
+        if (action !== 'delete') return;
         state.people = state.people.filter((x) => x.id !== p.id);
         savePeopleData();
         saveAssignments();
@@ -364,6 +393,41 @@
       });
       list.appendChild(li);
     });
+  }
+
+  function editPerson(personId) {
+    const idx = state.people.findIndex((p) => p.id === personId);
+    if (idx < 0) return;
+    const current = state.people[idx];
+    const nextName = prompt('대상자 이름을 수정하세요.', current.name);
+    if (nextName == null) return;
+    const name = nextName.trim();
+    if (!name) {
+      alert('이름은 비워둘 수 없습니다.');
+      return;
+    }
+    if (state.people.some((p, i) => i !== idx && p.name === name)) {
+      alert('이미 등록된 대상자 이름입니다.');
+      return;
+    }
+    const nextRole = prompt(
+      `직책을 입력하세요.\n가능: ${ROLE_OPTIONS.join(', ')}`,
+      current.role || '사원'
+    );
+    if (nextRole == null) return;
+    const role = nextRole.trim();
+    if (!ROLE_OPTIONS.includes(role)) {
+      alert('직책은 사원/대리/과장/차장/부장/이사/상무 중에서 입력해주세요.');
+      return;
+    }
+    const oldName = current.name;
+    state.people[idx] = { ...current, name, role };
+    // 분류 태그는 이름 문자열로 저장되므로 이름 변경 시 함께 치환
+    state.assignments.outside = state.assignments.outside.map((n) => (n === oldName ? name : n));
+    state.assignments.lunchbox = state.assignments.lunchbox.map((n) => (n === oldName ? name : n));
+    savePeopleData();
+    saveAssignments();
+    renderPeopleAndAssignments();
   }
 
   function renderCautions() {
@@ -418,6 +482,14 @@
     $('#roulette-result').textContent = '';
     $('#btn-spin').disabled = true;
     renderVote();
+  }
+
+  function bindTitleQuickSwitch() {
+    const title = $('#app-title');
+    if (!title) return;
+    title.addEventListener('click', async () => {
+      await switchTab(getInitialMealTabBySeoulTime());
+    });
   }
 
   // ---------- 공통: URL로 가게 등록 ----------
