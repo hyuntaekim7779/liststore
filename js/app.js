@@ -271,6 +271,14 @@
   }
 
   function getTodayGroupTitleBySeoulTime() {
+    // 사용자가 식사 탭을 직접 선택한 경우 탭 기준 문구를 우선 반영
+    if (state.activeTab === 'lunch' || state.activeTab === 'fridayLunch') {
+      return '오늘 점심🍽️';
+    }
+    if (state.activeTab === 'dinner') {
+      return '오늘 저녁 및 회식🍺';
+    }
+
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Asia/Seoul',
       weekday: 'short',
@@ -705,6 +713,7 @@
   async function switchTab(tab) {
     cancelPickMode();
     state.activeTab = tab;
+    updateTodayGroupTitle();
     $$('.meal-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
 
     if (tab === 'settings') {
@@ -1829,7 +1838,8 @@
       dinner: [],
     };
     MEAL_TYPES.forEach((meal) => {
-      Stores.get(meal).forEach((store) => {
+      const visible = getVisibleStoresForMeal(meal, { includeMeta: true });
+      visible.forEach((store) => {
         const key = getStoreBlockKeyFromStore(store, meal);
         if (!key) return;
         byMeal[meal].push({
@@ -1855,8 +1865,8 @@
   function getStoreBlockKeyFromStore(store, mealFallback) {
     const normUrl = normalizeUrlForCompare(store && store.url);
     if (normUrl) return `url:${normUrl}`;
-    const meal = mealFallback || state.meal || 'lunch';
-    return `id:${meal}:${store && store.id ? store.id : ''}`;
+    const sourceMeal = (store && store.__sourceMeal) || mealFallback || state.meal || 'lunch';
+    return `id:${sourceMeal}:${store && store.id ? store.id : ''}`;
   }
 
   function openCautionStoreBlocksEditor(personName) {
