@@ -55,8 +55,8 @@ body {
   border-radius: 10px;
   border: 1px solid var(--border);
 }
-.tabs-side-img.left { transform: translate(-150px, -48px); }
-.tabs-side-img.right { transform: translate(150px, -48px); }
+.tabs-side-img.left { transform: translate(-150px, -38px); }
+.tabs-side-img.right { transform: translate(150px, -38px); }
 .meal-tab {
   border: 1px solid var(--border);
   background: var(--card);
@@ -92,13 +92,14 @@ main {
 .card h2 { margin: 0 0 12px; font-size: 18px; }
 .card-header { display:flex; justify-content: space-between; align-items: center; }
 .store-search-input {
-  width: 230px;
-  max-width: 45%;
+  width: 200px;
+  max-width: 38%;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 13px;
   background: #fff;
+  text-align: center;
 }
 .store-search-input:focus {
   outline: 2px solid var(--primary);
