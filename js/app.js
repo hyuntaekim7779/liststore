@@ -354,7 +354,7 @@
     const tag = document.createElement('span');
     tag.className = 'person-tag';
     tag.draggable = true;
-    tag.textContent = role ? `${name} · ${role}` : name;
+    tag.textContent = role ? `${name} ${role}` : name;
     tag.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', name);
       e.dataTransfer.effectAllowed = 'move';
