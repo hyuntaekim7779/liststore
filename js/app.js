@@ -56,6 +56,8 @@
     startPolling();
     startDailyAssignmentsResetWatcher();
     startVoteAutoResetWatcher();
+    startTodayGroupTitleWatcher();
+    updateTodayGroupTitle();
     renderPeopleAndAssignments();
     renderCautions();
   }
@@ -230,6 +232,7 @@
   function startDailyAssignmentsResetWatcher() {
     setInterval(() => {
       const resetDone = maybeResetAssignmentsAtTwoPm();
+      updateTodayGroupTitle();
       if (!resetDone) return;
       renderPeopleAndAssignments();
       if (MEAL_TYPES.includes(state.activeTab)) {
@@ -259,6 +262,41 @@
       hour,
       minute,
     };
+  }
+
+  function updateTodayGroupTitle() {
+    const titleEl = $('#today-group-title');
+    if (!titleEl) return;
+    titleEl.textContent = getTodayGroupTitleBySeoulTime();
+  }
+
+  function getTodayGroupTitleBySeoulTime() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date());
+    const weekday = parts.find((p) => p.type === 'weekday')?.value || '';
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value || 0);
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value || 0);
+    const minutesFromMidnight = hour * 60 + minute;
+    const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+
+    if (isWeekday && minutesFromMidnight >= (9 * 60) && minutesFromMidnight <= (13 * 60)) {
+      return '오늘 점심🍽️';
+    }
+    if (isWeekday && minutesFromMidnight >= (13 * 60 + 1) && minutesFromMidnight <= (19 * 60 + 30)) {
+      return '오늘 저녁 및 회식🍺';
+    }
+    return '오늘 점심🍽️';
+  }
+
+  function startTodayGroupTitleWatcher() {
+    setInterval(() => {
+      updateTodayGroupTitle();
+    }, 60 * 1000);
   }
 
   // ---------- 실시간 폴링 (Azure 모드일 때 데이터 동기화) ----------
