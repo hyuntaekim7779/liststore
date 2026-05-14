@@ -1878,6 +1878,7 @@
 
   function getStoreBlockOptionsByMeal() {
     const byMeal = {
+      all: [],
       lunch: [],
       fridayLunch: [],
       dinner: [],
@@ -1894,9 +1895,18 @@
         });
       });
     });
+    const allMap = new Map();
+    MEAL_TYPES.forEach((meal) => {
+      (byMeal[meal] || []).forEach((op) => {
+        if (allMap.has(op.value)) return;
+        allMap.set(op.value, { ...op });
+      });
+    });
+    byMeal.all = Array.from(allMap.values());
     MEAL_TYPES.forEach((meal) => {
       byMeal[meal].sort((a, b) => a.label.localeCompare(b.label, 'ko'));
     });
+    byMeal.all.sort((a, b) => a.label.localeCompare(b.label, 'ko'));
     return byMeal;
   }
 
@@ -1932,7 +1942,8 @@
           <h3>못가는 가게 선택</h3>
           <p class="muted">${escapeHtml(personName)} 대상자의 제외 가게를 설정하세요.</p>
           <div class="store-block-tabs">
-            <button type="button" class="store-block-tab active" data-meal="lunch">점심</button>
+            <button type="button" class="store-block-tab active" data-meal="all">전체</button>
+            <button type="button" class="store-block-tab" data-meal="lunch">점심</button>
             <button type="button" class="store-block-tab" data-meal="fridayLunch">금요일 점심</button>
             <button type="button" class="store-block-tab" data-meal="dinner">저녁</button>
           </div>
@@ -1952,7 +1963,7 @@
 
       const listEl = backdrop.querySelector('#store-block-list');
       const searchEl = backdrop.querySelector('#store-block-search');
-      let activeMeal = 'lunch';
+      let activeMeal = 'all';
       let keyword = '';
       const renderMealList = () => {
         const options = byMeal[activeMeal] || [];
