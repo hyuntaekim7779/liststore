@@ -637,7 +637,7 @@
           ${blockedNames.length ? `<div class="s-meta">못가는 가게: ${escapeHtml(blockedNames.join(', '))}</div>` : ''}
         </div>
         <div class="s-actions">
-          <button data-action="edit-blocks" data-name="${escapeHtml(name)}">못가는 가게 수정</button>
+          <button class="caution-edit-btn" data-action="edit-blocks" data-name="${escapeHtml(name)}" title="못가는 가게 수정">✍️</button>
         </div>`;
       li.addEventListener('click', (e) => {
         const action = e.target.dataset && e.target.dataset.action;
@@ -1790,12 +1790,10 @@
       fridayLunch: [],
       dinner: [],
     };
-    const seen = new Set();
     MEAL_TYPES.forEach((meal) => {
       Stores.get(meal).forEach((store) => {
         const key = getStoreBlockKeyFromStore(store, meal);
-        if (!key || seen.has(key)) return;
-        seen.add(key);
+        if (!key) return;
         byMeal[meal].push({
           value: key,
           label: store.name,
@@ -1809,8 +1807,9 @@
   }
 
   function getStoreLabelByBlockKey(blockKey) {
-    const options = getStoreBlockOptions();
-    const found = options.find((op) => op.value === blockKey);
+    const byMeal = getStoreBlockOptionsByMeal();
+    const all = [...byMeal.lunch, ...byMeal.fridayLunch, ...byMeal.dinner];
+    const found = all.find((op) => op.value === blockKey);
     return found ? found.label : blockKey;
   }
 

@@ -284,12 +284,16 @@ main {
   font-size: 12px;
 }
 .store-block-modal {
-  width: min(760px, calc(100% - 24px));
+  width: min(1480px, calc(100vw - 24px));
+  height: min(786px, calc(100vh - 24px));
+  display: flex;
+  flex-direction: column;
 }
 .store-block-tabs {
   display: flex;
   gap: 8px;
   margin: 8px 0 10px;
+  flex-wrap: wrap;
 }
 .store-block-tab {
   border: 1px solid var(--border);
@@ -309,8 +313,8 @@ main {
   border-radius: 10px;
   background: #fff;
   padding: 8px 10px;
-  min-height: 340px;
-  max-height: 420px;
+  min-height: 0;
+  flex: 1;
   overflow-y: auto;
 }
 .store-block-option {
@@ -319,6 +323,18 @@ main {
   gap: 8px;
   padding: 4px 2px;
   font-size: 14px;
+}
+.store-block-modal .actions {
+  margin-top: 10px;
+}
+.caution-edit-btn {
+  min-width: 34px;
+  height: 28px;
+  padding: 0 6px !important;
+  font-size: 14px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .vote-history-list {
   list-style: none;
