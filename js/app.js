@@ -70,7 +70,7 @@
   const CAUTION_KEY = 'ls.cautions.v1';
   const ASSIGN_KEY = 'ls.assignments.v1';
   const ASSIGN_RESET_KEY = 'ls.assignments.reset.date.v1';
-  const ROLE_OPTIONS = ['사원', '대리', '과장', '차장', '부장', '이사', '상무'];
+  const ROLE_OPTIONS = ['사원 (선임)', '대리', '과장', '차장', '부장', '이사', '팀장님'];
 
   function loadPeopleData() {
     state.people = normalizePeople(safeLocalParse(PEOPLE_KEY, []));
@@ -94,7 +94,7 @@
       .map((p) => ({
         id: p && p.id ? String(p.id) : uid('p'),
         name: p && p.name ? String(p.name).trim() : '',
-        role: ROLE_OPTIONS.includes(p && p.role) ? p.role : '사원',
+        role: ROLE_OPTIONS.includes(p && p.role) ? p.role : '사원 (선임)',
       }))
       .filter((p) => p.name);
   }
@@ -256,7 +256,7 @@
         const input = $('#person-name');
         const roleEl = $('#person-role');
         const name = (input && input.value || '').trim();
-        const role = roleEl && ROLE_OPTIONS.includes(roleEl.value) ? roleEl.value : '사원';
+        const role = roleEl && ROLE_OPTIONS.includes(roleEl.value) ? roleEl.value : '사원 (선임)';
         if (!name) return;
         if (state.people.some((p) => p.name === name)) {
           alert('이미 등록된 대상자입니다.');
@@ -264,7 +264,7 @@
         }
         state.people.push({ id: uid('p'), name, role });
         if (input) input.value = '';
-        if (roleEl) roleEl.value = '사원';
+        if (roleEl) roleEl.value = '사원 (선임)';
         savePeopleData();
         saveAssignments();
         renderPeopleAndAssignments();
@@ -412,12 +412,12 @@
     }
     const nextRole = prompt(
       `직책을 입력하세요.\n가능: ${ROLE_OPTIONS.join(', ')}`,
-      current.role || '사원'
+      current.role || '사원 (선임)'
     );
     if (nextRole == null) return;
     const role = nextRole.trim();
     if (!ROLE_OPTIONS.includes(role)) {
-      alert('직책은 사원/대리/과장/차장/부장/이사/상무 중에서 입력해주세요.');
+      alert('직책은 사원 (선임)/대리/과장/차장/부장/이사/팀장님 중에서 입력해주세요.');
       return;
     }
     const oldName = current.name;

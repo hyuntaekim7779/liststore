@@ -11,6 +11,7 @@
   let markers = [];
   let fixedCompanyMarker = null;
   let fixedCompanyInfo = null;
+  let wheelZoomState = null;
   let pickModeListener = null;
   let pickModeCallback = null;
   const DEFAULT_ZOOM = 17; // 종로권 기준 약 50m 축척
@@ -46,7 +47,9 @@
       map = new naver.maps.Map(containerId, {
         center: new naver.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
         zoom: DEFAULT_ZOOM,
+        scrollWheel: false, // 커스텀 휠 줌으로 과도한 단계 이동 완화
       });
+      setupGentleWheelZoom();
       ensureFixedCompanyMarker();
       this.resolveFixedLocation({ recenter: true }).catch((e) => {
         console.warn('fixed location geocode failed:', e);
@@ -320,6 +323,43 @@
           <span style="color:#777">지번: ${escapeHtml(FIXED_LOCATION.jibunAddress)}</span>
         </div>`);
     }
+  }
+
+  function setupGentleWheelZoom() {
+    if (!map) return;
+    const el = map.getElement && map.getElement();
+    if (!el) return;
+
+    if (wheelZoomState && wheelZoomState.handler) {
+      el.removeEventListener('wheel', wheelZoomState.handler);
+    }
+
+    wheelZoomState = {
+      threshold: 160,
+      accumulated: 0,
+      lastAt: 0,
+      handler: null,
+    };
+
+    wheelZoomState.handler = (e) => {
+      e.preventDefault();
+      if (!map) return;
+
+      wheelZoomState.accumulated += e.deltaY;
+      if (Math.abs(wheelZoomState.accumulated) < wheelZoomState.threshold) return;
+
+      const now = Date.now();
+      if (now - wheelZoomState.lastAt < 180) return;
+      wheelZoomState.lastAt = now;
+
+      const currentZoom = map.getZoom();
+      const direction = wheelZoomState.accumulated < 0 ? 1 : -1; // 휠 업: 확대, 휠 다운: 축소
+      wheelZoomState.accumulated = 0;
+      const targetZoom = Math.max(0, Math.min(21, currentZoom + direction));
+      map.setZoom(targetZoom);
+    };
+
+    el.addEventListener('wheel', wheelZoomState.handler, { passive: false });
   }
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) =>
