@@ -19,6 +19,8 @@
     assignmentsResetDate: '',
     settingsSubtab: 'people',
     randomHistoryByMeal: { lunch: [], dinner: [], fridayLunch: [] },
+    mainStoreSearch: '',
+    settingsStoreSearch: '',
   };
 
   document.addEventListener('DOMContentLoaded', init);
@@ -31,6 +33,7 @@
     bindTabs();
     bindStoreForm();
     bindAutoAdd();
+    bindStoreSearch();
     bindRoulette();
     bindVoting();
     bindPeopleAndCautions();
@@ -400,6 +403,40 @@
     $$('.settings-subtab').forEach((btn) => {
       btn.addEventListener('click', () => switchSettingsSubtab(btn.dataset.settingsTab));
     });
+  }
+
+  function bindStoreSearch() {
+    const mainSearch = $('#store-search-main');
+    if (mainSearch) {
+      mainSearch.addEventListener('input', () => {
+        state.mainStoreSearch = (mainSearch.value || '').trim().toLowerCase();
+        renderStoreList();
+      });
+    }
+
+    const syncSettingsSearch = (nextValue, sourceEl) => {
+      state.settingsStoreSearch = (nextValue || '').trim().toLowerCase();
+      const top = $('#store-search-settings-top');
+      const list = $('#store-search-settings-list');
+      [top, list].forEach((el) => {
+        if (!el || el === sourceEl) return;
+        el.value = nextValue || '';
+      });
+      if (state.activeTab === 'settings') renderSettingsStoreList();
+    };
+
+    const settingsTop = $('#store-search-settings-top');
+    if (settingsTop) {
+      settingsTop.addEventListener('input', () => {
+        syncSettingsSearch(settingsTop.value, settingsTop);
+      });
+    }
+    const settingsList = $('#store-search-settings-list');
+    if (settingsList) {
+      settingsList.addEventListener('input', () => {
+        syncSettingsSearch(settingsList.value, settingsList);
+      });
+    }
   }
 
   function switchSettingsSubtab(tab) {
@@ -933,7 +970,11 @@
   // ---------- Settings: Store list + pick mode ----------
   function renderSettingsStoreList() {
     const list = $('#settings-store-list');
-    const stores = getVisibleStoresForMeal(state.meal, { includeMeta: true });
+    let stores = getVisibleStoresForMeal(state.meal, { includeMeta: true });
+    const q = state.settingsStoreSearch || '';
+    if (q) {
+      stores = stores.filter((s) => String(s.name || '').toLowerCase().includes(q));
+    }
     $('#settings-store-count').textContent = `(${stores.length})`;
     list.innerHTML = '';
     if (stores.length === 0) {
@@ -1089,7 +1130,11 @@
   // ---------- Meal panel: Store list (read-only) ----------
   function renderStoreList() {
     const list = $('#store-list');
-    const stores = getVisibleStores();
+    let stores = getVisibleStores();
+    const q = state.mainStoreSearch || '';
+    if (q) {
+      stores = stores.filter((s) => String(s.name || '').toLowerCase().includes(q));
+    }
     $('#store-count').textContent = `(${stores.length})`;
     list.innerHTML = '';
     if (stores.length === 0) {

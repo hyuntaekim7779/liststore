@@ -50,7 +50,7 @@
     <section class="card meal-list-card">
       <div class="card-header">
         <h2>가게 리스트 <span id="store-count" class="muted">(0)</span></h2>
-        <span class="muted" style="font-size:13px">가게 등록은 ⚙️ 설정 탭에서</span>
+        <input id="store-search-main" type="text" class="store-search-input" placeholder="가게 이름 검색" />
       </div>
       <ul id="store-list" class="store-list"></ul>
     </section>
@@ -199,6 +199,11 @@
 
     <section class="card settings-subpanel hidden" data-settings-panel="stores">
       <h2>🪄 URL로 빠른 등록</h2>
+      <div class="form-row">
+        <label>가게 이름 검색
+          <input id="store-search-settings-top" type="text" placeholder="등록 여부를 확인할 가게 이름" />
+        </label>
+      </div>
       <p class="hint">
         네이버 지도에서 가게 페이지의 URL을 복사해 붙여넣으면 가게 이름과 좌표를 자동으로 추출합니다.
         <br/>예: <code>https://map.naver.com/p/search/김밥천국/place/1194911319?c=...</code>
@@ -270,6 +275,7 @@
     <section class="card settings-subpanel hidden" data-settings-panel="stores">
       <div class="card-header">
         <h2>등록된 가게 <span id="settings-store-count" class="muted">(0)</span></h2>
+        <input id="store-search-settings-list" type="text" class="store-search-input" placeholder="가게 이름 검색" />
       </div>
       <p class="hint">선택한 식사 탭의 등록된 가게입니다. 좌표가 없는 가게는 “📍 지도에서 지정” 버튼으로 위치를 잡아주세요.</p>
       <ul id="settings-store-list" class="store-list"></ul>

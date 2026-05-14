@@ -91,6 +91,20 @@ main {
 }
 .card h2 { margin: 0 0 12px; font-size: 18px; }
 .card-header { display:flex; justify-content: space-between; align-items: center; }
+.store-search-input {
+  width: 230px;
+  max-width: 45%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+}
+.store-search-input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+  border-color: var(--primary);
+}
 .map-header h2 { margin-bottom: 0; }
 .muted { color: var(--muted); font-weight: normal; }
 .hint { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
@@ -723,4 +737,9 @@ main {
   .vote-setup .form-row { flex-direction: column; align-items: stretch; }
   .vote-setup .form-row.two { flex-direction: row; }
   #btn-map-my-location { width: 100%; margin-top: 10px; }
+  .store-search-input {
+    width: 100%;
+    max-width: none;
+    margin-top: 8px;
+  }
 }
