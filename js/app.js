@@ -104,7 +104,7 @@
         resetState: safeLocalParse(ASSIGN_RESET_SCHEDULE_KEY, null) || localStorage.getItem(ASSIGN_RESET_KEY) || '',
       };
     }
-    state.people = normalizePeople(bundle.people || []);
+    state.people = sortPeopleByRoleAndName(normalizePeople(bundle.people || []));
     state.cautions = normalizeCautions(bundle.cautions || []);
     state.cautionStoreBlocks = normalizeCautionStoreBlocks(bundle.cautionStoreBlocks || {});
     const peopleNames = new Set(state.people.map((p) => p.name));
@@ -145,6 +145,17 @@
         };
       })
       .filter((p) => p.name);
+  }
+
+  function sortPeopleByRoleAndName(input) {
+    const list = Array.isArray(input) ? [...input] : [];
+    const roleRank = new Map(ROLE_OPTIONS.map((role, idx) => [role, idx]));
+    return list.sort((a, b) => {
+      const rankA = roleRank.has(a.role) ? roleRank.get(a.role) : Number.MAX_SAFE_INTEGER;
+      const rankB = roleRank.has(b.role) ? roleRank.get(b.role) : Number.MAX_SAFE_INTEGER;
+      if (rankA !== rankB) return rankA - rankB;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
+    });
   }
 
   function saveCautions() {
@@ -497,6 +508,7 @@
           return;
         }
         state.people.push({ id: uid('p'), name, role });
+        state.people = sortPeopleByRoleAndName(state.people);
         if (input) input.value = '';
         if (roleEl) roleEl.value = '사원 (선임)';
         savePeopleData();
@@ -702,6 +714,7 @@
     }
     const oldName = current.name;
     state.people[idx] = { ...current, name, role };
+    state.people = sortPeopleByRoleAndName(state.people);
     // 분류 태그는 이름 문자열로 저장되므로 이름 변경 시 함께 치환
     state.assignments.outside = state.assignments.outside.map((n) => (n === oldName ? name : n));
     state.assignments.lunchbox = state.assignments.lunchbox.map((n) => (n === oldName ? name : n));
