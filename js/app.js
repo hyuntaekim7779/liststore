@@ -93,11 +93,21 @@
   function normalizePeople(input) {
     if (!Array.isArray(input)) return [];
     return input
-      .map((p) => ({
-        id: p && p.id ? String(p.id) : uid('p'),
-        name: p && p.name ? String(p.name).trim() : '',
-        role: ROLE_OPTIONS.includes(p && p.role) ? p.role : '사원 (선임)',
-      }))
+      .map((p) => {
+        // 구버전 호환: ["홍길동", ...] 형태도 사람 목록으로 복원
+        if (typeof p === 'string') {
+          return {
+            id: uid('p'),
+            name: p.trim(),
+            role: '사원 (선임)',
+          };
+        }
+        return {
+          id: p && p.id ? String(p.id) : uid('p'),
+          name: p && p.name ? String(p.name).trim() : '',
+          role: ROLE_OPTIONS.includes(p && p.role) ? p.role : '사원 (선임)',
+        };
+      })
       .filter((p) => p.name);
   }
 
@@ -260,6 +270,9 @@
     $$('.settings-subpanel').forEach((panel) =>
       panel.classList.toggle('hidden', panel.dataset.settingsPanel !== tab)
     );
+    if (tab === 'taste-care') {
+      renderCautionPersonOptions();
+    }
   }
 
   function bindPeopleAndCautions() {
@@ -282,6 +295,7 @@
         saveAssignments();
         renderPeopleAndAssignments();
         renderCautions();
+        renderCautionPersonOptions();
       });
     }
 
@@ -336,6 +350,7 @@
 
   function renderPeopleAndAssignments() {
     normalizeAssignments();
+    renderCautionPersonOptions();
     renderPersonSettingsList();
 
     const outside = $('#drop-outside');
@@ -467,18 +482,7 @@
 
   function renderCautions() {
     const list = $('#caution-list');
-    const personSelect = $('#caution-person');
-    if (personSelect) {
-      const prev = personSelect.value;
-      personSelect.innerHTML = '<option value="">대상자를 선택하세요</option>';
-      state.people.forEach((p) => {
-        const op = document.createElement('option');
-        op.value = p.name;
-        op.textContent = p.role ? `${p.name} ${p.role}` : p.name;
-        personSelect.appendChild(op);
-      });
-      if (state.people.some((p) => p.name === prev)) personSelect.value = prev;
-    }
+    renderCautionPersonOptions();
     if (!list) return;
     list.innerHTML = '';
     if (!state.cautions.length) {
@@ -1367,6 +1371,24 @@
       .filter((c) => c.name === name)
       .map((c) => c.note)
       .filter((note, idx, arr) => note && arr.indexOf(note) === idx);
+  }
+
+  function renderCautionPersonOptions() {
+    const personSelect = $('#caution-person');
+    if (!personSelect) return;
+    const prev = personSelect.value;
+    personSelect.innerHTML = '<option value="">대상자를 선택하세요</option>';
+    state.people.forEach((p) => {
+      const op = document.createElement('option');
+      op.value = p.name;
+      op.textContent = p.role ? `${p.name} ${p.role}` : p.name;
+      personSelect.appendChild(op);
+    });
+    if (state.people.some((p) => p.name === prev)) {
+      personSelect.value = prev;
+    } else {
+      personSelect.value = '';
+    }
   }
 
   // ---------- Storage 오류 배너 ----------
