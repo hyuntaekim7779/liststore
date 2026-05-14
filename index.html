@@ -26,6 +26,25 @@
 
   <!-- ============ MEAL PANEL (점심/저녁) ============ -->
   <main id="panel-meal" class="panel">
+    <section class="card today-groups-card">
+      <div class="card-header">
+        <h2>오늘 점심 구분</h2>
+      </div>
+      <div class="today-groups-wrap">
+        <div class="today-group-col">
+          <h3>외식 파견단 <span id="count-outside" class="muted">(0)</span></h3>
+          <div class="drop-zone" id="drop-outside" data-group="outside"></div>
+        </div>
+        <div class="today-group-col">
+          <h3>도시락본부 <span id="count-lunchbox" class="muted">(0)</span></h3>
+          <div class="drop-zone" id="drop-lunchbox" data-group="lunchbox"></div>
+        </div>
+      </div>
+      <h3>대상자 태그</h3>
+      <div class="drop-zone pool" id="drop-pool" data-group="pool"></div>
+      <p class="hint">태그를 드래그해서 각 구분으로 옮기세요.</p>
+    </section>
+
     <section class="card meal-list-card">
       <div class="card-header">
         <h2>가게 리스트 <span id="store-count" class="muted">(0)</span></h2>
@@ -101,6 +120,33 @@
 
   <!-- ============ SETTINGS PANEL ============ -->
   <main id="panel-settings" class="panel hidden">
+    <section class="card">
+      <h2>👥 대상자 관리</h2>
+      <div class="form-row">
+        <label>대상자 이름
+          <input id="person-name" type="text" placeholder="예: 홍길동" />
+        </label>
+        <button id="btn-add-person" type="button" class="btn btn-secondary">추가</button>
+      </div>
+      <ul id="person-list" class="store-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>⚠️ 주의 대상자 관리</h2>
+      <div class="form-row two">
+        <label>주의 대상자 이름
+          <input id="caution-name" type="text" placeholder="예: 김민수" />
+        </label>
+        <label>주의 내용 메모
+          <input id="caution-note" type="text" placeholder="예: 갑각류 알러지 / 회 섭취 불가" />
+        </label>
+      </div>
+      <div class="form-actions">
+        <button id="btn-add-caution" type="button" class="btn btn-secondary">주의 대상자 추가</button>
+      </div>
+      <ul id="caution-list" class="store-list"></ul>
+    </section>
+
     <section class="card">
       <h2>🪄 URL로 빠른 등록</h2>
       <p class="hint">

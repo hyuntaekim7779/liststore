@@ -12,6 +12,9 @@
     selectedStoreId: null,
     voteTimer: null,
     pickingForStoreId: null,      // 좌표 지정 모드 대상
+    people: [],
+    cautions: [],
+    assignments: { outside: [], lunchbox: [] },
   };
 
   document.addEventListener('DOMContentLoaded', init);
@@ -26,6 +29,7 @@
     bindAutoAdd();
     bindRoulette();
     bindVoting();
+    bindPeopleAndCautions();
     bindMapActions();
     bindStorageErrors();
 
@@ -34,6 +38,7 @@
       await Stores.load(meal);
       await Voting.load(meal);
     }
+    loadPeopleData();
 
     await switchTab(getInitialMealTabBySeoulTime());
     document.addEventListener('keydown', (e) => {
@@ -41,6 +46,8 @@
     });
 
     startPolling();
+    renderPeopleAndAssignments();
+    renderCautions();
   }
 
   function updateStorageStatus() {
@@ -53,6 +60,52 @@
     } else {
       el.textContent = '💾 localStorage (이 브라우저에만 저장)';
     }
+  }
+
+  const PEOPLE_KEY = 'ls.people.v1';
+  const CAUTION_KEY = 'ls.cautions.v1';
+  const ASSIGN_KEY = 'ls.assignments.v1';
+
+  function loadPeopleData() {
+    state.people = safeLocalParse(PEOPLE_KEY, []);
+    state.cautions = safeLocalParse(CAUTION_KEY, []);
+    const loadedAssign = safeLocalParse(ASSIGN_KEY, { outside: [], lunchbox: [] });
+    state.assignments = {
+      outside: Array.isArray(loadedAssign.outside) ? loadedAssign.outside : [],
+      lunchbox: Array.isArray(loadedAssign.lunchbox) ? loadedAssign.lunchbox : [],
+    };
+    normalizeAssignments();
+  }
+
+  function savePeopleData() {
+    localStorage.setItem(PEOPLE_KEY, JSON.stringify(state.people));
+  }
+
+  function saveCautions() {
+    localStorage.setItem(CAUTION_KEY, JSON.stringify(state.cautions));
+  }
+
+  function saveAssignments() {
+    normalizeAssignments();
+    localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
+  }
+
+  function safeLocalParse(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return fallback;
+      return JSON.parse(raw);
+    } catch {
+      return fallback;
+    }
+  }
+
+  function normalizeAssignments() {
+    const all = new Set(state.people.map((p) => p.name));
+    state.assignments.outside = Array.from(new Set(state.assignments.outside.filter((n) => all.has(n))));
+    state.assignments.lunchbox = Array.from(new Set(state.assignments.lunchbox.filter((n) => all.has(n))));
+    const outsideSet = new Set(state.assignments.outside);
+    state.assignments.lunchbox = state.assignments.lunchbox.filter((n) => !outsideSet.has(n));
   }
 
   // ---------- 실시간 폴링 (Azure 모드일 때 데이터 동기화) ----------
@@ -116,6 +169,160 @@
         state.meal = r.value;
         renderSettingsStoreList();
       });
+    });
+  }
+
+  function bindPeopleAndCautions() {
+    const addPersonBtn = $('#btn-add-person');
+    if (addPersonBtn) {
+      addPersonBtn.addEventListener('click', () => {
+        const input = $('#person-name');
+        const name = (input && input.value || '').trim();
+        if (!name) return;
+        if (state.people.some((p) => p.name === name)) {
+          alert('이미 등록된 대상자입니다.');
+          return;
+        }
+        state.people.push({ id: uid('p'), name });
+        if (input) input.value = '';
+        savePeopleData();
+        saveAssignments();
+        renderPeopleAndAssignments();
+      });
+    }
+
+    const addCautionBtn = $('#btn-add-caution');
+    if (addCautionBtn) {
+      addCautionBtn.addEventListener('click', () => {
+        const nameEl = $('#caution-name');
+        const noteEl = $('#caution-note');
+        const name = (nameEl && nameEl.value || '').trim();
+        const note = (noteEl && noteEl.value || '').trim();
+        if (!name || !note) {
+          alert('주의 대상자 이름과 메모를 모두 입력해주세요.');
+          return;
+        }
+        if (state.cautions.some((c) => c.name === name)) {
+          alert('이미 등록된 주의 대상자 이름입니다.');
+          return;
+        }
+        state.cautions.push({ id: uid('c'), name, note });
+        if (nameEl) nameEl.value = '';
+        if (noteEl) noteEl.value = '';
+        saveCautions();
+        renderCautions();
+      });
+    }
+
+    ['outside', 'lunchbox', 'pool'].forEach((group) => {
+      const zone = $(`#drop-${group}`);
+      if (!zone) return;
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('drag-over');
+      });
+      zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const name = e.dataTransfer && e.dataTransfer.getData('text/plain');
+        if (!name) return;
+        movePersonToGroup(name, group);
+      });
+    });
+  }
+
+  function movePersonToGroup(name, group) {
+    state.assignments.outside = state.assignments.outside.filter((n) => n !== name);
+    state.assignments.lunchbox = state.assignments.lunchbox.filter((n) => n !== name);
+    if (group === 'outside') state.assignments.outside.push(name);
+    if (group === 'lunchbox') state.assignments.lunchbox.push(name);
+    saveAssignments();
+    renderPeopleAndAssignments();
+  }
+
+  function renderPeopleAndAssignments() {
+    normalizeAssignments();
+    renderPersonSettingsList();
+
+    const outside = $('#drop-outside');
+    const lunchbox = $('#drop-lunchbox');
+    const pool = $('#drop-pool');
+    if (!outside || !lunchbox || !pool) return;
+    outside.innerHTML = '';
+    lunchbox.innerHTML = '';
+    pool.innerHTML = '';
+
+    const outsideSet = new Set(state.assignments.outside);
+    const lunchboxSet = new Set(state.assignments.lunchbox);
+    const allNames = state.people.map((p) => p.name);
+    const poolNames = allNames.filter((n) => !outsideSet.has(n) && !lunchboxSet.has(n));
+
+    state.assignments.outside.forEach((name) => outside.appendChild(buildPersonTag(name)));
+    state.assignments.lunchbox.forEach((name) => lunchbox.appendChild(buildPersonTag(name)));
+    poolNames.forEach((name) => pool.appendChild(buildPersonTag(name)));
+
+    $('#count-outside').textContent = `(${state.assignments.outside.length})`;
+    $('#count-lunchbox').textContent = `(${state.assignments.lunchbox.length})`;
+  }
+
+  function buildPersonTag(name) {
+    const tag = document.createElement('span');
+    tag.className = 'person-tag';
+    tag.draggable = true;
+    tag.textContent = name;
+    tag.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', name);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    return tag;
+  }
+
+  function renderPersonSettingsList() {
+    const list = $('#person-list');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!state.people.length) {
+      list.innerHTML = '<li style="border:none;background:transparent;color:#888;justify-content:center">등록된 대상자가 없습니다.</li>';
+      return;
+    }
+    state.people.forEach((p) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<div><div class="s-name">${escapeHtml(p.name)}</div></div><div class="s-actions"><button data-action="delete">삭제</button></div>`;
+      li.addEventListener('click', (e) => {
+        if (!(e.target.dataset && e.target.dataset.action === 'delete')) return;
+        state.people = state.people.filter((x) => x.id !== p.id);
+        savePeopleData();
+        saveAssignments();
+        renderPeopleAndAssignments();
+      });
+      list.appendChild(li);
+    });
+  }
+
+  function renderCautions() {
+    const list = $('#caution-list');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!state.cautions.length) {
+      list.innerHTML = '<li style="border:none;background:transparent;color:#888;justify-content:center">등록된 주의 대상자가 없습니다.</li>';
+      return;
+    }
+    state.cautions.forEach((c) => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <div>
+          <div class="s-name">${escapeHtml(c.name)}</div>
+          <div class="s-meta">${escapeHtml(c.note)}</div>
+        </div>
+        <div class="s-actions"><button data-action="delete">삭제</button></div>`;
+      li.addEventListener('click', (e) => {
+        if (!(e.target.dataset && e.target.dataset.action === 'delete')) return;
+        state.cautions = state.cautions.filter((x) => x.id !== c.id);
+        saveCautions();
+        renderCautions();
+      });
+      list.appendChild(li);
     });
   }
 
@@ -357,6 +564,7 @@
           ${s.url ? `<button data-action="open">🔗</button>` : ''}
           <button data-action="edit-memo">메모 수정</button>
           <button data-action="edit-visibility">중복 허용</button>
+          ${mirrored ? '' : '<button data-action="edit-caution-tags">주의 태그</button>'}
           ${mirrored ? '' : '<button class="pick" data-action="pick">📍 지도에서 지정</button>'}
           <button class="delete" data-action="delete">삭제</button>
         </div>
@@ -387,6 +595,10 @@
           await openDuplicateVisibilityMenu(s, sourceMeal);
           return;
         }
+        if (action === 'edit-caution-tags') {
+          await openStoreCautionTagsMenu(s, sourceMeal);
+          return;
+        }
         if (action === 'pick') { beginPickMode(s.id); return; }
       });
       list.appendChild(li);
@@ -408,7 +620,7 @@
     if (!settingsMap) return;
     settingsMarkers.forEach((m) => m.setMap(null));
     settingsMarkers = [];
-    const stores = Stores.get(state.meal);
+    const stores = getVisibleStoresForMeal(state.meal, { includeMeta: false });
     const bounds = new naver.maps.LatLngBounds();
     let count = 0;
     stores.forEach((s) => {
@@ -692,6 +904,10 @@
     return `${sec}초`;
   }
 
+  function uid(prefix) {
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
   function pad(n) { return String(n).padStart(2, '0'); }
 
   function getInitialMealTabBySeoulTime() {
@@ -785,13 +1001,21 @@
   }
 
   function pickRandomFromVisible(n) {
-    const arr = [...getVisibleStores()];
+    const arr = getVisibleStores().filter((s) => !isBlockedByCaution(s));
     const out = [];
     while (arr.length && out.length < n) {
       const idx = Math.floor(Math.random() * arr.length);
       out.push(arr.splice(idx, 1)[0]);
     }
     return out;
+  }
+
+  function isBlockedByCaution(store) {
+    const cautionNames = new Set(state.cautions.map((c) => c.name));
+    const eatingOut = state.assignments.outside.filter((n) => cautionNames.has(n));
+    if (!eatingOut.length) return false;
+    const blockedFor = Array.isArray(store.avoidFor) ? store.avoidFor : [];
+    return blockedFor.some((name) => eatingOut.includes(name));
   }
 
   function getStoreVisibleMeals(store, sourceMeal) {
@@ -813,7 +1037,18 @@
 
   async function openDuplicateVisibilityMenu(store, sourceMeal) {
     const current = getStoreVisibleMeals(store, sourceMeal);
-    const selected = await showDuplicateVisibilityModal(store.name, current);
+    const selected = await showMultiSelectModal({
+      title: '중복 허용 설정',
+      subtitle: `"${store.name}" 노출 탭을 선택하세요.`,
+      options: [
+        { value: 'lunch', label: '점심' },
+        { value: 'fridayLunch', label: '금요일 점심' },
+        { value: 'dinner', label: '저녁' },
+      ],
+      selected: current,
+      saveLabel: '저장',
+      requireAtLeastOne: true,
+    });
     if (!selected) return;
     await Stores.update(sourceMeal, store.id, {
       visibleMeals: selected,
@@ -827,20 +1062,48 @@
     }
   }
 
-  function showDuplicateVisibilityModal(storeName, currentMeals) {
+  async function openStoreCautionTagsMenu(store, sourceMeal) {
+    if (!state.cautions.length) {
+      alert('주의 대상자를 먼저 등록해주세요.');
+      return;
+    }
+    const selected = await showMultiSelectModal({
+      title: '주의 태그 설정',
+      subtitle: `"${store.name}" 에서 식사 주의가 필요한 대상자를 선택하세요.`,
+      options: state.cautions.map((c) => ({ value: c.name, label: `${c.name} · ${c.note}` })),
+      selected: Array.isArray(store.avoidFor) ? store.avoidFor : [],
+      saveLabel: '태그 저장',
+      requireAtLeastOne: false,
+    });
+    if (!selected) return;
+    await Stores.update(sourceMeal, store.id, { avoidFor: selected });
+    renderSettingsStoreList();
+    if (MEAL_TYPES.includes(state.activeTab)) {
+      renderStoreList();
+      Maps.renderStores(getVisibleStores());
+    }
+  }
+
+  function showMultiSelectModal(config) {
+    const title = config.title || '선택';
+    const subtitle = config.subtitle || '';
+    const options = Array.isArray(config.options) ? config.options : [];
+    const selectedSet = new Set(Array.isArray(config.selected) ? config.selected : []);
+    const saveLabel = config.saveLabel || '저장';
+    const requireAtLeastOne = config.requireAtLeastOne === true;
     return new Promise((resolve) => {
       const backdrop = document.createElement('div');
       backdrop.className = 'visibility-modal-backdrop';
       backdrop.innerHTML = `
         <div class="visibility-modal" role="dialog" aria-modal="true">
-          <h3>중복 허용 설정</h3>
-          <p class="muted">"${escapeHtml(storeName)}" 노출 탭을 선택하세요.</p>
-          <label><input type="checkbox" value="lunch" ${currentMeals.includes('lunch') ? 'checked' : ''}/> 점심</label>
-          <label><input type="checkbox" value="fridayLunch" ${currentMeals.includes('fridayLunch') ? 'checked' : ''}/> 금요일 점심</label>
-          <label><input type="checkbox" value="dinner" ${currentMeals.includes('dinner') ? 'checked' : ''}/> 저녁</label>
+          <h3>${escapeHtml(title)}</h3>
+          <p class="muted">${escapeHtml(subtitle)}</p>
+          ${options.map((op) => (
+            `<label><input type="checkbox" value="${escapeHtml(op.value)}" ${selectedSet.has(op.value) ? 'checked' : ''}/> ${escapeHtml(op.label)}</label>`
+          )).join('')}
           <div class="actions">
             <button type="button" data-action="cancel">취소</button>
-            <button type="button" data-action="save">저장</button>
+            <button type="button" data-action="save">${escapeHtml(saveLabel)}</button>
           </div>
         </div>`;
       document.body.appendChild(backdrop);
@@ -856,8 +1119,8 @@
       backdrop.querySelector('[data-action="save"]').addEventListener('click', () => {
         const checked = Array.from(backdrop.querySelectorAll('input[type="checkbox"]:checked'))
           .map((el) => el.value)
-          .filter((m) => MEAL_TYPES.includes(m));
-        if (!checked.length) {
+          .filter((m) => options.some((op) => op.value === m));
+        if (requireAtLeastOne && !checked.length) {
           alert('최소 1개 탭은 선택해야 합니다.');
           return;
         }
@@ -886,6 +1149,9 @@
     if (s.phone) parts.push(escapeHtml(s.phone));
     const cleanedMemo = cleanMemoForDisplay(s.memo);
     if (cleanedMemo) parts.push(escapeHtml(cleanedMemo));
+    if (Array.isArray(s.avoidFor) && s.avoidFor.length) {
+      parts.push(`주의: ${escapeHtml(s.avoidFor.join(', '))}`);
+    }
     if (showCoords && s.lat != null && s.lng != null) {
       parts.push(`${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`);
     }

@@ -65,6 +65,7 @@
         phone: partial.phone ? String(partial.phone).trim() : null,
         category: partial.category ? String(partial.category).trim() : null,
         showInFridayLunchTab: Boolean(partial.showInFridayLunchTab || partial.showInCompanionLunchTab),
+        avoidFor: normalizeNameList(partial.avoidFor),
         visibleMeals: normalizeVisibleMeals(
           meal,
           partial.visibleMeals,
@@ -90,6 +91,7 @@
       const current = this.cache[meal][idx];
       const next = { ...current, ...patch };
       if ('memo' in patch) next.memo = String(patch.memo || '').trim();
+      if ('avoidFor' in patch) next.avoidFor = normalizeNameList(patch.avoidFor);
       if ('visibleMeals' in patch || 'showInFridayLunchTab' in patch || 'showInCompanionLunchTab' in patch) {
         next.visibleMeals = normalizeVisibleMeals(
           meal,
@@ -145,6 +147,11 @@
       return out;
     },
   };
+
+  function normalizeNameList(input) {
+    if (!Array.isArray(input)) return [];
+    return Array.from(new Set(input.map((x) => String(x || '').trim()).filter(Boolean)));
+  }
 
   window.Stores = Stores;
 })();
