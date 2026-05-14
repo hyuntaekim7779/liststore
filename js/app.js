@@ -16,7 +16,7 @@
     cautions: [],
     cautionStoreBlocks: {},
     assignments: { outside: [], lunchbox: [] },
-    assignmentsResetDate: '',
+    assignmentsResetState: { lunch: '', night: '' },
     settingsSubtab: 'people',
     randomHistoryByMeal: { lunch: [], dinner: [], fridayLunch: [] },
     mainStoreSearch: '',
@@ -81,6 +81,7 @@
   const CAUTION_KEY = 'ls.cautions.v1';
   const ASSIGN_KEY = 'ls.assignments.v1';
   const ASSIGN_RESET_KEY = 'ls.assignments.reset.date.v1';
+  const ASSIGN_RESET_SCHEDULE_KEY = 'ls.assignments.reset.schedule.v1';
   const ROLE_OPTIONS = ['사원 (선임)', '대리', '과장', '차장', '부장', '이사', '팀장님'];
   const RANDOM_BLOCK_WINDOW_MS = 5 * 24 * 60 * 60 * 1000;
   const HISTORY_ADMIN_PASSWORD = 'MTP2026';
@@ -100,7 +101,7 @@
         cautions: safeLocalParse(CAUTION_KEY, []),
         cautionStoreBlocks: {},
         assignments: safeLocalParse(ASSIGN_KEY, { outside: [], lunchbox: [] }),
-        resetDate: localStorage.getItem(ASSIGN_RESET_KEY) || '',
+        resetState: safeLocalParse(ASSIGN_RESET_SCHEDULE_KEY, null) || localStorage.getItem(ASSIGN_RESET_KEY) || '',
       };
     }
     state.people = normalizePeople(bundle.people || []);
@@ -116,9 +117,9 @@
       outside: Array.isArray(loadedAssign.outside) ? loadedAssign.outside : [],
       lunchbox: Array.isArray(loadedAssign.lunchbox) ? loadedAssign.lunchbox : [],
     };
-    state.assignmentsResetDate = String(bundle.resetDate || '');
+    state.assignmentsResetState = normalizeAssignmentsResetState(bundle.resetState || bundle.resetDate || '');
     normalizeAssignments();
-    maybeResetAssignmentsAtTwoPm();
+    maybeResetAssignmentsBySchedule();
   }
 
   function savePeopleData() {
@@ -161,6 +162,21 @@
       .filter((c) => c.name && c.note);
   }
 
+  function normalizeAssignmentsResetState(input) {
+    if (input && typeof input === 'object') {
+      return {
+        lunch: String(input.lunch || ''),
+        night: String(input.night || ''),
+      };
+    }
+    // 구버전 호환: 단일 resetDate 문자열은 점심 초기화 슬롯으로 간주
+    const legacy = String(input || '').trim();
+    return {
+      lunch: legacy,
+      night: '',
+    };
+  }
+
   function normalizeCautionStoreBlocks(input) {
     if (!input || typeof input !== 'object') return {};
     const out = {};
@@ -185,7 +201,7 @@
       cautions: state.cautions,
       cautionStoreBlocks: state.cautionStoreBlocks,
       assignments: state.assignments,
-      resetDate: state.assignmentsResetDate || '',
+      resetState: state.assignmentsResetState,
     };
     if (window.Storage && typeof window.Storage.savePeopleBundle === 'function') {
       window.Storage.savePeopleBundle(bundle).catch((e) => {
@@ -193,14 +209,14 @@
         localStorage.setItem(PEOPLE_KEY, JSON.stringify(state.people));
         localStorage.setItem(CAUTION_KEY, JSON.stringify(state.cautions));
         localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
-        localStorage.setItem(ASSIGN_RESET_KEY, state.assignmentsResetDate || '');
+        localStorage.setItem(ASSIGN_RESET_SCHEDULE_KEY, JSON.stringify(state.assignmentsResetState));
       });
       return;
     }
     localStorage.setItem(PEOPLE_KEY, JSON.stringify(state.people));
     localStorage.setItem(CAUTION_KEY, JSON.stringify(state.cautions));
     localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
-    localStorage.setItem(ASSIGN_RESET_KEY, state.assignmentsResetDate || '');
+    localStorage.setItem(ASSIGN_RESET_SCHEDULE_KEY, JSON.stringify(state.assignmentsResetState));
   }
 
   function safeLocalParse(key, fallback) {
@@ -221,20 +237,33 @@
     state.assignments.lunchbox = state.assignments.lunchbox.filter((n) => !outsideSet.has(n));
   }
 
-  function maybeResetAssignmentsAtTwoPm() {
+  function maybeResetAssignmentsBySchedule() {
     const seoul = getSeoulDateTimeParts();
-    if (seoul.hour < 14) return false;
-    const lastResetDate = state.assignmentsResetDate || '';
-    if (lastResetDate === seoul.dateKey) return false;
+    const minutesFromMidnight = seoul.hour * 60 + seoul.minute;
+    let didReset = false;
+    const nextState = normalizeAssignmentsResetState(state.assignmentsResetState);
+
+    // 1차 초기화: 매일 13:30 이후 1회
+    if (minutesFromMidnight >= (13 * 60 + 30) && nextState.lunch !== seoul.dateKey) {
+      didReset = true;
+      nextState.lunch = seoul.dateKey;
+    }
+    // 2차 초기화: 매일 21:00 이후 1회
+    if (minutesFromMidnight >= (21 * 60) && nextState.night !== seoul.dateKey) {
+      didReset = true;
+      nextState.night = seoul.dateKey;
+    }
+
+    if (!didReset) return false;
     state.assignments = { outside: [], lunchbox: [] };
-    state.assignmentsResetDate = seoul.dateKey;
+    state.assignmentsResetState = nextState;
     saveAssignments();
     return true;
   }
 
   function startDailyAssignmentsResetWatcher() {
     setInterval(() => {
-      const resetDone = maybeResetAssignmentsAtTwoPm();
+      const resetDone = maybeResetAssignmentsBySchedule();
       updateTodayGroupTitle();
       if (!resetDone) return;
       renderPeopleAndAssignments();
