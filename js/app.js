@@ -1174,7 +1174,7 @@
   function bindRoulette() {
     $('#btn-pick-roulette').addEventListener('click', async () => {
       try {
-        const picks = await pickRandomFromVisible(5, { source: 'roulette' });
+        const picks = await pickRandomFromVisible(5);
         if (picks.length < 2) {
           alert('5일 제외 규칙으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
           return;
@@ -1193,7 +1193,8 @@
       $('#btn-spin').disabled = true;
       $('#roulette-result').textContent = '돌리는 중…';
       $('#roulette-result').classList.remove('winner');
-      Roulette.spin((winner) => {
+      Roulette.spin(async (winner) => {
+        await appendRandomWinnerHistory(state.meal, winner, 'rouletteWinner', `roulette:${Date.now()}`);
         $('#roulette-result').textContent = `🎉 오늘은 "${winner.name}" 입니다!`;
         $('#roulette-result').classList.add('winner');
         $('#btn-spin').disabled = false;
@@ -1211,7 +1212,7 @@
     $('#btn-pick-vote').addEventListener('click', async () => {
       const count = Math.max(2, Math.min(10, parseInt($('#vote-candidate-count').value, 10) || 4));
       try {
-        const picks = await pickRandomFromVisible(count, { source: 'voteCandidate' });
+        const picks = await pickRandomFromVisible(count);
         if (picks.length < 2) {
           alert('5일 제외 규칙으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
           return;
@@ -1278,6 +1279,9 @@
     $('#vote-active').classList.remove('hidden');
 
     const status = Voting.status(vote);
+    if (status === 'ended') {
+      ensureVoteWinnerRecorded(vote).catch((e) => console.warn('ensureVoteWinnerRecorded failed:', e));
+    }
     const statusLabel = {
       pending: '🟡 투표 대기 중 (아직 시작 전)',
       open:    '🟢 투표 진행 중',
@@ -1417,7 +1421,8 @@
           id: String(r.id || uid('rh')),
           storeId: String(r.storeId),
           storeName: String(r.storeName || ''),
-          source: String(r.source || 'roulette'),
+          source: String(r.source || 'unknown'),
+          sourceRef: String(r.sourceRef || ''),
           createdAt: Number(r.createdAt || 0),
           meal: meal,
         }));
@@ -1431,24 +1436,59 @@
   function getRecentRandomBlockedIds(meal) {
     const rows = Array.isArray(state.randomHistoryByMeal[meal]) ? state.randomHistoryByMeal[meal] : [];
     const minTs = Date.now() - RANDOM_BLOCK_WINDOW_MS;
-    return new Set(rows.filter((r) => r.createdAt >= minTs).map((r) => r.storeId));
+    return new Set(
+      rows
+        .filter((r) => r.createdAt >= minTs)
+        .filter((r) => r.source === 'rouletteWinner' || r.source === 'voteWinner')
+        .map((r) => r.storeId)
+    );
   }
 
-  async function appendRandomHistory(meal, stores, source) {
+  async function appendRandomWinnerHistory(meal, store, source, sourceRef) {
     if (!window.Storage || typeof window.Storage.saveRandomHistory !== 'function') return;
-    const now = Date.now();
-    const records = stores.map((s) => ({
-      id: uid('rh'),
-      storeId: s.id,
-      storeName: s.name,
-      source: source || 'roulette',
-      createdAt: now,
-    }));
-    for (const rec of records) {
-      await window.Storage.saveRandomHistory(meal, rec);
+    if (!store || !store.id) return;
+    const ref = String(sourceRef || '');
+    if (ref) {
+      const existing = Array.isArray(state.randomHistoryByMeal[meal]) ? state.randomHistoryByMeal[meal] : [];
+      if (existing.some((r) => r.sourceRef === ref)) return;
     }
+    const rec = {
+      id: uid('rh'),
+      storeId: store.id,
+      storeName: store.name || '',
+      source: source || 'unknown',
+      sourceRef: ref,
+      createdAt: Date.now(),
+    };
+    await window.Storage.saveRandomHistory(meal, rec);
     await loadRandomHistoryForMeal(meal);
     if (state.settingsSubtab === 'history') renderRandomHistoryManager();
+  }
+
+  async function ensureVoteWinnerRecorded(vote) {
+    if (!vote || !vote.id) return;
+    const winner = getVoteFinalWinner(vote);
+    if (!winner) return;
+    await appendRandomWinnerHistory(
+      vote.meal || state.meal,
+      { id: winner.id, name: winner.name },
+      'voteWinner',
+      `vote:${vote.id}`
+    );
+  }
+
+  function getVoteFinalWinner(vote) {
+    const candidates = Array.isArray(vote.candidates) ? vote.candidates : [];
+    if (!candidates.length) return null;
+    let best = null;
+    candidates.forEach((c, idx) => {
+      const count = Array.isArray(vote.votes && vote.votes[c.id]) ? vote.votes[c.id].length : 0;
+      if (!best || count > best.count || (count === best.count && idx < best.idx)) {
+        best = { id: c.id, name: c.name, count, idx };
+      }
+    });
+    if (!best || best.count <= 0) return null;
+    return best;
   }
 
   function bindRandomHistoryManager() {
@@ -1491,7 +1531,12 @@
     }
     rows.forEach((row) => {
       const li = document.createElement('li');
-      const sourceText = row.source === 'voteCandidate' ? '투표 후보 선정' : '랜덤 룰렛 후보';
+      const sourceText = ({
+        rouletteWinner: '랜덤 룰렛 당첨',
+        voteWinner: '투표 최종 당첨',
+        voteCandidate: '투표 후보 선정(구기록)',
+        roulette: '랜덤 후보 선정(구기록)',
+      }[row.source] || row.source || '기록');
       const until = formatSeoulDateTime(row.createdAt + RANDOM_BLOCK_WINDOW_MS);
       li.innerHTML = `
         <div>
@@ -1650,8 +1695,7 @@
     }
   }
 
-  async function pickRandomFromVisible(n, options = {}) {
-    const source = options.source || 'roulette';
+  async function pickRandomFromVisible(n) {
     await loadRandomHistoryForMeal(state.meal);
     const blockedByRecent = getRecentRandomBlockedIds(state.meal);
     const arr = getVisibleStores().filter((s) => !isBlockedByCaution(s) && !blockedByRecent.has(s.id));
@@ -1659,9 +1703,6 @@
     while (arr.length && out.length < n) {
       const idx = Math.floor(Math.random() * arr.length);
       out.push(arr.splice(idx, 1)[0]);
-    }
-    if (out.length) {
-      await appendRandomHistory(state.meal, out, source);
     }
     return out;
   }
