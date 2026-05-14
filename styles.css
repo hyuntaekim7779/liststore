@@ -481,6 +481,21 @@ main {
   gap: 6px !important; font-size: 14px !important; color: var(--text) !important;
   cursor: pointer;
 }
+#reg-meal-group {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 18px;
+  padding-bottom: 2px;
+}
+#reg-meal-group label {
+  white-space: nowrap;
+  min-width: max-content;
+  font-size: 13px !important;
+}
+#reg-meal-group input[type="radio"] {
+  transform: scale(1.15);
+  margin-right: 2px;
+}
 
 .manual-form { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 10px; }
 .manual-form summary {
