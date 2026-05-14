@@ -374,10 +374,10 @@ main {
 .person-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0;
   padding: 0 6px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #1f2330;
   border: 1px solid #dbe2ff;
@@ -393,11 +393,6 @@ main {
 .person-tag-label {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.person-tag-caution-icon {
-  flex: 0 0 auto;
-  font-size: 11px;
-  line-height: 1;
 }
 .drop-zone.pool { min-height: 0; }
 

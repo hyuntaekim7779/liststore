@@ -380,19 +380,17 @@
     const matched = state.people.find((p) => p.name === name);
     const role = matched && matched.role ? matched.role : '';
     const cautionNotes = getCautionNotesByName(name);
+    const hasCaution = cautionNotes.length > 0;
     const tag = document.createElement('span');
     tag.className = 'person-tag';
     tag.draggable = true;
     tag.textContent = '';
     const label = document.createElement('span');
     label.className = 'person-tag-label';
-    label.textContent = role ? `${name} ${role}` : name;
+    const personText = role ? `${name} ${role}` : name;
+    label.textContent = hasCaution ? `📢 ${personText}` : personText;
     tag.appendChild(label);
-    if (cautionNotes.length) {
-      const icon = document.createElement('span');
-      icon.className = 'person-tag-caution-icon';
-      icon.textContent = '※';
-      tag.appendChild(icon);
+    if (hasCaution) {
       tag.title = `입맛 보호 메모\n- ${cautionNotes.join('\n- ')}`;
     } else {
       tag.removeAttribute('title');
