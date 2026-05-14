@@ -14,6 +14,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+.hidden { display: none !important; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
     "Malgun Gothic", "맑은 고딕", Roboto, sans-serif;
@@ -107,8 +108,22 @@ main {
   background: #fff;
   color: var(--text);
 }
+.store-form textarea {
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--text);
+  resize: vertical;
+  min-height: 78px;
+}
 .store-form input:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
+.store-form textarea:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
 .form-actions { display: flex; justify-content: flex-end; }
+#caution-note {
+  min-height: 92px;
+}
 
 .btn {
   border: none;
@@ -303,15 +318,15 @@ main {
   grid-template-columns: minmax(240px, 330px) minmax(0, 1.1fr) minmax(0, 0.9fr);
   align-items: start;
 }
-#panel-meal .today-groups-card { grid-column: 1; grid-row: 1; }
-#panel-meal .meal-list-card { grid-column: 1; grid-row: 2; }
-#panel-meal .meal-map-card { grid-column: 2 / 4; grid-row: 1; }
-#panel-meal .roulette-card { grid-column: 2; grid-row: 2; }
-#panel-meal .vote-card { grid-column: 3; grid-row: 2; }
+#panel-meal .today-groups-card { grid-column: 2 / 4; grid-row: 1; margin-left: 26px; }
+#panel-meal .meal-list-card { grid-column: 1; grid-row: 1 / 3; }
+#panel-meal .meal-map-card { grid-column: 2 / 4; grid-row: 2; margin-left: 26px; }
+#panel-meal .roulette-card { grid-column: 2; grid-row: 3; }
+#panel-meal .vote-card { grid-column: 3; grid-row: 3; }
 
 .today-groups-wrap {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .today-group-col h3 {
@@ -345,6 +360,29 @@ main {
   cursor: grab;
 }
 .drop-zone.pool { min-height: 64px; }
+
+#panel-settings {
+  max-width: 1120px;
+}
+.settings-tabs-card { padding-bottom: 12px; }
+.settings-subtabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.settings-subtab {
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.settings-subtab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
 
 .meal-list-card #store-list {
   max-height: 520px;
@@ -428,7 +466,9 @@ main {
   #panel-meal .vote-card {
     grid-column: auto;
     grid-row: auto;
+    margin-left: 0;
   }
+  .today-groups-wrap { grid-template-columns: 1fr; }
   .meal-list-card #store-list { max-height: none; overflow: visible; }
   .meal-map-card .map { height: 360px; }
   .store-form .form-row { flex-direction: column; align-items: stretch; }

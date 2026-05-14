@@ -15,6 +15,7 @@
     people: [],
     cautions: [],
     assignments: { outside: [], lunchbox: [] },
+    settingsSubtab: 'people',
   };
 
   document.addEventListener('DOMContentLoaded', init);
@@ -30,6 +31,7 @@
     bindRoulette();
     bindVoting();
     bindPeopleAndCautions();
+    bindSettingsSubtabs();
     bindMapActions();
     bindStorageErrors();
 
@@ -170,6 +172,20 @@
         renderSettingsStoreList();
       });
     });
+  }
+
+  function bindSettingsSubtabs() {
+    $$('.settings-subtab').forEach((btn) => {
+      btn.addEventListener('click', () => switchSettingsSubtab(btn.dataset.settingsTab));
+    });
+  }
+
+  function switchSettingsSubtab(tab) {
+    state.settingsSubtab = tab;
+    $$('.settings-subtab').forEach((b) => b.classList.toggle('active', b.dataset.settingsTab === tab));
+    $$('.settings-subpanel').forEach((panel) =>
+      panel.classList.toggle('hidden', panel.dataset.settingsPanel !== tab)
+    );
   }
 
   function bindPeopleAndCautions() {
@@ -336,6 +352,7 @@
       $('#panel-settings').classList.remove('hidden');
       $$('input[name="reg-meal"]').forEach((r) => { r.checked = (r.value === state.meal); });
       renderSettingsStoreList();
+      switchSettingsSubtab(state.settingsSubtab || 'people');
       return;
     }
 

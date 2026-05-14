@@ -36,12 +36,14 @@
           <div class="drop-zone" id="drop-outside" data-group="outside"></div>
         </div>
         <div class="today-group-col">
-          <h3>도시락본부 <span id="count-lunchbox" class="muted">(0)</span></h3>
+          <h3>도시락 본부 <span id="count-lunchbox" class="muted">(0)</span></h3>
           <div class="drop-zone" id="drop-lunchbox" data-group="lunchbox"></div>
         </div>
+        <div class="today-group-col">
+          <h3>대상자 태그</h3>
+          <div class="drop-zone pool" id="drop-pool" data-group="pool"></div>
+        </div>
       </div>
-      <h3>대상자 태그</h3>
-      <div class="drop-zone pool" id="drop-pool" data-group="pool"></div>
       <p class="hint">태그를 드래그해서 각 구분으로 옮기세요.</p>
     </section>
 
@@ -120,7 +122,15 @@
 
   <!-- ============ SETTINGS PANEL ============ -->
   <main id="panel-settings" class="panel hidden">
-    <section class="card">
+    <section class="card settings-tabs-card">
+      <div class="settings-subtabs">
+        <button class="settings-subtab active" type="button" data-settings-tab="people">대상자 추가</button>
+        <button class="settings-subtab" type="button" data-settings-tab="stores">가게 등록</button>
+        <button class="settings-subtab" type="button" data-settings-tab="taste-care">입맛 보호 대상자</button>
+      </div>
+    </section>
+
+    <section class="card settings-subpanel" data-settings-panel="people">
       <h2>👥 대상자 관리</h2>
       <div class="form-row">
         <label>대상자 이름
@@ -131,23 +141,23 @@
       <ul id="person-list" class="store-list"></ul>
     </section>
 
-    <section class="card">
-      <h2>⚠️ 주의 대상자 관리</h2>
+    <section class="card settings-subpanel hidden" data-settings-panel="taste-care">
+      <h2>💚 입맛 보호 대상자 관리</h2>
       <div class="form-row two">
-        <label>주의 대상자 이름
+        <label>입맛 보호 대상자 이름
           <input id="caution-name" type="text" placeholder="예: 김민수" />
         </label>
         <label>주의 내용 메모
-          <input id="caution-note" type="text" placeholder="예: 갑각류 알러지 / 회 섭취 불가" />
+          <textarea id="caution-note" rows="3" placeholder="예: 갑각류 알러지 / 회 섭취 불가"></textarea>
         </label>
       </div>
       <div class="form-actions">
-        <button id="btn-add-caution" type="button" class="btn btn-secondary">주의 대상자 추가</button>
+        <button id="btn-add-caution" type="button" class="btn btn-secondary">입맛 보호 대상자 추가</button>
       </div>
       <ul id="caution-list" class="store-list"></ul>
     </section>
 
-    <section class="card">
+    <section class="card settings-subpanel hidden" data-settings-panel="stores">
       <h2>🪄 URL로 빠른 등록</h2>
       <p class="hint">
         네이버 지도에서 가게 페이지의 URL을 복사해 붙여넣으면 가게 이름과 좌표를 자동으로 추출합니다.
@@ -217,7 +227,7 @@
       </details>
     </section>
 
-    <section class="card">
+    <section class="card settings-subpanel hidden" data-settings-panel="stores">
       <div class="card-header">
         <h2>등록된 가게 <span id="settings-store-count" class="muted">(0)</span></h2>
       </div>
