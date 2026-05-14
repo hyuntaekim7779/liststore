@@ -374,6 +374,7 @@ main {
 .person-tag {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   padding: 0 6px;
   border-radius: 999px;
   font-size: 10px;
@@ -388,6 +389,15 @@ main {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.person-tag-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.person-tag-caution-icon {
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1;
 }
 .drop-zone.pool { min-height: 0; }
 
@@ -460,13 +470,27 @@ main {
   outline-offset: -1px;
   border-color: var(--primary);
 }
-.taste-care-panel #caution-name,
+.taste-care-panel #caution-person,
 .taste-care-panel #caution-note {
-  min-height: 64px;
-  height: 64px;
+  min-height: 42px;
+  height: 42px;
 }
-.taste-care-panel #caution-note {
-  resize: none;
+.caution-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.caution-chip {
+  border: 1px solid #dbe2ff;
+  background: #f4f7ff;
+  color: #1f2330;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.caution-chip:hover {
+  background: #e9eeff;
 }
 
 .meal-list-card #store-list {

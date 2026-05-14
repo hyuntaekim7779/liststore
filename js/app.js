@@ -74,7 +74,9 @@
 
   function loadPeopleData() {
     state.people = normalizePeople(safeLocalParse(PEOPLE_KEY, []));
-    state.cautions = safeLocalParse(CAUTION_KEY, []);
+    state.cautions = normalizeCautions(safeLocalParse(CAUTION_KEY, []));
+    const peopleNames = new Set(state.people.map((p) => p.name));
+    state.cautions = state.cautions.filter((c) => peopleNames.has(c.name));
     const loadedAssign = safeLocalParse(ASSIGN_KEY, { outside: [], lunchbox: [] });
     state.assignments = {
       outside: Array.isArray(loadedAssign.outside) ? loadedAssign.outside : [],
@@ -101,6 +103,17 @@
 
   function saveCautions() {
     localStorage.setItem(CAUTION_KEY, JSON.stringify(state.cautions));
+  }
+
+  function normalizeCautions(input) {
+    if (!Array.isArray(input)) return [];
+    return input
+      .map((c) => ({
+        id: c && c.id ? String(c.id) : uid('c'),
+        name: c && c.name ? String(c.name).trim() : '',
+        note: c && c.note ? String(c.note).trim() : '',
+      }))
+      .filter((c) => c.name && c.note);
   }
 
   function saveAssignments() {
@@ -268,26 +281,26 @@
         savePeopleData();
         saveAssignments();
         renderPeopleAndAssignments();
+        renderCautions();
       });
     }
 
     const addCautionBtn = $('#btn-add-caution');
     if (addCautionBtn) {
       addCautionBtn.addEventListener('click', () => {
-        const nameEl = $('#caution-name');
+        const nameEl = $('#caution-person');
         const noteEl = $('#caution-note');
         const name = (nameEl && nameEl.value || '').trim();
         const note = (noteEl && noteEl.value || '').trim();
         if (!name || !note) {
-          alert('주의 대상자 이름과 메모를 모두 입력해주세요.');
+          alert('대상자와 주의 내용을 모두 입력해주세요.');
           return;
         }
-        if (state.cautions.some((c) => c.name === name)) {
-          alert('이미 등록된 주의 대상자 이름입니다.');
+        if (state.cautions.some((c) => c.name === name && c.note === note)) {
+          alert('이미 동일한 주의 태그가 등록되어 있습니다.');
           return;
         }
         state.cautions.push({ id: uid('c'), name, note });
-        if (nameEl) nameEl.value = '';
         if (noteEl) noteEl.value = '';
         saveCautions();
         renderCautions();
@@ -351,10 +364,24 @@
   function buildPersonTag(name) {
     const matched = state.people.find((p) => p.name === name);
     const role = matched && matched.role ? matched.role : '';
+    const cautionNotes = getCautionNotesByName(name);
     const tag = document.createElement('span');
     tag.className = 'person-tag';
     tag.draggable = true;
-    tag.textContent = role ? `${name} ${role}` : name;
+    tag.textContent = '';
+    const label = document.createElement('span');
+    label.className = 'person-tag-label';
+    label.textContent = role ? `${name} ${role}` : name;
+    tag.appendChild(label);
+    if (cautionNotes.length) {
+      const icon = document.createElement('span');
+      icon.className = 'person-tag-caution-icon';
+      icon.textContent = '※';
+      tag.appendChild(icon);
+      tag.title = `입맛 보호 메모\n- ${cautionNotes.join('\n- ')}`;
+    } else {
+      tag.removeAttribute('title');
+    }
     tag.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', name);
       e.dataTransfer.effectAllowed = 'move';
@@ -388,10 +415,13 @@
           return;
         }
         if (action !== 'delete') return;
+        state.cautions = state.cautions.filter((c) => c.name !== p.name);
         state.people = state.people.filter((x) => x.id !== p.id);
         savePeopleData();
+        saveCautions();
         saveAssignments();
         renderPeopleAndAssignments();
+        renderCautions();
       });
       list.appendChild(li);
     });
@@ -427,31 +457,56 @@
     // 분류 태그는 이름 문자열로 저장되므로 이름 변경 시 함께 치환
     state.assignments.outside = state.assignments.outside.map((n) => (n === oldName ? name : n));
     state.assignments.lunchbox = state.assignments.lunchbox.map((n) => (n === oldName ? name : n));
+    state.cautions = state.cautions.map((c) => (c.name === oldName ? { ...c, name } : c));
     savePeopleData();
     saveAssignments();
+    saveCautions();
     renderPeopleAndAssignments();
+    renderCautions();
   }
 
   function renderCautions() {
     const list = $('#caution-list');
+    const personSelect = $('#caution-person');
+    if (personSelect) {
+      const prev = personSelect.value;
+      personSelect.innerHTML = '<option value="">대상자를 선택하세요</option>';
+      state.people.forEach((p) => {
+        const op = document.createElement('option');
+        op.value = p.name;
+        op.textContent = p.role ? `${p.name} ${p.role}` : p.name;
+        personSelect.appendChild(op);
+      });
+      if (state.people.some((p) => p.name === prev)) personSelect.value = prev;
+    }
     if (!list) return;
     list.innerHTML = '';
     if (!state.cautions.length) {
-      list.innerHTML = '<li style="border:none;background:transparent;color:#888;justify-content:center">등록된 주의 대상자가 없습니다.</li>';
+      list.innerHTML = '<li style="border:none;background:transparent;color:#888;justify-content:center">등록된 입맛 보호 태그가 없습니다.</li>';
       return;
     }
+    const grouped = new Map();
     state.cautions.forEach((c) => {
+      if (!grouped.has(c.name)) grouped.set(c.name, []);
+      grouped.get(c.name).push(c);
+    });
+    Array.from(grouped.entries()).forEach(([name, entries]) => {
       const li = document.createElement('li');
       li.innerHTML = `
         <div>
-          <div class="s-name">${escapeHtml(c.name)}</div>
-          <div class="s-meta">${escapeHtml(c.note)}</div>
+          <div class="s-name">${escapeHtml(name)}</div>
+          <div class="caution-tags">
+            ${entries.map((c) => `<button class="caution-chip" data-action="delete" data-id="${escapeHtml(c.id)}" title="삭제">${escapeHtml(c.note)} ✕</button>`).join('')}
+          </div>
         </div>
-        <div class="s-actions"><button data-action="delete">삭제</button></div>`;
+        <div class="s-actions"></div>`;
       li.addEventListener('click', (e) => {
-        if (!(e.target.dataset && e.target.dataset.action === 'delete')) return;
-        state.cautions = state.cautions.filter((x) => x.id !== c.id);
+        const action = e.target.dataset && e.target.dataset.action;
+        const targetId = e.target.dataset && e.target.dataset.id;
+        if (action !== 'delete' || !targetId) return;
+        state.cautions = state.cautions.filter((x) => x.id !== targetId);
         saveCautions();
+        renderPeopleAndAssignments();
         renderCautions();
       });
       list.appendChild(li);
@@ -1208,10 +1263,18 @@
       alert('주의 대상자를 먼저 등록해주세요.');
       return;
     }
+    const cautionMap = new Map();
+    state.cautions.forEach((c) => {
+      if (!cautionMap.has(c.name)) cautionMap.set(c.name, []);
+      cautionMap.get(c.name).push(c.note);
+    });
     const selected = await showMultiSelectModal({
       title: '주의 태그 설정',
       subtitle: `"${store.name}" 에서 식사 주의가 필요한 대상자를 선택하세요.`,
-      options: state.cautions.map((c) => ({ value: c.name, label: `${c.name} · ${c.note}` })),
+      options: Array.from(cautionMap.entries()).map(([name, notes]) => ({
+        value: name,
+        label: `${name} · ${Array.from(new Set(notes)).join(', ')}`,
+      })),
       selected: Array.isArray(store.avoidFor) ? store.avoidFor : [],
       saveLabel: '태그 저장',
       requireAtLeastOne: false,
@@ -1297,6 +1360,13 @@
       parts.push(`${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`);
     }
     return parts.join(' · ');
+  }
+
+  function getCautionNotesByName(name) {
+    return state.cautions
+      .filter((c) => c.name === name)
+      .map((c) => c.note)
+      .filter((note, idx, arr) => note && arr.indexOf(note) === idx);
   }
 
   // ---------- Storage 오류 배너 ----------

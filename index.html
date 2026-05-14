@@ -157,15 +157,17 @@
     <section class="card settings-subpanel hidden taste-care-panel" data-settings-panel="taste-care">
       <h2>💚 입맛 보호 대상자 관리</h2>
       <div class="form-row two taste-care-form-row">
-        <label>입맛 보호 대상자 이름
-          <input id="caution-name" type="text" placeholder="예: 김민수" />
+        <label>대상자 선택
+          <select id="caution-person">
+            <option value="">대상자를 선택하세요</option>
+          </select>
         </label>
-        <label>주의 내용 메모
-          <textarea id="caution-note" rows="3" placeholder="예: 갑각류 알러지 / 회 섭취 불가"></textarea>
+        <label>주의 내용 태그
+          <input id="caution-note" type="text" placeholder="예: 갑각류 알러지 / 회 섭취 불가" />
         </label>
       </div>
       <div class="form-actions">
-        <button id="btn-add-caution" type="button" class="btn btn-secondary">입맛 보호 대상자 추가</button>
+        <button id="btn-add-caution" type="button" class="btn btn-secondary">주의 태그 추가</button>
       </div>
       <ul id="caution-list" class="store-list"></ul>
     </section>
