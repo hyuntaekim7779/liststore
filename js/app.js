@@ -326,10 +326,10 @@
     state.assignments.lunchbox.forEach((name) => lunchbox.appendChild(buildPersonTag(name)));
     poolNames.forEach((name) => pool.appendChild(buildPersonTag(name)));
 
-    $('#count-outside').textContent = `(${state.assignments.outside.length})`;
-    $('#count-lunchbox').textContent = `(${state.assignments.lunchbox.length})`;
+    $('#count-outside').textContent = `총 ${state.assignments.outside.length}명`;
+    $('#count-lunchbox').textContent = `총 ${state.assignments.lunchbox.length}명`;
     const poolCount = $('#count-pool');
-    if (poolCount) poolCount.textContent = `(${poolNames.length})`;
+    if (poolCount) poolCount.textContent = `총 ${poolNames.length}명`;
   }
 
   function buildPersonTag(name) {

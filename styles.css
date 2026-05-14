@@ -316,13 +316,19 @@ main {
   margin: 0;
   padding: 0 10px 60px;
   grid-template-columns: minmax(340px, 410px) minmax(0, 1fr) minmax(0, 0.82fr);
-  align-items: start;
+  align-items: stretch;
 }
 #panel-meal .today-groups-card { grid-column: 1; grid-row: 1; margin-left: 0; }
 #panel-meal .meal-list-card { grid-column: 1; grid-row: 2; }
 #panel-meal .meal-map-card { grid-column: 2 / 4; grid-row: 1; margin-left: 0; }
 #panel-meal .roulette-card { grid-column: 2; grid-row: 2; }
 #panel-meal .vote-card { grid-column: 3; grid-row: 2; }
+.today-groups-card,
+.meal-list-card,
+.roulette-card,
+.vote-card {
+  height: 100%;
+}
 
 .today-groups-wrap {
   display: grid;
@@ -331,6 +337,7 @@ main {
   border: 1px solid #cfd6e6;
   border-radius: 10px;
   overflow: hidden;
+  min-height: 520px;
 }
 .today-group-col h3 {
   margin: 0;
@@ -346,14 +353,16 @@ main {
   border-left: none;
 }
 .drop-zone {
-  min-height: 250px;
+  min-height: 0;
+  height: calc(100% - 37px);
   border: none;
   border-top: 1px solid #e3e8f2;
   border-radius: 0;
-  padding: 10px 8px;
+  padding: 6px 6px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 2px;
+  align-content: flex-start;
   background: #fff;
 }
 .drop-zone.drag-over {
@@ -362,22 +371,22 @@ main {
 .person-tag {
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 0 6px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #1f2330;
   border: 1px solid #dbe2ff;
   background: #f4f7ff;
   cursor: grab;
-  width: 84px;
-  height: 32px;
+  width: 72px;
+  height: 26px;
   justify-content: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.drop-zone.pool { min-height: 250px; }
+.drop-zone.pool { min-height: 0; }
 
 #panel-settings {
   max-width: 1120px;
@@ -418,10 +427,35 @@ main {
 .taste-care-form-row label {
   flex: 1;
 }
+.settings-subpanel .form-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.settings-subpanel .form-row input,
+.settings-subpanel .form-row textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+}
+.settings-subpanel .form-row textarea {
+  resize: vertical;
+}
+.settings-subpanel .form-row input:focus,
+.settings-subpanel .form-row textarea:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+  border-color: var(--primary);
+}
 .taste-care-panel #caution-name,
 .taste-care-panel #caution-note {
-  min-height: 56px;
-  height: 56px;
+  min-height: 64px;
+  height: 64px;
 }
 .taste-care-panel #caution-note {
   resize: none;
@@ -514,6 +548,7 @@ main {
   .today-groups-wrap {
     grid-template-columns: 1fr;
     gap: 0;
+    min-height: 0;
   }
   .today-group-col {
     border-left: none;
@@ -524,7 +559,10 @@ main {
     font-size: 14px;
     padding: 10px 10px 8px;
   }
-  .drop-zone { min-height: 140px; }
+  .drop-zone {
+    min-height: 140px;
+    height: auto;
+  }
   #person-list {
     grid-auto-flow: row;
     grid-template-rows: none;
