@@ -6,6 +6,8 @@
  *                  Payload (JSON 문자열, 가게 정보 전체)
  *   votes  테이블: PartitionKey = meal key (예: lunch | dinner | fridayLunch), RowKey = 'current',
  *                  Payload (JSON 문자열, 투표 정보 전체)
+ *   people 테이블: PartitionKey = 'shared', RowKey = 'current',
+ *                  Payload (JSON 문자열, 대상자/입맛보호/오늘점심구분 데이터)
  *
  * window.AppConfig.storage === 'azure' 일 때 자동으로 window.Storage 를 덮어씁니다.
  * 그렇지 않으면 storage.js 의 localStorage 어댑터가 유지됩니다.
@@ -23,6 +25,7 @@
   const SAS = (cfg.sas || '').replace(/^\?/, '');
   const TABLE_STORES = cfg.tableStores || 'stores';
   const TABLE_VOTES  = cfg.tableVotes  || 'votes';
+  const TABLE_PEOPLE = cfg.tablePeople || 'people';
 
   if (!ACCOUNT || !SAS) {
     console.error('[storage-azure] account 또는 sas 가 설정되지 않았습니다. localStorage 로 폴백.');
@@ -82,8 +85,9 @@
       initPromise = Promise.all([
         createTable(TABLE_STORES),
         createTable(TABLE_VOTES),
-      ]).then(([a, b]) => {
-        if (a && b) console.info('[azure] tables ready.');
+        createTable(TABLE_PEOPLE),
+      ]).then(([a, b, c]) => {
+        if (a && b && c) console.info('[azure] tables ready.');
       });
     }
     return initPromise;
@@ -209,11 +213,32 @@
       await ensureInit();
       await deleteEntity(TABLE_VOTES, meal, 'current');
     },
+
+    async getPeopleBundle() {
+      await ensureInit();
+      const e = await getEntity(TABLE_PEOPLE, 'shared', 'current');
+      const payload = parsePayload(e);
+      if (!payload || typeof payload !== 'object') {
+        return {
+          people: [],
+          cautions: [],
+          assignments: { outside: [], lunchbox: [] },
+          resetDate: '',
+        };
+      }
+      return payload;
+    },
+
+    async savePeopleBundle(bundle) {
+      await ensureInit();
+      const safe = (bundle && typeof bundle === 'object') ? bundle : {};
+      await putEntity(TABLE_PEOPLE, 'shared', 'current', { Payload: JSON.stringify(safe) });
+    },
   };
 
   // 페이지 로드 직후 백그라운드로 테이블 보장
   ensureInit();
 
   window.Storage = AzureStorage;
-  console.info(`[storage-azure] using account "${ACCOUNT}" tables: ${TABLE_STORES}, ${TABLE_VOTES}`);
+  console.info(`[storage-azure] using account "${ACCOUNT}" tables: ${TABLE_STORES}, ${TABLE_VOTES}, ${TABLE_PEOPLE}`);
 })();

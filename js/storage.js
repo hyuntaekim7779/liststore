@@ -14,6 +14,11 @@
 (function () {
   const KEY_STORES = (meal) => `ls.stores.${meal}`;
   const KEY_VOTE   = (meal) => `ls.vote.${meal}`;
+  const KEY_PEOPLE = 'ls.people.v1';
+  const KEY_CAUTION = 'ls.cautions.v1';
+  const KEY_ASSIGN = 'ls.assignments.v1';
+  const KEY_ASSIGN_RESET = 'ls.assignments.reset.date.v1';
+  const KEY_PEOPLE_BUNDLE = 'ls.people.bundle.v1';
 
   function safeParse(raw, fallback) {
     if (!raw) return fallback;
@@ -35,6 +40,24 @@
     },
     async clearVote(meal) {
       localStorage.removeItem(KEY_VOTE(meal));
+    },
+    async getPeopleBundle() {
+      const bundle = safeParse(localStorage.getItem(KEY_PEOPLE_BUNDLE), null);
+      if (bundle && typeof bundle === 'object') return bundle;
+      return {
+        people: safeParse(localStorage.getItem(KEY_PEOPLE), []),
+        cautions: safeParse(localStorage.getItem(KEY_CAUTION), []),
+        assignments: safeParse(localStorage.getItem(KEY_ASSIGN), { outside: [], lunchbox: [] }),
+        resetDate: localStorage.getItem(KEY_ASSIGN_RESET) || '',
+      };
+    },
+    async savePeopleBundle(bundle) {
+      const safe = (bundle && typeof bundle === 'object') ? bundle : {};
+      localStorage.setItem(KEY_PEOPLE_BUNDLE, JSON.stringify(safe));
+      localStorage.setItem(KEY_PEOPLE, JSON.stringify(safe.people || []));
+      localStorage.setItem(KEY_CAUTION, JSON.stringify(safe.cautions || []));
+      localStorage.setItem(KEY_ASSIGN, JSON.stringify(safe.assignments || { outside: [], lunchbox: [] }));
+      localStorage.setItem(KEY_ASSIGN_RESET, safe.resetDate || '');
     },
   };
 

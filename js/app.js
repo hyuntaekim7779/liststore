@@ -15,6 +15,7 @@
     people: [],
     cautions: [],
     assignments: { outside: [], lunchbox: [] },
+    assignmentsResetDate: '',
     settingsSubtab: 'people',
   };
 
@@ -41,7 +42,7 @@
       await Stores.load(meal);
       await Voting.load(meal);
     }
-    loadPeopleData();
+    await loadPeopleData();
 
     await switchTab(getInitialMealTabBySeoulTime());
     document.addEventListener('keydown', (e) => {
@@ -72,22 +73,39 @@
   const ASSIGN_RESET_KEY = 'ls.assignments.reset.date.v1';
   const ROLE_OPTIONS = ['사원 (선임)', '대리', '과장', '차장', '부장', '이사', '팀장님'];
 
-  function loadPeopleData() {
-    state.people = normalizePeople(safeLocalParse(PEOPLE_KEY, []));
-    state.cautions = normalizeCautions(safeLocalParse(CAUTION_KEY, []));
+  async function loadPeopleData() {
+    let bundle = null;
+    if (window.Storage && typeof window.Storage.getPeopleBundle === 'function') {
+      try {
+        bundle = await window.Storage.getPeopleBundle();
+      } catch (e) {
+        console.warn('getPeopleBundle failed, fallback to local:', e);
+      }
+    }
+    if (!bundle) {
+      bundle = {
+        people: safeLocalParse(PEOPLE_KEY, []),
+        cautions: safeLocalParse(CAUTION_KEY, []),
+        assignments: safeLocalParse(ASSIGN_KEY, { outside: [], lunchbox: [] }),
+        resetDate: localStorage.getItem(ASSIGN_RESET_KEY) || '',
+      };
+    }
+    state.people = normalizePeople(bundle.people || []);
+    state.cautions = normalizeCautions(bundle.cautions || []);
     const peopleNames = new Set(state.people.map((p) => p.name));
     state.cautions = state.cautions.filter((c) => peopleNames.has(c.name));
-    const loadedAssign = safeLocalParse(ASSIGN_KEY, { outside: [], lunchbox: [] });
+    const loadedAssign = bundle.assignments || { outside: [], lunchbox: [] };
     state.assignments = {
       outside: Array.isArray(loadedAssign.outside) ? loadedAssign.outside : [],
       lunchbox: Array.isArray(loadedAssign.lunchbox) ? loadedAssign.lunchbox : [],
     };
+    state.assignmentsResetDate = String(bundle.resetDate || '');
     normalizeAssignments();
     maybeResetAssignmentsAtTwoPm();
   }
 
   function savePeopleData() {
-    localStorage.setItem(PEOPLE_KEY, JSON.stringify(state.people));
+    persistPeopleBundle();
   }
 
   function normalizePeople(input) {
@@ -112,7 +130,7 @@
   }
 
   function saveCautions() {
-    localStorage.setItem(CAUTION_KEY, JSON.stringify(state.cautions));
+    persistPeopleBundle();
   }
 
   function normalizeCautions(input) {
@@ -128,7 +146,30 @@
 
   function saveAssignments() {
     normalizeAssignments();
+    persistPeopleBundle();
+  }
+
+  function persistPeopleBundle() {
+    const bundle = {
+      people: state.people,
+      cautions: state.cautions,
+      assignments: state.assignments,
+      resetDate: state.assignmentsResetDate || '',
+    };
+    if (window.Storage && typeof window.Storage.savePeopleBundle === 'function') {
+      window.Storage.savePeopleBundle(bundle).catch((e) => {
+        console.warn('savePeopleBundle failed, fallback to local:', e);
+        localStorage.setItem(PEOPLE_KEY, JSON.stringify(state.people));
+        localStorage.setItem(CAUTION_KEY, JSON.stringify(state.cautions));
+        localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
+        localStorage.setItem(ASSIGN_RESET_KEY, state.assignmentsResetDate || '');
+      });
+      return;
+    }
+    localStorage.setItem(PEOPLE_KEY, JSON.stringify(state.people));
+    localStorage.setItem(CAUTION_KEY, JSON.stringify(state.cautions));
     localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
+    localStorage.setItem(ASSIGN_RESET_KEY, state.assignmentsResetDate || '');
   }
 
   function safeLocalParse(key, fallback) {
@@ -152,11 +193,11 @@
   function maybeResetAssignmentsAtTwoPm() {
     const seoul = getSeoulDateTimeParts();
     if (seoul.hour < 14) return false;
-    const lastResetDate = localStorage.getItem(ASSIGN_RESET_KEY);
+    const lastResetDate = state.assignmentsResetDate || '';
     if (lastResetDate === seoul.dateKey) return false;
     state.assignments = { outside: [], lunchbox: [] };
+    state.assignmentsResetDate = seoul.dateKey;
     saveAssignments();
-    localStorage.setItem(ASSIGN_RESET_KEY, seoul.dateKey);
     return true;
   }
 
@@ -229,10 +270,13 @@
         await Stores.load(meal);
       }
       await Voting.load(state.meal);
+      await loadPeopleData();
     } catch (e) {
       console.warn('poll failed:', e);
       return;
     }
+    renderPeopleAndAssignments();
+    renderCautions();
     // 활성 탭 기준으로 UI 갱신
     if (MEAL_TYPES.includes(state.activeTab)) {
       renderStoreList();
