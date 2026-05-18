@@ -71,18 +71,21 @@
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // label
+        // label — 슬라이스 중앙(반지름·각도)에 맞춰 배치
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(start + seg / 2);
+        const labelR = r * 0.62;
+        const fontSize = Math.max(11, Math.min(18, Math.floor(seg * labelR * 0.95)));
+        ctx.font = `800 ${fontSize}px sans-serif`;
         ctx.fillStyle = '#fff';
-        ctx.font = n <= 5 ? '800 18px sans-serif' : '800 15px sans-serif';
         ctx.shadowColor = 'rgba(0,0,0,0.35)';
         ctx.shadowBlur = 3;
-        ctx.textAlign = 'right';
+        ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const label = truncate(this.items[i].name, n <= 5 ? 14 : 11);
-        ctx.fillText(label, r - 12, 0);
+        const maxChars = Math.max(4, Math.floor((seg * labelR) / (fontSize * 0.52)));
+        const label = truncate(this.items[i].name, maxChars);
+        ctx.fillText(label, labelR, 0);
         ctx.restore();
       }
 

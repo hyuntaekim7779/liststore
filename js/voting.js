@@ -77,7 +77,16 @@
 
     async load(meal) {
       ensureMealCurrent(this.current, meal);
-      this.current[meal] = await window.Storage.getVote(meal);
+      const local = this.current[meal];
+      const remote = await window.Storage.getVote(meal);
+      const localFresh = local
+        && local._clientUpdatedAt
+        && (Date.now() - local._clientUpdatedAt < 8000);
+      if (remote) {
+        this.current[meal] = remote;
+      } else if (!local || !localFresh) {
+        this.current[meal] = null;
+      }
       await this.maybeAutoReset(meal);
       return this.current[meal];
     },
@@ -106,6 +115,7 @@
         endAt,
         votes: Object.fromEntries(candidates.map((c) => [c.id, []])),
       };
+      vote._clientUpdatedAt = Date.now();
       this.current[meal] = vote;
       await window.Storage.saveVote(meal, vote);
       return vote;
@@ -148,7 +158,9 @@
       if (!vote.votes[candidateId]) vote.votes[candidateId] = [];
       vote.votes[candidateId].push(name);
       if (!vote.votedPeople.includes(name)) vote.votedPeople.push(name);
+      vote._clientUpdatedAt = Date.now();
       await window.Storage.saveVote(meal, vote);
+      this.current[meal] = vote;
       return vote;
     },
 

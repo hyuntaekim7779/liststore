@@ -13,20 +13,20 @@
 
   <div class="tabs-banner-row">
     <img class="tabs-side-img left" src="assets/tabs-left.png" alt="점심 버튼 왼쪽 이미지" />
-    <nav class="meal-tabs">
+    <div class="tabs-center-col">
+      <nav class="meal-tabs">
       <button class="meal-tab active" data-tab="lunch" type="button">🥗 점심</button>
       <button class="meal-tab" data-tab="fridayLunch" type="button">📅 금요일 점심</button>
       <button class="meal-tab" data-tab="dinner" type="button">🍻 저녁</button>
       <button class="meal-tab" data-tab="settings" type="button">⚙️ 설정</button>
-    </nav>
+      </nav>
+      <section class="global-search-wrap">
+        <input id="global-search-input" type="text" aria-label="통합 검색" placeholder="🔎 가게, 대상자, 입맛 보호, 기록 검색" />
+        <div id="global-search-results" class="global-search-results hidden"></div>
+      </section>
+    </div>
     <img class="tabs-side-img right" src="assets/tabs-right.png" alt="설정 버튼 오른쪽 이미지" />
   </div>
-  <section class="global-search-wrap">
-    <label class="global-search-label" for="global-search-input">🔎 통합 검색</label>
-    <input id="global-search-input" type="text" placeholder="가게, 대상자, 입맛 보호 메모, 기록 검색" />
-    <div id="global-search-results" class="global-search-results hidden"></div>
-  </section>
-
   <div id="storage-error-banner" class="storage-error hidden"></div>
 
   <!-- ============ MEAL PANEL (점심/저녁) ============ -->
@@ -76,6 +76,7 @@
         <button id="btn-pick-roulette" class="btn btn-secondary">🎲 랜덤 5개 뽑기</button>
         <button id="btn-pick-roulette-selected" class="btn btn-secondary">✅ 선택 룰렛</button>
         <button id="btn-spin" class="btn btn-primary" disabled>▶ 룰렛 돌리기</button>
+        <button id="btn-reset-roulette" class="btn btn-link" type="button">룰렛 초기화</button>
       </div>
       <div class="roulette-stage">
         <canvas id="roulette-canvas" width="360" height="360"></canvas>

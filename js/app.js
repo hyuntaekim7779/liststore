@@ -1397,6 +1397,25 @@
       await appendRandomWinnerHistory(state.meal, winner, 'rouletteWinner', `roulette:${spinId}`);
       renderRouletteFromShared();
     });
+
+    const resetBtn = $('#btn-reset-roulette');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', async () => {
+        const session = state.rouletteByMeal[state.meal];
+        if (!session || !Array.isArray(session.items) || !session.items.length) {
+          alert('초기화할 룰렛 결과가 없습니다.');
+          return;
+        }
+        if (!(await verifyAdminPassword(
+          '룰렛 초기화',
+          '관리자가 지정한 암호로만 룰렛 결과를 초기화할 수 있습니다.'
+        ))) return;
+        if (!confirm('룰렛 후보와 결과를 초기화할까요?')) return;
+        await saveRouletteForMeal(state.meal, null);
+        state.rouletteRenderedSessionId = '';
+        renderRouletteFromShared();
+      });
+    }
   }
 
   function buildRouletteSession(items, mode) {
@@ -1440,7 +1459,13 @@
   async function saveRouletteForMeal(meal, session) {
     state.rouletteByMeal[meal] = session || null;
     if (!window.Storage || typeof window.Storage.saveRoulette !== 'function') return;
-    await window.Storage.saveRoulette(meal, session || null);
+    if (session) {
+      await window.Storage.saveRoulette(meal, session);
+    } else if (typeof window.Storage.clearRoulette === 'function') {
+      await window.Storage.clearRoulette(meal);
+    } else {
+      await window.Storage.saveRoulette(meal, null);
+    }
   }
 
   function renderRouletteFromShared() {
@@ -1541,8 +1566,9 @@
         return;
       }
       try {
-        await Voting.create(state.meal, candidates, startAt, endAt, voters);
+        const vote = await Voting.create(state.meal, candidates, startAt, endAt, voters);
         window.__pendingVoteCandidates = null;
+        Voting.current[state.meal] = vote;
         renderVote();
       } catch (e) { alert(e.message); }
     });
@@ -1581,10 +1607,17 @@
   function renderVote() {
     clearVoteTimer();
     const vote = Voting.get(state.meal);
+    const setup = document.querySelector('.vote-setup');
     if (!vote) {
+      if (window.__pendingVoteCandidates && window.__pendingVoteCandidates.length >= 2) {
+        if (setup) setup.classList.remove('hidden');
+        return;
+      }
       $('#vote-active').classList.add('hidden');
+      if (setup) setup.classList.remove('hidden');
       return;
     }
+    if (setup) setup.classList.add('hidden');
     $('#vote-active').classList.remove('hidden');
 
     const status = Voting.status(vote);
@@ -1917,17 +1950,17 @@
     return true;
   }
 
-  function verifyVoteDeletePassword() {
+  function verifyAdminPassword(title, message) {
     return new Promise((resolve) => {
       const backdrop = document.createElement('div');
       backdrop.className = 'visibility-modal-backdrop';
       backdrop.innerHTML = `
         <div class="visibility-modal" role="dialog" aria-modal="true">
-          <h3>투표 종료/삭제</h3>
-          <p class="muted">관리자가 지정한 암호로만 투표를 삭제할 수 있습니다.</p>
+          <h3>${escapeHtml(title || '관리자 확인')}</h3>
+          <p class="muted">${escapeHtml(message || '관리자 암호를 입력하세요.')}</p>
           <label style="display:flex;flex-direction:column;gap:6px;margin:10px 0 14px;font-size:13px;color:var(--muted)">
             암호 입력
-            <input type="password" id="vote-delete-password" autocomplete="off" placeholder="암호를 입력하세요" />
+            <input type="password" id="admin-password-input" autocomplete="off" placeholder="암호를 입력하세요" />
           </label>
           <div class="actions">
             <button type="button" data-action="cancel">취소</button>
@@ -1940,7 +1973,7 @@
         backdrop.remove();
         resolve(ok);
       };
-      const input = backdrop.querySelector('#vote-delete-password');
+      const input = backdrop.querySelector('#admin-password-input');
       backdrop.addEventListener('click', (e) => {
         if (e.target === backdrop) close(false);
       });
@@ -1962,6 +1995,13 @@
         setTimeout(() => input.focus(), 0);
       }
     });
+  }
+
+  function verifyVoteDeletePassword() {
+    return verifyAdminPassword(
+      '투표 종료/삭제',
+      '관리자가 지정한 암호로만 투표를 삭제할 수 있습니다.'
+    );
   }
 
   function clearVoteTimer() {
