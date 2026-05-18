@@ -23,7 +23,6 @@
     rouletteRenderedSessionId: '',
     mainStoreSearch: '',
     settingsStoreSearch: '',
-    globalSearch: '',
   };
 
   document.addEventListener('DOMContentLoaded', init);
@@ -37,7 +36,6 @@
     bindStoreForm();
     bindAutoAdd();
     bindStoreSearch();
-    bindGlobalSearch();
     bindRoulette();
     bindVoting();
     bindPeopleAndCautions();
@@ -443,7 +441,6 @@
       renderSettingsStoreList();
       if (state.settingsSubtab === 'history') renderRandomHistoryManager();
     }
-    if (state.globalSearch) renderGlobalSearchResults();
     schedulePoll();
   }
 
@@ -501,109 +498,6 @@
     }
   }
 
-  function bindGlobalSearch() {
-    const input = $('#global-search-input');
-    const resultsEl = $('#global-search-results');
-    if (!input || !resultsEl) return;
-    input.addEventListener('input', () => {
-      state.globalSearch = String(input.value || '').trim().toLowerCase();
-      renderGlobalSearchResults();
-    });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        input.value = '';
-        state.globalSearch = '';
-        renderGlobalSearchResults();
-      }
-    });
-  }
-
-  function renderGlobalSearchResults() {
-    const resultsEl = $('#global-search-results');
-    if (!resultsEl) return;
-    const q = state.globalSearch || '';
-    if (!q) {
-      resultsEl.classList.add('hidden');
-      resultsEl.innerHTML = '';
-      return;
-    }
-    const rows = [];
-    MEAL_TYPES.forEach((meal) => {
-      getVisibleStoresForMeal(meal, { includeMeta: true })
-        .filter((s) => String(s.name || '').toLowerCase().includes(q) || String(cleanMemoForDisplay(s.memo || '')).toLowerCase().includes(q))
-        .forEach((s) => rows.push({
-          key: `store:${meal}:${s.id}`,
-          label: s.name,
-          meta: `가게 · ${mealLabel(meal)}`,
-          action: () => {
-            switchTab(meal).then(() => {
-              state.mainStoreSearch = String(s.name || '').toLowerCase();
-              const el = $('#store-search-main');
-              if (el) el.value = s.name || '';
-              renderStoreList();
-            });
-          },
-        }));
-    });
-    state.people
-      .filter((p) => String(p.name || '').toLowerCase().includes(q) || String(p.role || '').toLowerCase().includes(q))
-      .forEach((p) => rows.push({
-        key: `person:${p.id}`,
-        label: `${p.name} ${p.role || ''}`.trim(),
-        meta: '대상자 · 설정 > 대상자 추가',
-        action: () => {
-          switchTab('settings').then(() => switchSettingsSubtab('people'));
-        },
-      }));
-    state.cautions
-      .filter((c) => String(c.name || '').toLowerCase().includes(q) || String(c.note || '').toLowerCase().includes(q))
-      .forEach((c) => rows.push({
-        key: `caution:${c.id}`,
-        label: `${c.name} · ${c.note}`,
-        meta: '입맛 보호 · 설정 > 입맛 보호 대상자',
-        action: () => {
-          switchTab('settings').then(() => switchSettingsSubtab('taste-care'));
-        },
-      }));
-    MEAL_TYPES.forEach((meal) => {
-      (state.randomHistoryByMeal[meal] || [])
-        .filter((r) => String(r.storeName || '').toLowerCase().includes(q))
-        .forEach((r) => rows.push({
-          key: `history:${meal}:${r.id}`,
-          label: `${r.storeName} (${mealLabel(meal)})`,
-          meta: '기록 · 설정 > 기록 관리',
-          action: () => {
-            switchTab('settings').then(() => {
-              switchSettingsSubtab('history');
-              const mealFilter = $('#random-history-meal');
-              if (mealFilter) mealFilter.value = meal;
-              renderRandomHistoryManager();
-            });
-          },
-        }));
-    });
-    const shown = rows.slice(0, 60);
-    if (!shown.length) {
-      resultsEl.classList.remove('hidden');
-      resultsEl.innerHTML = '<div class="global-search-item"><div>검색 결과가 없습니다.</div></div>';
-      return;
-    }
-    resultsEl.classList.remove('hidden');
-    resultsEl.innerHTML = shown.map((row) => `
-      <button type="button" class="global-search-item" data-key="${escapeHtml(row.key)}">
-        <div>${escapeHtml(row.label)}</div>
-        <div class="meta">${escapeHtml(row.meta)}</div>
-      </button>
-    `).join('');
-    Array.from(resultsEl.querySelectorAll('.global-search-item')).forEach((btn, idx) => {
-      const row = shown[idx];
-      if (!row) return;
-      btn.addEventListener('click', () => {
-        row.action();
-        resultsEl.classList.add('hidden');
-      });
-    });
-  }
 
   function switchSettingsSubtab(tab) {
     state.settingsSubtab = tab;
@@ -1419,12 +1313,13 @@
   }
 
   function buildRouletteSession(items, mode) {
+    const unique = dedupeStoresByUrl(items);
     return {
       id: `rset_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
       meal: state.meal,
       mode: mode || 'random',
       status: 'ready',
-      items: items.map((it) => ({ id: it.id, name: it.name })),
+      items: unique.map((it) => ({ id: it.id, name: it.name })),
       winnerId: '',
       winnerName: '',
       startAt: 0,
@@ -1590,10 +1485,11 @@
   }
 
   function renderVotePreview(picks) {
-    window.__pendingVoteCandidates = picks.map((s) => ({ id: s.id, name: s.name }));
+    const unique = dedupeStoresByUrl(picks);
+    window.__pendingVoteCandidates = unique.map((s) => ({ id: s.id, name: s.name }));
     const ul = $('#vote-candidates');
     ul.innerHTML = '';
-    picks.forEach((c) => {
+    unique.forEach((c) => {
       const li = document.createElement('li');
       li.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="muted">대기 중</span>`;
       ul.appendChild(li);
@@ -2100,11 +1996,19 @@
     return dedupeStoresByUrl(merged);
   }
 
+  function storeDedupKey(s) {
+    const nameKey = String(s.name || '').trim().toLowerCase().replace(/\s+/g, '');
+    if (nameKey) return `name:${nameKey}`;
+    const urlKey = normalizeUrlForCompare(s.url);
+    if (urlKey) return `url:${urlKey}`;
+    return `id:${s.id}`;
+  }
+
   function dedupeStoresByUrl(stores) {
     const seen = new Set();
     const out = [];
     stores.forEach((s) => {
-      const key = normalizeUrlForCompare(s.url) || `${s.name}|${s.address || ''}`;
+      const key = storeDedupKey(s);
       if (seen.has(key)) return;
       seen.add(key);
       out.push(s);
@@ -2130,7 +2034,9 @@
   async function pickRandomFromVisible(n) {
     await loadRandomHistoryForMeal(state.meal);
     const blockedByRecent = getRecentRandomBlockedIds(state.meal);
-    const arr = getVisibleStores().filter((s) => !isBlockedByCaution(s) && !blockedByRecent.has(s.id));
+    const arr = dedupeStoresByUrl(
+      getVisibleStores().filter((s) => !isBlockedByCaution(s) && !blockedByRecent.has(s.id))
+    );
     const out = [];
     while (arr.length && out.length < n) {
       const idx = Math.floor(Math.random() * arr.length);
