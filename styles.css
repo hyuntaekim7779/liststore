@@ -241,6 +241,9 @@ main {
 }
 .visibility-modal h3 { margin: 0 0 8px; font-size: 17px; }
 .visibility-modal p { margin: 0 0 10px; font-size: 13px; }
+.visibility-modal .dialog-message {
+  white-space: pre-line;
+}
 .visibility-modal label {
   display: flex;
   align-items: center;
@@ -270,6 +273,25 @@ main {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
+}
+.app-message-modal {
+  border-color: #dfe5ff;
+  box-shadow: 0 18px 42px rgba(69, 88, 217, 0.18);
+}
+.visibility-modal .dialog-input-label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  color: var(--muted);
+}
+.dialog-input {
+  width: 100%;
+  border: 1px solid #cfd7f4;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 14px;
+  color: var(--text);
 }
 .vote-delete-confirm-modal {
   border-color: #dfe5ff;

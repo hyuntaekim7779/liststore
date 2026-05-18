@@ -572,14 +572,14 @@
   function bindPeopleAndCautions() {
     const addPersonBtn = $('#btn-add-person');
     if (addPersonBtn) {
-      addPersonBtn.addEventListener('click', () => {
+      addPersonBtn.addEventListener('click', async () => {
         const input = $('#person-name');
         const roleEl = $('#person-role');
         const name = (input && input.value || '').trim();
         const role = roleEl && ROLE_OPTIONS.includes(roleEl.value) ? roleEl.value : '사원 (선임)';
         if (!name) return;
         if (state.people.some((p) => p.name === name)) {
-          alert('이미 등록된 대상자입니다.');
+          await showAppAlert('대상자 추가', '이미 등록된 대상자입니다.');
           return;
         }
         state.people.push({ id: uid('p'), name, role });
@@ -596,17 +596,17 @@
 
     const addCautionBtn = $('#btn-add-caution');
     if (addCautionBtn) {
-      addCautionBtn.addEventListener('click', () => {
+      addCautionBtn.addEventListener('click', async () => {
         const nameEl = $('#caution-person');
         const noteEl = $('#caution-note');
         const name = (nameEl && nameEl.value || '').trim();
         const note = (noteEl && noteEl.value || '').trim();
         if (!name || !note) {
-          alert('대상자와 주의 내용을 모두 입력해주세요.');
+          await showAppAlert('입맛 보호 대상자', '대상자와 주의 내용을 모두 입력해주세요.');
           return;
         }
         if (state.cautions.some((c) => c.name === name && c.note === note)) {
-          alert('이미 동일한 주의 태그가 등록되어 있습니다.');
+          await showAppAlert('입맛 보호 대상자', '이미 동일한 주의 태그가 등록되어 있습니다.');
           return;
         }
         state.cautions.push({ id: uid('c'), name, note });
@@ -629,7 +629,7 @@
         const personEl = $('#caution-person');
         const personName = (personEl && personEl.value || '').trim();
         if (!personName) {
-          alert('먼저 대상자를 선택해주세요.');
+          await showAppAlert('못가는 가게 선택', '먼저 대상자를 선택해주세요.');
           return;
         }
         const selected = await openCautionStoreBlocksEditor(personName);
@@ -767,29 +767,30 @@
     });
   }
 
-  function editPerson(personId) {
+  async function editPerson(personId) {
     const idx = state.people.findIndex((p) => p.id === personId);
     if (idx < 0) return;
     const current = state.people[idx];
-    const nextName = prompt('대상자 이름을 수정하세요.', current.name);
+    const nextName = await promptAppDialog('대상자 이름 수정', '대상자 이름을 수정하세요.', current.name);
     if (nextName == null) return;
     const name = nextName.trim();
     if (!name) {
-      alert('이름은 비워둘 수 없습니다.');
+      await showAppAlert('대상자 이름 수정', '이름은 비워둘 수 없습니다.');
       return;
     }
     if (state.people.some((p, i) => i !== idx && p.name === name)) {
-      alert('이미 등록된 대상자 이름입니다.');
+      await showAppAlert('대상자 이름 수정', '이미 등록된 대상자 이름입니다.');
       return;
     }
-    const nextRole = prompt(
-      `직책을 입력하세요.\n가능: ${ROLE_OPTIONS.join(', ')}`,
+    const nextRole = await promptAppDialog(
+      '대상자 직책 수정',
+      `직책을 입력하세요. 가능: ${ROLE_OPTIONS.join(', ')}`,
       current.role || '사원 (선임)'
     );
     if (nextRole == null) return;
     const role = nextRole.trim();
     if (!ROLE_OPTIONS.includes(role)) {
-      alert('직책은 사원 (선임)/대리/과장/차장/부장/이사/팀장님 중에서 입력해주세요.');
+      await showAppAlert('대상자 직책 수정', '직책은 사원 (선임)/대리/과장/차장/부장/이사/팀장님 중에서 입력해주세요.');
       return;
     }
     const oldName = current.name;
@@ -1069,7 +1070,7 @@
           memo: $('#store-memo').value.trim(),
         });
       } catch (err) {
-        alert(err && err.message ? err.message : '가게 등록 중 오류가 발생했습니다.');
+        await showAppAlert('가게 등록', err && err.message ? err.message : '가게 등록 중 오류가 발생했습니다.');
         return;
       }
       $('#store-form').reset();
@@ -1091,7 +1092,7 @@
         $('#store-lat').value = result.lat;
         $('#store-lng').value = result.lng;
       } else {
-        alert('좌표를 찾지 못했습니다. 주소를 더 상세히 입력하거나, 위도/경도를 직접 입력해주세요.');
+        await showAppAlert('좌표 찾기', '좌표를 찾지 못했습니다. 주소를 더 상세히 입력하거나, 위도/경도를 직접 입력해주세요.');
       }
     });
   }
@@ -1138,7 +1139,7 @@
         const action = e.target.dataset && e.target.dataset.action;
         if (action === 'delete') {
           const targetLabel = mirrored ? `${mealLabel(sourceMeal)}(원본)` : mealLabel(sourceMeal);
-      if (confirm(`"${s.name}" 삭제할까요?\n삭제 대상: ${targetLabel}`)) {
+          if (await confirmAppDialog('가게 삭제', `"${s.name}" 삭제할까요?\n삭제 대상: ${targetLabel}`, { confirmText: '삭제' })) {
             await Stores.remove(sourceMeal, s.id);
             renderSettingsStoreList();
           }
@@ -1146,7 +1147,7 @@
         }
         if (action === 'open') { window.open(s.url, '_blank', 'noopener'); return; }
         if (action === 'edit-memo') {
-          const edited = prompt(`"${s.name}" 메모를 수정하세요.`, s.memo || '');
+          const edited = await promptAppDialog('가게 메모 수정', `"${s.name}" 메모를 수정하세요.`, s.memo || '');
           if (edited === null) return;
           await Stores.update(sourceMeal, s.id, { memo: edited });
           renderSettingsStoreList();
@@ -1305,20 +1306,20 @@
       try {
         await maybeAutoResetRouletteForMeal(state.meal);
         if (isRouletteResultLocked(state.rouletteByMeal[state.meal])) {
-          alert(ROULETTE_LOCK_MESSAGE);
+          await showAppAlert('룰렛 이용 제한', ROULETTE_LOCK_MESSAGE);
           renderRouletteFromShared();
           return;
         }
         const picks = await pickRandomFromVisible(5);
         if (picks.length < 2) {
-          alert('이번 주(월~금) 제외 기록으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
+          await showAppAlert('룰렛 후보 부족', '이번 주(월~금) 제외 기록으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
           return;
         }
         await saveRouletteForMeal(state.meal, buildRouletteSession(picks, 'random'));
         renderRouletteFromShared();
       } catch (e) {
         console.warn('roulette pick failed:', e);
-        alert('후보 선정 중 오류가 발생했습니다.');
+        await showAppAlert('룰렛 후보 선정', '후보 선정 중 오류가 발생했습니다.');
       }
     });
 
@@ -1327,7 +1328,7 @@
       selectedBtn.addEventListener('click', async () => {
         await maybeAutoResetRouletteForMeal(state.meal);
         if (isRouletteResultLocked(state.rouletteByMeal[state.meal])) {
-          alert(ROULETTE_LOCK_MESSAGE);
+          await showAppAlert('룰렛 이용 제한', ROULETTE_LOCK_MESSAGE);
           renderRouletteFromShared();
           return;
         }
@@ -1349,13 +1350,13 @@
       await maybeAutoResetRouletteForMeal(state.meal);
       const current = state.rouletteByMeal[state.meal];
       if (isRouletteResultLocked(current)) {
-        alert(ROULETTE_LOCK_MESSAGE);
+        await showAppAlert('룰렛 이용 제한', ROULETTE_LOCK_MESSAGE);
         renderRouletteFromShared();
         return;
       }
       const items = current && Array.isArray(current.items) ? current.items : [];
       if (items.length < 2) {
-        alert('먼저 룰렛 후보를 준비해주세요.');
+        await showAppAlert('룰렛 돌리기', '먼저 룰렛 후보를 준비해주세요.');
         return;
       }
       const winner = items[Math.floor(Math.random() * items.length)];
@@ -1387,7 +1388,7 @@
       resetBtn.addEventListener('click', async () => {
         const session = state.rouletteByMeal[state.meal];
         if (!session || !Array.isArray(session.items) || !session.items.length) {
-          alert('초기화할 룰렛 결과가 없습니다.');
+          await showAppAlert('룰렛 초기화', '초기화할 룰렛 결과가 없습니다.');
           return;
         }
         if (!(await verifyAdminPassword(
@@ -1626,13 +1627,13 @@
       try {
         const picks = await pickRandomFromVisible(count);
         if (picks.length < 2) {
-          alert('이번 주(월~금) 제외 기록으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
+          await showAppAlert('투표 후보 부족', '이번 주(월~금) 제외 기록으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
           return;
         }
         renderVotePreview(picks);
       } catch (e) {
         console.warn('vote candidate pick failed:', e);
-        alert('후보 선정 중 오류가 발생했습니다.');
+        await showAppAlert('투표 후보 선정', '후보 선정 중 오류가 발생했습니다.');
       }
     });
 
@@ -1659,11 +1660,11 @@
       const candidates = window.__pendingVoteCandidates;
       const voters = state.people.map((p) => p.name);
       if (!candidates || candidates.length < 2) {
-        alert('먼저 "후보 무작위 선정" 또는 "후보 선택 투표"로 후보를 준비해주세요.');
+        await showAppAlert('투표 생성', '먼저 "후보 무작위 선정" 또는 "후보 선택 투표"로 후보를 준비해주세요.');
         return;
       }
       if (!voters.length) {
-        alert('투표 대상자(위대한 명단)가 없습니다. 설정에서 대상자를 먼저 추가해주세요.');
+        await showAppAlert('투표 생성', '투표 대상자(위대한 명단)가 없습니다. 설정에서 대상자를 먼저 추가해주세요.');
         return;
       }
       try {
@@ -1672,7 +1673,7 @@
         setVoteCreateEnabled(false);
         Voting.current[state.meal] = vote;
         renderVote();
-      } catch (e) { alert(e.message); }
+      } catch (e) { await showAppAlert('투표 생성', e.message || '투표 생성 중 오류가 발생했습니다.'); }
     });
 
     $('#btn-cancel-vote').addEventListener('click', async () => {
@@ -1773,11 +1774,15 @@
       li.querySelector('button').addEventListener('click', async () => {
         const voterSelect = $('#vote-voter-select');
         const name = voterSelect ? String(voterSelect.value || '').trim() : '';
-        if (!name) { alert('투표 대상자를 먼저 선택해주세요.'); if (voterSelect) voterSelect.focus(); return; }
+        if (!name) {
+          await showAppAlert('투표하기', '투표 대상자를 먼저 선택해주세요.');
+          if (voterSelect) voterSelect.focus();
+          return;
+        }
         try {
           await Voting.cast(state.meal, c.id, name);
           renderVote();
-        } catch (e) { alert(e.message); }
+        } catch (e) { await showAppAlert('투표하기', e.message || '투표 중 오류가 발생했습니다.'); }
       });
       ul.appendChild(li);
     });
@@ -1902,18 +1907,22 @@
     if (clearBtn) {
       clearBtn.addEventListener('click', async () => {
         if (!rows.length) {
-          alert('삭제할 이전 투표 기록이 없습니다.');
+          await showAppAlert('이전 투표 기록', '삭제할 이전 투표 기록이 없습니다.');
           return;
         }
         if (!(await verifyVoteHistoryDeletePassword())) return;
-        if (!confirm(`${mealName} 탭의 이전 투표 기록을 모두 삭제할까요?`)) return;
+        if (!(await confirmAppDialog(
+          '이전 투표 기록 삭제',
+          `${mealName} 탭의 이전 투표 기록을 모두 삭제할까요?`,
+          { confirmText: '삭제' }
+        ))) return;
         try {
           await Voting.clearHistory(meal);
           close();
           openVoteHistoryModal(meal);
         } catch (e) {
           console.warn('clear vote history failed:', e);
-          alert(e.message || '기록 삭제에 실패했습니다.');
+          await showAppAlert('이전 투표 기록 삭제', e.message || '기록 삭제에 실패했습니다.');
         }
       });
     }
@@ -2180,6 +2189,37 @@
     });
   }
 
+  function showAppAlert(title, message, options = {}) {
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'visibility-modal-backdrop';
+      const modalClass = ['visibility-modal', 'app-message-modal', options.className || '']
+        .filter(Boolean)
+        .join(' ');
+      const confirmText = options.confirmText || '확인';
+      backdrop.innerHTML = `
+        <div class="${modalClass}" role="alertdialog" aria-modal="true">
+          <h3>${escapeHtml(title || '알림')}</h3>
+          <p class="muted dialog-message">${escapeHtml(message || '')}</p>
+          <div class="actions">
+            <button type="button" data-action="confirm">${escapeHtml(confirmText)}</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+      const close = () => {
+        backdrop.remove();
+        resolve(true);
+      };
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) close();
+      });
+      const btn = backdrop.querySelector('[data-action="confirm"]');
+      btn.addEventListener('click', close);
+      setTimeout(() => btn.focus(), 0);
+    });
+  }
+
   function confirmAppDialog(title, message, options = {}) {
     return new Promise((resolve) => {
       const backdrop = document.createElement('div');
@@ -2192,7 +2232,7 @@
       backdrop.innerHTML = `
         <div class="${modalClass}" role="dialog" aria-modal="true">
           <h3>${escapeHtml(title || '확인')}</h3>
-          <p class="muted">${escapeHtml(message || '진행할까요?')}</p>
+          <p class="muted dialog-message">${escapeHtml(message || '진행할까요?')}</p>
           <div class="actions">
             <button type="button" data-action="cancel">${escapeHtml(cancelText)}</button>
             <button type="button" data-action="confirm">${escapeHtml(confirmText)}</button>
@@ -2209,6 +2249,52 @@
       });
       backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(false));
       backdrop.querySelector('[data-action="confirm"]').addEventListener('click', () => close(true));
+    });
+  }
+
+  function promptAppDialog(title, message, defaultValue = '', options = {}) {
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'visibility-modal-backdrop';
+      const modalClass = ['visibility-modal', 'app-message-modal', options.className || '']
+        .filter(Boolean)
+        .join(' ');
+      const confirmText = options.confirmText || '확인';
+      const cancelText = options.cancelText || '취소';
+      const inputId = `dialog-input-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      backdrop.innerHTML = `
+        <div class="${modalClass}" role="dialog" aria-modal="true">
+          <h3>${escapeHtml(title || '입력')}</h3>
+          <label class="dialog-input-label" for="${escapeHtml(inputId)}">
+            <span>${escapeHtml(message || '값을 입력하세요.')}</span>
+            <input id="${escapeHtml(inputId)}" class="dialog-input" type="text" value="${escapeHtml(defaultValue || '')}" autocomplete="off" />
+          </label>
+          <div class="actions">
+            <button type="button" data-action="cancel">${escapeHtml(cancelText)}</button>
+            <button type="button" data-action="confirm">${escapeHtml(confirmText)}</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+      const input = backdrop.querySelector(`#${inputId}`);
+      const close = (result) => {
+        backdrop.remove();
+        resolve(result);
+      };
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) close(null);
+      });
+      backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
+      backdrop.querySelector('[data-action="confirm"]').addEventListener('click', () => close(input ? input.value : ''));
+      if (input) {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') close(input.value);
+        });
+        setTimeout(() => {
+          input.focus();
+          input.select();
+        }, 0);
+      }
     });
   }
 
@@ -2437,7 +2523,7 @@
 
   async function openStoreCautionTagsMenu(store, sourceMeal) {
     if (!state.cautions.length) {
-      alert('주의 대상자를 먼저 등록해주세요.');
+      await showAppAlert('주의 태그 설정', '주의 대상자를 먼저 등록해주세요.');
       return;
     }
     const cautionMap = new Map();
@@ -2497,12 +2583,12 @@
         if (e.target === backdrop) close(null);
       });
       backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
-      backdrop.querySelector('[data-action="save"]').addEventListener('click', () => {
+      backdrop.querySelector('[data-action="save"]').addEventListener('click', async () => {
         const checked = Array.from(backdrop.querySelectorAll('input[type="checkbox"]:checked'))
           .map((el) => el.value)
           .filter((m) => options.some((op) => op.value === m));
         if (requireAtLeastOne && !checked.length) {
-          alert('최소 1개 탭은 선택해야 합니다.');
+          await showAppAlert(title, '최소 1개 탭은 선택해야 합니다.');
           return;
         }
         close(checked);
@@ -2648,7 +2734,7 @@
     return out;
   }
 
-  function openStorePickerModal(config) {
+  async function openStorePickerModal(config) {
     const {
       title = '가게 선택',
       subtitle = '',
@@ -2662,8 +2748,8 @@
     const byMeal = getStoreBlockOptionsByMeal(filterFn);
     const totalCount = MEAL_TYPES.reduce((sum, meal) => sum + byMeal[meal].length, 0);
     if (!totalCount) {
-      alert('등록된 가게가 없어 선택할 수 없습니다.');
-      return Promise.resolve(null);
+      await showAppAlert(title, '등록된 가게가 없어 선택할 수 없습니다.');
+      return null;
     }
     const selectedSet = new Set(Array.isArray(initialSelected) ? initialSelected : []);
     return new Promise((resolve) => {
@@ -2769,14 +2855,14 @@
         });
       }
       backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
-      backdrop.querySelector('[data-action="save"]').addEventListener('click', () => {
+      backdrop.querySelector('[data-action="save"]').addEventListener('click', async () => {
         const keys = Array.from(selectedSet);
         if (keys.length < minSelect) {
-          alert(`최소 ${minSelect}개 이상 선택해주세요.`);
+          await showAppAlert(title, `최소 ${minSelect}개 이상 선택해주세요.`);
           return;
         }
         if (keys.length > maxSelect) {
-          alert(`최대 ${maxSelect}개까지만 선택할 수 있습니다.`);
+          await showAppAlert(title, `최대 ${maxSelect}개까지만 선택할 수 있습니다.`);
           return;
         }
         if (returnMode === 'keys') close(keys);

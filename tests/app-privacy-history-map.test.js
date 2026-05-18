@@ -63,3 +63,11 @@ test('vote candidate pick buttons have a stronger action style', () => {
   assert.match(htmlSource, /id="btn-pick-vote-selected"[^>]*vote-candidate-action/);
   assert.match(stylesSource, /\.vote-candidate-action/);
 });
+
+test('app uses custom dialogs instead of browser native message boxes', () => {
+  assert.doesNotMatch(appSource, /\balert\s*\(/);
+  assert.doesNotMatch(appSource, /\bconfirm\s*\(/);
+  assert.doesNotMatch(appSource, /\bprompt\s*\(/);
+  assert.match(appSource, /function\s+showAppAlert\(/);
+  assert.match(appSource, /function\s+promptAppDialog\(/);
+});
