@@ -1394,7 +1394,11 @@
           '룰렛 초기화',
           '관리자가 지정한 암호로만 룰렛 결과를 초기화할 수 있습니다.'
         ))) return;
-        if (!confirm('룰렛 후보와 결과를 초기화할까요?')) return;
+        if (!(await confirmAppDialog(
+          '🧺 룰렛 초기화',
+          '룰렛 후보와 결과를 초기화할까요?',
+          { confirmText: '초기화', className: 'vote-delete-confirm-modal' }
+        ))) return;
         await saveRouletteForMeal(state.meal, null);
         state.rouletteRenderedSessionId = '';
         renderRouletteFromShared();
@@ -1649,6 +1653,7 @@
     }
 
     $('#btn-create-vote').addEventListener('click', async () => {
+      if ($('#btn-create-vote').disabled) return;
       const startAt = new Date($('#vote-start').value).getTime();
       const endAt = new Date($('#vote-end').value).getTime();
       const candidates = window.__pendingVoteCandidates;
@@ -1664,6 +1669,7 @@
       try {
         const vote = await Voting.create(state.meal, candidates, startAt, endAt, voters);
         window.__pendingVoteCandidates = null;
+        setVoteCreateEnabled(false);
         Voting.current[state.meal] = vote;
         renderVote();
       } catch (e) { alert(e.message); }
@@ -1692,6 +1698,7 @@
   function renderVotePreview(picks) {
     const unique = dedupeStoresByUrl(picks);
     window.__pendingVoteCandidates = unique.map((s) => ({ id: s.id, name: s.name }));
+    setVoteCreateEnabled(true);
     const ul = $('#vote-candidates');
     ul.innerHTML = '';
     unique.forEach((c) => {
@@ -1711,13 +1718,16 @@
     const setup = document.querySelector('.vote-setup');
     if (!vote) {
       if (window.__pendingVoteCandidates && window.__pendingVoteCandidates.length >= 2) {
+        setVoteCreateEnabled(true);
         if (setup) setup.classList.remove('hidden');
         return;
       }
+      setVoteCreateEnabled(false);
       $('#vote-active').classList.add('hidden');
       if (setup) setup.classList.remove('hidden');
       return;
     }
+    setVoteCreateEnabled(false);
     if (setup) setup.classList.add('hidden');
     $('#vote-active').classList.remove('hidden');
 
@@ -1816,6 +1826,13 @@
     } else {
       select.value = '';
     }
+  }
+
+  function setVoteCreateEnabled(enabled) {
+    const btn = $('#btn-create-vote');
+    if (!btn) return;
+    btn.disabled = !enabled;
+    btn.title = enabled ? '' : '후보 무작위 선정 또는 후보 선택 투표를 먼저 진행하세요.';
   }
 
   function formatVoteRoleSummary(voters) {
@@ -2111,13 +2128,13 @@
     return new Promise((resolve) => {
       const backdrop = document.createElement('div');
       backdrop.className = 'visibility-modal-backdrop';
-      const isVoteDelete = title === '투표 종료/삭제';
-      const modalClass = isVoteDelete
+      const isSoftDelete = title === '투표 종료/삭제' || title === '룰렛 초기화';
+      const modalClass = isSoftDelete
         ? 'visibility-modal vote-delete-confirm-modal'
         : 'visibility-modal';
       backdrop.innerHTML = `
         <div class="${modalClass}" role="dialog" aria-modal="true">
-          <h3>${escapeHtml(isVoteDelete ? `🧺 ${title}` : (title || '관리자 확인'))}</h3>
+          <h3>${escapeHtml(isSoftDelete ? `🧺 ${title}` : (title || '관리자 확인'))}</h3>
           <p class="muted">${escapeHtml(message || '관리자 암호를 입력하세요.')}</p>
           <label style="display:flex;flex-direction:column;gap:6px;margin:10px 0 14px;font-size:13px;color:var(--muted)">
             암호 입력

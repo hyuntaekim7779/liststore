@@ -185,6 +185,15 @@ main {
 .btn-primary:disabled { background: #c5c9e6; cursor: not-allowed; }
 .btn-secondary { background: var(--secondary); color: var(--primary-dark); }
 .btn-secondary:hover { background: #e0e4ff; }
+.vote-candidate-action {
+  background: linear-gradient(135deg, #fff3a8 0%, #ffd36f 100%);
+  color: #664100;
+  border: 1px solid #ffc861;
+  box-shadow: 0 8px 18px rgba(245, 180, 0, 0.22);
+}
+.vote-candidate-action:hover {
+  background: linear-gradient(135deg, #ffe987 0%, #ffc34d 100%);
+}
 .btn-link { background: transparent; color: var(--danger); padding: 4px 8px; }
 .btn-link:hover { text-decoration: underline; }
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>밥먹자!</title>
-  <link rel="stylesheet" href="styles.css?v=12" />
+  <link rel="stylesheet" href="styles.css?v=13" />
 </head>
 <body>
   <div class="site-top">
@@ -93,8 +93,8 @@
           <label>후보 개수
             <input type="number" id="vote-candidate-count" min="2" max="15" value="5" />
           </label>
-          <button type="button" id="btn-pick-vote" class="btn btn-secondary">🎲 후보 무작위 선정</button>
-          <button type="button" id="btn-pick-vote-selected" class="btn btn-secondary">✅ 후보 선택 투표</button>
+          <button type="button" id="btn-pick-vote" class="btn btn-secondary vote-candidate-action">🎲 후보 무작위 선정</button>
+          <button type="button" id="btn-pick-vote-selected" class="btn btn-secondary vote-candidate-action">✅ 후보 선택 투표</button>
         </div>
         <div class="form-row two">
           <label>투표 시작 시간
@@ -105,7 +105,7 @@
           </label>
         </div>
         <div class="form-actions">
-          <button id="btn-create-vote" class="btn btn-primary">투표 생성</button>
+          <button id="btn-create-vote" type="button" class="btn btn-primary" disabled>투표 생성</button>
         </div>
         <p class="hint">투표 대상자 선택 목록은 투표 생성 후 표시됩니다.</p>
       </div>
@@ -314,6 +314,6 @@
   <script src="js/week-history.js?v=1"></script>
   <script src="js/roulette.js?v=11"></script>
   <script src="js/voting.js?v=10"></script>
-  <script src="js/app.js?v=13"></script>
+  <script src="js/app.js?v=14"></script>
 </body>
 </html>

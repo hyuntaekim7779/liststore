@@ -6,6 +6,7 @@ const path = require('node:path');
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 const mapsSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'maps.js'), 'utf8');
 const htmlSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const stylesSource = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
 
 test('vote results stay secret and summarize voters by role only', () => {
   assert.match(appSource, /function\s+formatVoteRoleSummary\(voters\)/);
@@ -35,4 +36,23 @@ test('map location button reloads only the map module before moving to fixed loc
   assert.match(appSource, /await\s+Maps\.reload\('map'\)/);
   assert.match(mapsSource, /async\s+reload\(containerId\)/);
   assert.match(mapsSource, /reloadNaverMapScript\(\)/);
+});
+
+test('roulette reset confirmation uses the app modal instead of the browser confirm', () => {
+  assert.match(appSource, /confirmAppDialog\(\s*'🧺 룰렛 초기화'/);
+  assert.match(appSource, /className:\s*'vote-delete-confirm-modal'/);
+  assert.doesNotMatch(appSource, /confirm\('룰렛 후보와 결과를 초기화할까요\?'\)/);
+});
+
+test('vote creation starts disabled until candidates are prepared', () => {
+  assert.match(htmlSource, /id="btn-create-vote"[^>]*disabled/);
+  assert.match(appSource, /function\s+setVoteCreateEnabled\(enabled\)/);
+  assert.match(appSource, /setVoteCreateEnabled\(true\)/);
+  assert.match(appSource, /setVoteCreateEnabled\(false\)/);
+});
+
+test('vote candidate pick buttons have a stronger action style', () => {
+  assert.match(htmlSource, /id="btn-pick-vote"[^>]*vote-candidate-action/);
+  assert.match(htmlSource, /id="btn-pick-vote-selected"[^>]*vote-candidate-action/);
+  assert.match(stylesSource, /\.vote-candidate-action/);
 });
