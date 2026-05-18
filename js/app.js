@@ -7,6 +7,7 @@
   const MEAL_TYPES = ['lunch', 'dinner', 'fridayLunch'];
   const ROULETTE_DEFAULT_LEAD_MS = 2000;
   const ROULETTE_DEFAULT_DURATION_MS = 8000;
+  const ROULETTE_LOCK_MESSAGE = '오늘 룰렛은 이미 완료되었습니다. 수동 초기화하거나 다음날 09:00 자동 초기화 후 다시 돌릴 수 있습니다.';
 
   const state = {
     activeTab: 'lunch',           // meal tab key | 'settings'
@@ -66,6 +67,7 @@
     startDailyAssignmentsResetWatcher();
     startWeeklyHistoryResetWatcher();
     startVoteAutoResetWatcher();
+    startRouletteAutoResetWatcher();
     startTodayGroupTitleWatcher();
     updateTodayGroupTitle();
     renderPeopleAndAssignments();
@@ -698,8 +700,6 @@
   }
 
   function buildPersonTag(name) {
-    const matched = state.people.find((p) => p.name === name);
-    const role = matched && matched.role ? matched.role : '';
     const cautionNotes = getCautionNotesByName(name);
     const hasCaution = cautionNotes.length > 0;
     const tag = document.createElement('span');
@@ -708,7 +708,7 @@
     tag.textContent = '';
     const label = document.createElement('span');
     label.className = 'person-tag-label';
-    const personText = role ? `${name} ${role}` : name;
+    const personText = formatPersonLabel(name);
     label.textContent = hasCaution ? `📢 ${personText}` : personText;
     tag.appendChild(label);
     if (hasCaution) {
@@ -721,6 +721,11 @@
       e.dataTransfer.effectAllowed = 'move';
     });
     return tag;
+  }
+
+  function formatPersonLabel(name) {
+    const matched = state.people.find((p) => p.name === name);
+    return matched && matched.role ? `${name} ${matched.role}` : name;
   }
 
   function renderPersonSettingsList() {
@@ -1289,6 +1294,12 @@
   function bindRoulette() {
     $('#btn-pick-roulette').addEventListener('click', async () => {
       try {
+        await maybeAutoResetRouletteForMeal(state.meal);
+        if (isRouletteResultLocked(state.rouletteByMeal[state.meal])) {
+          alert(ROULETTE_LOCK_MESSAGE);
+          renderRouletteFromShared();
+          return;
+        }
         const picks = await pickRandomFromVisible(5);
         if (picks.length < 2) {
           alert('이번 주(월~금) 제외 기록으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
@@ -1305,6 +1316,12 @@
     const selectedBtn = $('#btn-pick-roulette-selected');
     if (selectedBtn) {
       selectedBtn.addEventListener('click', async () => {
+        await maybeAutoResetRouletteForMeal(state.meal);
+        if (isRouletteResultLocked(state.rouletteByMeal[state.meal])) {
+          alert(ROULETTE_LOCK_MESSAGE);
+          renderRouletteFromShared();
+          return;
+        }
         const selected = await openStorePickerModal({
           title: '선택 룰렛',
           subtitle: '룰렛에 넣을 가게를 선택하세요. (최소 2개, 최대 10개)',
@@ -1320,7 +1337,13 @@
     }
 
     $('#btn-spin').addEventListener('click', async () => {
+      await maybeAutoResetRouletteForMeal(state.meal);
       const current = state.rouletteByMeal[state.meal];
+      if (isRouletteResultLocked(current)) {
+        alert(ROULETTE_LOCK_MESSAGE);
+        renderRouletteFromShared();
+        return;
+      }
       const items = current && Array.isArray(current.items) ? current.items : [];
       if (items.length < 2) {
         alert('먼저 룰렛 후보를 준비해주세요.');
@@ -1334,6 +1357,7 @@
         status: 'spinning',
         winnerId: winner.id,
         winnerName: winner.name,
+        spunAt: Date.now(),
         startAt: Date.now() + getRouletteSpinLeadMs(),
         durationMs: getRouletteSpinDurationMs(),
         spinTurns: getRouletteSpinTurns(),
@@ -1403,6 +1427,7 @@
     }
     try {
       state.rouletteByMeal[meal] = await window.Storage.getRoulette(meal);
+      await maybeAutoResetRouletteForMeal(meal);
     } catch (e) {
       console.warn('getRoulette failed:', e);
       state.rouletteByMeal[meal] = null;
@@ -1429,6 +1454,7 @@
     const session = state.rouletteByMeal[state.meal];
     if (!session || !Array.isArray(session.items) || session.items.length < 2) {
       Roulette.setItems([]);
+      setRouletteSetupButtonsDisabled(false);
       resultEl.textContent = '';
       resultEl.classList.remove('winner');
       spinBtn.disabled = true;
@@ -1439,6 +1465,7 @@
     const currentSignature = Roulette.getItemsSignature();
     const itemsChanged = itemSignature !== currentSignature;
     if (session.status === 'spinning' && session.winnerId) {
+      setRouletteSetupButtonsDisabled(true);
       if (itemsChanged) Roulette.setItems(session.items);
       const startAt = Number(session.startAt || 0);
       const duration = Number(session.durationMs || getRouletteSpinDurationMs());
@@ -1450,7 +1477,7 @@
       if (Date.now() >= endAt) {
         const winner = Roulette.settle(session);
         showRouletteWinner(winner || Roulette.resolveWinner(session), session);
-        spinBtn.disabled = false;
+        spinBtn.disabled = isRouletteResultLocked(session);
         state.rouletteRenderedSessionId = settledKey;
         return;
       }
@@ -1460,13 +1487,14 @@
         state.rouletteRenderedSessionId = playKey;
         Roulette.play(session, (winner) => {
           showRouletteWinner(winner || Roulette.resolveWinner(session), session);
-          spinBtn.disabled = false;
+          spinBtn.disabled = isRouletteResultLocked(session);
           state.rouletteRenderedSessionId = settledKey;
           schedulePoll();
         });
       }
       return;
     }
+    setRouletteSetupButtonsDisabled(false);
     Roulette.setItems(session.items);
     resultEl.classList.remove('winner');
     resultEl.textContent = session.mode === 'selected'
@@ -1501,6 +1529,75 @@
   function getPositiveConfigNumber(key, fallback) {
     const value = Number(window.AppConfig && window.AppConfig[key]);
     return Number.isFinite(value) && value > 0 ? value : fallback;
+  }
+
+  function setRouletteSetupButtonsDisabled(disabled) {
+    const pickBtn = $('#btn-pick-roulette');
+    const selectedBtn = $('#btn-pick-roulette-selected');
+    if (pickBtn) pickBtn.disabled = Boolean(disabled);
+    if (selectedBtn) selectedBtn.disabled = Boolean(disabled);
+  }
+
+  function isRouletteResultLocked(session) {
+    if (!session || !session.winnerId) return false;
+    const resetAt = getRouletteAutoResetAtMs(session);
+    return !resetAt || Date.now() < resetAt;
+  }
+
+  function shouldAutoResetRoulette(session) {
+    if (!session || !session.winnerId) return false;
+    const resetAt = getRouletteAutoResetAtMs(session);
+    return Boolean(resetAt && Date.now() >= resetAt);
+  }
+
+  async function maybeAutoResetRouletteForMeal(meal) {
+    const session = state.rouletteByMeal[meal];
+    if (!shouldAutoResetRoulette(session)) return false;
+    await saveRouletteForMeal(meal, null);
+    if (meal === state.meal) state.rouletteRenderedSessionId = '';
+    return true;
+  }
+
+  function getRouletteAutoResetAtMs(session) {
+    const baseTs = Number(session && (session.spunAt || session.startAt || session.updatedAt) || 0);
+    if (!baseTs) return 0;
+    const { year, month, day } = getSeoulDateParts(baseTs);
+    return Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0);
+  }
+
+  function getSeoulDateParts(ts) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date(ts));
+    return {
+      year: Number(parts.find((p) => p.type === 'year')?.value || 0),
+      month: Number(parts.find((p) => p.type === 'month')?.value || 1),
+      day: Number(parts.find((p) => p.type === 'day')?.value || 1),
+    };
+  }
+
+  function startRouletteAutoResetWatcher() {
+    let running = false;
+    setInterval(async () => {
+      if (running) return;
+      running = true;
+      try {
+        let resetDone = false;
+        for (const meal of MEAL_TYPES) {
+          resetDone = (await maybeAutoResetRouletteForMeal(meal)) || resetDone;
+        }
+        if (resetDone && MEAL_TYPES.includes(state.activeTab)) {
+          renderRouletteFromShared();
+        }
+      } catch (e) {
+        console.warn('roulette auto reset watcher failed:', e);
+      } finally {
+        running = false;
+      }
+    }, 60 * 1000);
   }
 
 
@@ -1698,7 +1795,7 @@
     remainingVoters.forEach((name) => {
       const op = document.createElement('option');
       op.value = name;
-      op.textContent = name;
+      op.textContent = formatPersonLabel(name);
       select.appendChild(op);
     });
     if (remainingVoters.includes(prev)) {
