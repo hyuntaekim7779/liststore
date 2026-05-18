@@ -167,7 +167,7 @@
     async clear(meal) {
       ensureMealCurrent(this.current, meal);
       const existing = this.current[meal] || await window.Storage.getVote(meal);
-      if (existing) {
+      if (existing && (!window.WeekHistory || window.WeekHistory.isWorkdayForRecording())) {
         const historyRecord = buildHistoryRecord(existing, 'manual');
         if (window.Storage && typeof window.Storage.saveVoteHistory === 'function') {
           await window.Storage.saveVoteHistory(meal, historyRecord);
@@ -183,9 +183,11 @@
       if (!vote) return false;
       const resetAt = getResetAtMs(vote);
       if (!resetAt || Date.now() < resetAt) return false;
-      const historyRecord = buildHistoryRecord(vote, 'auto-next-day-0930');
-      if (window.Storage && typeof window.Storage.saveVoteHistory === 'function') {
-        await window.Storage.saveVoteHistory(meal, historyRecord);
+      if (window.WeekHistory && window.WeekHistory.isWorkdayForRecording()) {
+        const historyRecord = buildHistoryRecord(vote, 'auto-next-day-0930');
+        if (window.Storage && typeof window.Storage.saveVoteHistory === 'function') {
+          await window.Storage.saveVoteHistory(meal, historyRecord);
+        }
       }
       await window.Storage.clearVote(meal);
       this.current[meal] = null;
@@ -195,7 +197,10 @@
     async loadHistory(meal) {
       if (!(meal in this.history)) this.history[meal] = [];
       if (window.Storage && typeof window.Storage.getVoteHistory === 'function') {
-        this.history[meal] = await window.Storage.getVoteHistory(meal);
+        const rows = await window.Storage.getVoteHistory(meal);
+        this.history[meal] = window.WeekHistory
+          ? window.WeekHistory.filterActiveRecords(rows)
+          : rows;
       } else {
         this.history[meal] = [];
       }

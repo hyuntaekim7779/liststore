@@ -45,6 +45,7 @@
     bindMapActions();
     bindStorageErrors();
 
+    await maybeWeeklyHistoryReset();
     // 식사 타입 데이터 미리 로드
     for (const meal of MEAL_TYPES) {
       await Stores.load(meal);
@@ -61,6 +62,7 @@
 
     startPolling();
     startDailyAssignmentsResetWatcher();
+    startWeeklyHistoryResetWatcher();
     startVoteAutoResetWatcher();
     startTodayGroupTitleWatcher();
     updateTodayGroupTitle();
@@ -86,7 +88,6 @@
   const ASSIGN_RESET_KEY = 'ls.assignments.reset.date.v1';
   const ASSIGN_RESET_SCHEDULE_KEY = 'ls.assignments.reset.schedule.v1';
   const ROLE_OPTIONS = ['사원 (선임)', '대리', '과장', '차장', '부장', '이사', '팀장님'];
-  const RANDOM_BLOCK_WINDOW_MS = 5 * 24 * 60 * 60 * 1000;
   const HISTORY_ADMIN_PASSWORD = 'MTP2026';
 
   async function loadPeopleData() {
@@ -301,6 +302,53 @@
     }, 60 * 1000);
   }
 
+  async function maybeWeeklyHistoryReset() {
+    if (!window.WeekHistory || !window.Storage) return false;
+    const getAt = window.Storage.getWeeklyResetAt;
+    const setAt = window.Storage.setWeeklyResetAt;
+    if (typeof getAt !== 'function' || typeof setAt !== 'function') return false;
+
+    const lastResetAt = await getAt();
+    if (!window.WeekHistory.shouldRunWeeklyReset(lastResetAt)) return false;
+
+    for (const meal of MEAL_TYPES) {
+      if (typeof window.Storage.clearRandomHistory === 'function') {
+        await window.Storage.clearRandomHistory(meal);
+      }
+      if (typeof window.Storage.clearVoteHistory === 'function') {
+        await window.Storage.clearVoteHistory(meal);
+      }
+      state.randomHistoryByMeal[meal] = [];
+      if (window.Voting && Voting.history) Voting.history[meal] = [];
+    }
+
+    const boundary = window.WeekHistory.getLatestPassedSaturday10Ms();
+    await setAt(boundary || Date.now());
+    return true;
+  }
+
+  function startWeeklyHistoryResetWatcher() {
+    setInterval(async () => {
+      try {
+        const resetDone = await maybeWeeklyHistoryReset();
+        if (!resetDone) return;
+        for (const meal of MEAL_TYPES) {
+          await loadRandomHistoryForMeal(meal);
+          if (window.Voting && typeof Voting.loadHistory === 'function') {
+            await Voting.loadHistory(meal);
+          }
+        }
+        if (state.settingsSubtab === 'history') renderRandomHistoryManager();
+        if (MEAL_TYPES.includes(state.activeTab)) {
+          renderVote();
+          renderStoreList();
+        }
+      } catch (e) {
+        console.warn('weekly history reset watcher failed:', e);
+      }
+    }, 60 * 1000);
+  }
+
   function getSeoulDateTimeParts() {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Asia/Seoul',
@@ -418,6 +466,7 @@
     if (document.visibilityState === 'hidden') return;
     if (state.pickingForStoreId) return; // 좌표 지정 중에는 방해 X
     try {
+      await maybeWeeklyHistoryReset();
       for (const meal of MEAL_TYPES) {
         await Stores.load(meal);
         await loadRandomHistoryForMeal(meal);
@@ -1238,7 +1287,7 @@
       try {
         const picks = await pickRandomFromVisible(5);
         if (picks.length < 2) {
-          alert('5일 제외 규칙으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
+          alert('이번 주(월~금) 제외 기록으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
           return;
         }
         await saveRouletteForMeal(state.meal, buildRouletteSession(picks, 'random'));
@@ -1421,7 +1470,7 @@
       try {
         const picks = await pickRandomFromVisible(count);
         if (picks.length < 2) {
-          alert('5일 제외 규칙으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
+          alert('이번 주(월~금) 제외 기록으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
           return;
         }
         renderVotePreview(picks);
@@ -1710,7 +1759,10 @@
     }
     try {
       const rows = await window.Storage.getRandomHistory(meal);
-      const list = Array.isArray(rows) ? rows : [];
+      let list = Array.isArray(rows) ? rows : [];
+      if (window.WeekHistory) {
+        list = window.WeekHistory.filterActiveRecords(list);
+      }
       state.randomHistoryByMeal[meal] = list
         .filter((r) => r && r.storeId && r.createdAt)
         .map((r) => ({
@@ -1731,10 +1783,8 @@
 
   function getRecentRandomBlockedIds(meal) {
     const rows = Array.isArray(state.randomHistoryByMeal[meal]) ? state.randomHistoryByMeal[meal] : [];
-    const minTs = Date.now() - RANDOM_BLOCK_WINDOW_MS;
     return new Set(
       rows
-        .filter((r) => r.createdAt >= minTs)
         .filter((r) => r.source === 'rouletteWinner' || r.source === 'voteWinner')
         .map((r) => r.storeId)
     );
@@ -1742,6 +1792,7 @@
 
   async function appendRandomWinnerHistory(meal, store, source, sourceRef) {
     if (!window.Storage || typeof window.Storage.saveRandomHistory !== 'function') return;
+    if (window.WeekHistory && !window.WeekHistory.isWorkdayForRecording()) return;
     if (!store || !store.id) return;
     const ref = String(sourceRef || '');
     if (ref) {
@@ -1833,11 +1884,13 @@
         voteCandidate: '투표 후보 선정(구기록)',
         roulette: '랜덤 후보 선정(구기록)',
       }[row.source] || row.source || '기록');
-      const until = formatSeoulDateTime(row.createdAt + RANDOM_BLOCK_WINDOW_MS);
+      const resetAt = window.WeekHistory
+        ? formatSeoulDateTime(window.WeekHistory.getNextSaturday10Ms())
+        : '-';
       li.innerHTML = `
         <div>
           <div class="s-name">${escapeHtml(row.storeName || row.storeId)}</div>
-          <div class="s-meta">${escapeHtml(mealLabel(row.meal))} · ${escapeHtml(sourceText)} · ${escapeHtml(formatSeoulDateTime(row.createdAt))} (차단 만료: ${escapeHtml(until)})</div>
+          <div class="s-meta">${escapeHtml(mealLabel(row.meal))} · ${escapeHtml(sourceText)} · ${escapeHtml(formatSeoulDateTime(row.createdAt))} (초기화: 토요일 10:00 · ${escapeHtml(resetAt)})</div>
         </div>
         <div class="s-actions"><button data-action="delete" data-meal="${escapeHtml(row.meal)}" data-id="${escapeHtml(row.id)}">삭제</button></div>
       `;
