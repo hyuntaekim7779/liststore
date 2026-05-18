@@ -63,6 +63,16 @@
       rows.push(record);
       localStorage.setItem(KEY_VOTE_HISTORY(meal), JSON.stringify(rows));
     },
+    async deleteVoteHistory(meal, recordId) {
+      const rows = await this.getVoteHistory(meal);
+      localStorage.setItem(
+        KEY_VOTE_HISTORY(meal),
+        JSON.stringify(rows.filter((r) => String(r.id) !== String(recordId)))
+      );
+    },
+    async clearVoteHistory(meal) {
+      localStorage.setItem(KEY_VOTE_HISTORY(meal), JSON.stringify([]));
+    },
     async getRandomHistory(meal) {
       const rows = safeParse(localStorage.getItem(KEY_RANDOM_HISTORY(meal)), []);
       return Array.isArray(rows) ? rows : [];

@@ -1633,8 +1633,11 @@
       }).join('')
       : '<li><div class="vote-history-meta">기록된 이전 투표가 없습니다.</div></li>';
     backdrop.innerHTML = `
-      <div class="visibility-modal" role="dialog" aria-modal="true">
-        <h3>🕘 이전 투표 기록</h3>
+      <div class="visibility-modal vote-history-modal" role="dialog" aria-modal="true">
+        <div class="vote-history-modal-head">
+          <h3 class="vote-history-modal-title">🕘 이전 투표 기록</h3>
+          <button type="button" class="btn btn-link vote-history-delete-btn" data-action="clear-history" ${rows.length ? '' : 'disabled'}>기록 삭제</button>
+        </div>
         <p class="muted">${escapeHtml(mealName)} 탭의 과거 최종 결과입니다.</p>
         <ul class="vote-history-list">${itemsHtml}</ul>
         <div class="actions">
@@ -1649,6 +1652,25 @@
     });
     const closeBtn = backdrop.querySelector('[data-action="close"]');
     if (closeBtn) closeBtn.addEventListener('click', close);
+    const clearBtn = backdrop.querySelector('[data-action="clear-history"]');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async () => {
+        if (!rows.length) {
+          alert('삭제할 이전 투표 기록이 없습니다.');
+          return;
+        }
+        if (!(await verifyVoteHistoryDeletePassword())) return;
+        if (!confirm(`${mealName} 탭의 이전 투표 기록을 모두 삭제할까요?`)) return;
+        try {
+          await Voting.clearHistory(meal);
+          close();
+          openVoteHistoryModal(meal);
+        } catch (e) {
+          console.warn('clear vote history failed:', e);
+          alert(e.message || '기록 삭제에 실패했습니다.');
+        }
+      });
+    }
   }
 
   function formatWinnerText(row) {
@@ -1897,6 +1919,13 @@
     return verifyAdminPassword(
       '투표 종료/삭제',
       '관리자가 지정한 암호로만 투표를 삭제할 수 있습니다.'
+    );
+  }
+
+  function verifyVoteHistoryDeletePassword() {
+    return verifyAdminPassword(
+      '이전 투표 기록 삭제',
+      '관리자가 지정한 암호로만 이전 투표 기록을 삭제할 수 있습니다.'
     );
   }
 

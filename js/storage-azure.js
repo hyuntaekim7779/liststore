@@ -250,6 +250,27 @@
       await putEntity(TABLE_VOTES, meal, rowKey, { Payload: JSON.stringify(safe) });
     },
 
+    async deleteVoteHistory(meal, recordId) {
+      await ensureInit();
+      const entities = await listEntities(TABLE_VOTES, meal);
+      const target = entities.find((e) => {
+        if (!String(e.RowKey || '').startsWith('history_')) return false;
+        const payload = parsePayload(e);
+        return payload && String(payload.id) === String(recordId);
+      });
+      if (target) await deleteEntity(TABLE_VOTES, meal, target.RowKey);
+    },
+
+    async clearVoteHistory(meal) {
+      await ensureInit();
+      const entities = await listEntities(TABLE_VOTES, meal);
+      await Promise.all(
+        entities
+          .filter((e) => String(e.RowKey || '').startsWith('history_'))
+          .map((e) => deleteEntity(TABLE_VOTES, meal, e.RowKey))
+      );
+    },
+
     async getRandomHistory(meal) {
       await ensureInit();
       const entities = await listEntities(TABLE_RANDOM_HISTORY, meal);

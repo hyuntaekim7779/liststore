@@ -207,6 +207,18 @@
       return this.history[meal];
     },
 
+    async clearHistory(meal) {
+      if (window.Storage && typeof window.Storage.clearVoteHistory === 'function') {
+        await window.Storage.clearVoteHistory(meal);
+      } else if (window.Storage && typeof window.Storage.deleteVoteHistory === 'function') {
+        const rows = await this.loadHistory(meal);
+        await Promise.all(
+          rows.map((row) => window.Storage.deleteVoteHistory(meal, row.id))
+        );
+      }
+      this.history[meal] = [];
+    },
+
     status(vote) {
       if (!vote) return 'none';
       const now = Date.now();
