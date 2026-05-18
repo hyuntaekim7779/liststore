@@ -1021,11 +1021,20 @@
     const moveBtn = $('#btn-map-my-location');
     if (!moveBtn) return;
     moveBtn.addEventListener('click', async () => {
-      const loc = await Maps.moveToFixedLocation();
-      if (!loc) return;
-      const hint = $('#map-hint');
-      if (hint) {
-        hint.textContent = `📍 ${loc.name} (${loc.address}) 위치로 이동했습니다.`;
+      moveBtn.disabled = true;
+      moveBtn.textContent = '🗺️ 지도 새로고침 중';
+      try {
+        await Maps.reload('map');
+        Maps.renderStores(getVisibleStores());
+        const loc = await Maps.moveToFixedLocation();
+        if (!loc) return;
+        const hint = $('#map-hint');
+        if (hint) {
+          hint.textContent = `📍 ${loc.name} (${loc.address}) 위치로 이동했습니다.`;
+        }
+      } finally {
+        moveBtn.disabled = false;
+        moveBtn.textContent = '📍 내 위치로 이동';
       }
     });
   }
@@ -1129,7 +1138,7 @@
         const action = e.target.dataset && e.target.dataset.action;
         if (action === 'delete') {
           const targetLabel = mirrored ? `${mealLabel(sourceMeal)}(원본)` : mealLabel(sourceMeal);
-          if (confirm(`"${s.name}" 삭제할까요?\n삭제 대상: ${targetLabel}`)) {
+      if (confirm(`"${s.name}" 삭제할까요?\n삭제 대상: ${targetLabel}`)) {
             await Stores.remove(sourceMeal, s.id);
             renderSettingsStoreList();
           }
@@ -1662,7 +1671,11 @@
 
     $('#btn-cancel-vote').addEventListener('click', async () => {
       if (!(await verifyVoteDeletePassword())) return;
-      if (!confirm('현재 투표를 종료/삭제하시겠어요?')) return;
+      if (!(await confirmAppDialog(
+        '🧺 투표 종료/삭제',
+        '현재 투표를 종료/삭제할까요?',
+        { confirmText: '정리하기', className: 'vote-delete-confirm-modal' }
+      ))) return;
       await Voting.clear(state.meal);
       renderVote();
     });
@@ -1773,7 +1786,7 @@
         <span><strong>${escapeHtml(c.name)}</strong></span>
         <span class="muted">${voters.length}표 (${pct}%)</span>
         <div class="bar"><div style="width:${pct}%"></div></div>
-        ${voters.length ? `<div class="voters">${voters.map(escapeHtml).join(', ')}</div>` : ''}
+        ${voters.length ? `<div class="vote-role-summary">${escapeHtml(formatVoteRoleSummary(voters))}</div>` : ''}
       `;
       res.appendChild(li);
     });
@@ -1803,6 +1816,30 @@
     } else {
       select.value = '';
     }
+  }
+
+  function formatVoteRoleSummary(voters) {
+    const names = Array.isArray(voters) ? voters : [];
+    if (!names.length) return '';
+    const counts = new Map();
+    names.forEach((name) => {
+      const role = getPersonRoleByName(name) || '직책 미지정';
+      counts.set(role, (counts.get(role) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => getRoleSortIndex(a) - getRoleSortIndex(b) || a.localeCompare(b, 'ko'))
+      .map(([role, count]) => `${role} ${count}명`)
+      .join(' · ');
+  }
+
+  function getPersonRoleByName(name) {
+    const matched = state.people.find((p) => p.name === name);
+    return matched && matched.role ? matched.role : '';
+  }
+
+  function getRoleSortIndex(role) {
+    const idx = ROLE_OPTIONS.indexOf(role);
+    return idx >= 0 ? idx : Number.MAX_SAFE_INTEGER;
   }
 
   function openVoteHistoryModal(meal) {
@@ -1991,10 +2028,15 @@
     const clearAllBtn = $('#btn-random-history-clear-all');
     if (clearAllBtn) {
       clearAllBtn.addEventListener('click', async () => {
-        if (!verifyHistoryAdminPassword()) return;
+        if (!(await verifyHistoryAdminPassword('랜덤 / 후보 기록 전체 기록 삭제'))) return;
         const targetMeal = (mealFilter && mealFilter.value) || 'all';
         const meals = targetMeal === 'all' ? MEAL_TYPES : [targetMeal];
-        if (!confirm(`${targetMeal === 'all' ? '전체 식사 탭' : mealLabel(targetMeal)} 기록을 모두 삭제할까요?`)) return;
+        const targetLabel = targetMeal === 'all' ? '전체 식사 탭' : mealLabel(targetMeal);
+        if (!(await confirmAppDialog(
+          '랜덤 / 후보 기록 전체 기록 삭제',
+          `${targetLabel} 기록을 모두 삭제할까요?`,
+          { confirmText: '전체 삭제', className: 'history-clear-confirm-modal' }
+        ))) return;
         for (const meal of meals) {
           if (window.Storage && typeof window.Storage.clearRandomHistory === 'function') {
             await window.Storage.clearRandomHistory(meal);
@@ -2042,8 +2084,12 @@
         const rid = e.target.dataset && e.target.dataset.id;
         const meal = e.target.dataset && e.target.dataset.meal;
         if (action !== 'delete' || !rid || !meal) return;
-        if (!verifyHistoryAdminPassword()) return;
-        if (!confirm('해당 기록을 삭제할까요?')) return;
+        if (!(await verifyHistoryAdminPassword())) return;
+        if (!(await confirmAppDialog(
+          '랜덤 / 후보 기록 삭제',
+          '해당 기록을 삭제할까요?',
+          { confirmText: '삭제' }
+        ))) return;
         if (window.Storage && typeof window.Storage.deleteRandomHistory === 'function') {
           await window.Storage.deleteRandomHistory(meal, rid);
         }
@@ -2054,28 +2100,30 @@
     });
   }
 
-  function verifyHistoryAdminPassword() {
-    const input = prompt('기록 삭제 비밀번호를 입력하세요.');
-    if (input === null) return false;
-    if (input !== HISTORY_ADMIN_PASSWORD) {
-      alert('비밀번호가 올바르지 않습니다.');
-      return false;
-    }
-    return true;
+  function verifyHistoryAdminPassword(title = '랜덤 / 후보 기록 삭제') {
+    return verifyAdminPassword(
+      title,
+      '관리자가 지정한 암호로만 기록을 삭제할 수 있습니다.'
+    );
   }
 
   function verifyAdminPassword(title, message) {
     return new Promise((resolve) => {
       const backdrop = document.createElement('div');
       backdrop.className = 'visibility-modal-backdrop';
+      const isVoteDelete = title === '투표 종료/삭제';
+      const modalClass = isVoteDelete
+        ? 'visibility-modal vote-delete-confirm-modal'
+        : 'visibility-modal';
       backdrop.innerHTML = `
-        <div class="visibility-modal" role="dialog" aria-modal="true">
-          <h3>${escapeHtml(title || '관리자 확인')}</h3>
+        <div class="${modalClass}" role="dialog" aria-modal="true">
+          <h3>${escapeHtml(isVoteDelete ? `🧺 ${title}` : (title || '관리자 확인'))}</h3>
           <p class="muted">${escapeHtml(message || '관리자 암호를 입력하세요.')}</p>
           <label style="display:flex;flex-direction:column;gap:6px;margin:10px 0 14px;font-size:13px;color:var(--muted)">
             암호 입력
             <input type="password" id="admin-password-input" autocomplete="off" placeholder="암호를 입력하세요" />
           </label>
+          <div class="admin-password-error hidden" role="alert"></div>
           <div class="actions">
             <button type="button" data-action="cancel">취소</button>
             <button type="button" data-action="confirm">확인</button>
@@ -2088,6 +2136,7 @@
         resolve(ok);
       };
       const input = backdrop.querySelector('#admin-password-input');
+      const error = backdrop.querySelector('.admin-password-error');
       backdrop.addEventListener('click', (e) => {
         if (e.target === backdrop) close(false);
       });
@@ -2095,7 +2144,10 @@
       const submit = () => {
         const value = input ? String(input.value || '') : '';
         if (value !== HISTORY_ADMIN_PASSWORD) {
-          alert('비밀번호가 올바르지 않습니다.');
+          if (error) {
+            error.textContent = '비밀번호가 올바르지 않습니다.';
+            error.classList.remove('hidden');
+          }
           if (input) input.focus();
           return;
         }
@@ -2111,10 +2163,42 @@
     });
   }
 
+  function confirmAppDialog(title, message, options = {}) {
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'visibility-modal-backdrop';
+      const modalClass = ['visibility-modal', options.className || '']
+        .filter(Boolean)
+        .join(' ');
+      const confirmText = options.confirmText || '확인';
+      const cancelText = options.cancelText || '취소';
+      backdrop.innerHTML = `
+        <div class="${modalClass}" role="dialog" aria-modal="true">
+          <h3>${escapeHtml(title || '확인')}</h3>
+          <p class="muted">${escapeHtml(message || '진행할까요?')}</p>
+          <div class="actions">
+            <button type="button" data-action="cancel">${escapeHtml(cancelText)}</button>
+            <button type="button" data-action="confirm">${escapeHtml(confirmText)}</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+      const close = (ok) => {
+        backdrop.remove();
+        resolve(ok);
+      };
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) close(false);
+      });
+      backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(false));
+      backdrop.querySelector('[data-action="confirm"]').addEventListener('click', () => close(true));
+    });
+  }
+
   function verifyVoteDeletePassword() {
     return verifyAdminPassword(
       '투표 종료/삭제',
-      '관리자가 지정한 암호로만 투표를 삭제할 수 있습니다.'
+      '관리자 암호를 확인하면 투표를 정리할 수 있어요.'
     );
   }
 

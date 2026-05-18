@@ -12,7 +12,7 @@ test('vote voter dropdown displays person name with role while keeping name valu
   assert.match(appSource, /op\.textContent\s*=\s*formatPersonLabel\(name\)/);
 });
 
-test('vote setup explains voter names appear only after vote creation', () => {
+test('vote setup explains voter dropdown appears after vote creation', () => {
   assert.match(htmlSource, /투표 대상자 선택 목록은 투표 생성 후 표시됩니다/);
-  assert.match(htmlSource, /생성 전에는 이름이 표시되지 않습니다/);
+  assert.doesNotMatch(htmlSource, /생성 전에는 이름이 표시되지 않습니다/);
 });

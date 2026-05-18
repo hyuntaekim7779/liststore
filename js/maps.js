@@ -54,6 +54,22 @@
       });
     },
 
+    async reload(containerId) {
+      this.disablePickMode();
+      markers.forEach((m) => m.setMap(null));
+      markers = [];
+      if (fixedCompanyMarker) fixedCompanyMarker.setMap(null);
+      fixedCompanyMarker = null;
+      fixedCompanyInfo = null;
+      map = null;
+      const el = document.getElementById(containerId);
+      if (el) el.innerHTML = '';
+      await reloadNaverMapScript().catch((e) => {
+        console.warn('Naver Maps API script reload failed:', e);
+      });
+      this.init(containerId);
+    },
+
     clearMarkers() {
       markers.forEach((m) => m.setMap(null));
       markers = [];
@@ -321,6 +337,23 @@
           <span style="color:#777">지번: ${escapeHtml(FIXED_LOCATION.jibunAddress)}</span>
         </div>`);
     }
+  }
+
+  function reloadNaverMapScript() {
+    const existing = Array.from(document.scripts)
+      .find((script) => String(script.src || '').includes('oapi.map.naver.com/openapi/v3/maps.js'));
+    if (!existing) return Promise.resolve(false);
+    return new Promise((resolve, reject) => {
+      const next = document.createElement('script');
+      const src = new URL(existing.src);
+      src.searchParams.set('_mapReload', String(Date.now()));
+      next.type = existing.type || 'text/javascript';
+      next.src = src.toString();
+      next.onload = () => resolve(true);
+      next.onerror = () => reject(new Error('Naver Maps script reload failed'));
+      existing.parentNode.insertBefore(next, existing.nextSibling);
+      existing.remove();
+    });
   }
 
   function escapeHtml(s) {
