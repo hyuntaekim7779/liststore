@@ -57,6 +57,56 @@ body {
 }
 .tabs-side-img.left { transform: translate(-150px, -24px); }
 .tabs-side-img.right { transform: translate(150px, -24px); }
+.global-search-wrap {
+  max-width: 1120px;
+  margin: 0 auto 12px;
+  padding: 0 16px;
+}
+.global-search-label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+#global-search-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  background: #fff;
+}
+#global-search-input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+  border-color: var(--primary);
+}
+.global-search-results {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.global-search-item {
+  width: 100%;
+  border: 1px solid transparent;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.global-search-item:hover {
+  background: #f5f7ff;
+  border-color: #e1e6ff;
+}
+.global-search-item .meta {
+  color: var(--muted);
+  font-size: 12px;
+}
 .meal-tab {
   border: 1px solid var(--border);
   background: var(--card);
@@ -280,19 +330,29 @@ main {
 .roulette-result {
   text-align: center;
   margin-top: 12px;
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
   min-height: 24px;
 }
 .roulette-result.winner {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
   color: var(--primary-dark);
+  text-shadow: 0 1px 0 #fff, 0 2px 6px rgba(68, 83, 217, 0.2);
 }
 
 .vote-setup .form-row { display: flex; gap: 8px; align-items: end; margin-bottom: 10px; }
 .vote-setup .form-row.two label { flex: 1; }
 .vote-setup label { display: flex; flex-direction: column; gap: 4px; flex: 1; font-size: 13px; color: var(--muted); }
 .vote-setup input { padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+.vote-active select {
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+}
 .vote-card-header h2 { margin-bottom: 0; }
 .vote-history-btn {
   padding: 6px 10px;

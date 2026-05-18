@@ -15,6 +15,7 @@
   const KEY_STORES = (meal) => `ls.stores.${meal}`;
   const KEY_VOTE   = (meal) => `ls.vote.${meal}`;
   const KEY_VOTE_HISTORY = (meal) => `ls.vote.history.${meal}`;
+  const KEY_ROULETTE = (meal) => `ls.roulette.${meal}`;
   const KEY_RANDOM_HISTORY = (meal) => `ls.random.history.${meal}`;
   const KEY_PEOPLE = 'ls.people.v1';
   const KEY_CAUTION = 'ls.cautions.v1';
@@ -43,6 +44,15 @@
     },
     async clearVote(meal) {
       localStorage.removeItem(KEY_VOTE(meal));
+    },
+    async getRoulette(meal) {
+      return safeParse(localStorage.getItem(KEY_ROULETTE(meal)), null);
+    },
+    async saveRoulette(meal, roulette) {
+      localStorage.setItem(KEY_ROULETTE(meal), JSON.stringify(roulette));
+    },
+    async clearRoulette(meal) {
+      localStorage.removeItem(KEY_ROULETTE(meal));
     },
     async getVoteHistory(meal) {
       const rows = safeParse(localStorage.getItem(KEY_VOTE_HISTORY(meal)), []);

@@ -19,8 +19,11 @@
     assignmentsResetState: { lunch: '', night: '' },
     settingsSubtab: 'people',
     randomHistoryByMeal: { lunch: [], dinner: [], fridayLunch: [] },
+    rouletteByMeal: { lunch: null, dinner: null, fridayLunch: null },
+    rouletteRenderedSessionId: '',
     mainStoreSearch: '',
     settingsStoreSearch: '',
+    globalSearch: '',
   };
 
   document.addEventListener('DOMContentLoaded', init);
@@ -34,6 +37,7 @@
     bindStoreForm();
     bindAutoAdd();
     bindStoreSearch();
+    bindGlobalSearch();
     bindRoulette();
     bindVoting();
     bindPeopleAndCautions();
@@ -48,6 +52,7 @@
       await Stores.load(meal);
       await Voting.load(meal);
       await loadRandomHistoryForMeal(meal);
+      await loadRouletteForMeal(meal);
     }
     await loadPeopleData();
 
@@ -248,6 +253,19 @@
     state.assignments.lunchbox = state.assignments.lunchbox.filter((n) => !outsideSet.has(n));
   }
 
+  function sortNamesByRoleAndName(names) {
+    const roleRank = new Map(ROLE_OPTIONS.map((role, idx) => [role, idx]));
+    const peopleByName = new Map(state.people.map((p) => [p.name, p]));
+    return [...names].sort((a, b) => {
+      const pa = peopleByName.get(a);
+      const pb = peopleByName.get(b);
+      const rankA = pa && roleRank.has(pa.role) ? roleRank.get(pa.role) : Number.MAX_SAFE_INTEGER;
+      const rankB = pb && roleRank.has(pb.role) ? roleRank.get(pb.role) : Number.MAX_SAFE_INTEGER;
+      if (rankA !== rankB) return rankA - rankB;
+      return String(a || '').localeCompare(String(b || ''), 'ko');
+    });
+  }
+
   function maybeResetAssignmentsBySchedule() {
     const seoul = getSeoulDateTimeParts();
     const minutesFromMidnight = seoul.hour * 60 + seoul.minute;
@@ -388,7 +406,8 @@
   function schedulePoll() {
     const v = Voting.get(state.meal);
     const voteOpen = v && Voting.status(v) === 'open';
-    const desired = voteOpen
+    const rouletteSpinning = isRouletteSpinning(state.meal);
+    const desired = (voteOpen || rouletteSpinning)
       ? (window.AppConfig.pollIntervalVoteMs || 3000)
       : (window.AppConfig.pollIntervalMs || 8000);
     if (desired === pollCurrentMs && pollTimerHandle) return;
@@ -404,6 +423,7 @@
       for (const meal of MEAL_TYPES) {
         await Stores.load(meal);
         await loadRandomHistoryForMeal(meal);
+        await loadRouletteForMeal(meal);
       }
       await Voting.load(state.meal);
       await loadPeopleData();
@@ -418,10 +438,12 @@
       renderStoreList();
       Maps.renderStores(getVisibleStores());
       renderVote();
+      renderRouletteFromShared();
     } else if (state.activeTab === 'settings') {
       renderSettingsStoreList();
       if (state.settingsSubtab === 'history') renderRandomHistoryManager();
     }
+    if (state.globalSearch) renderGlobalSearchResults();
     schedulePoll();
   }
 
@@ -477,6 +499,110 @@
         syncSettingsSearch(settingsList.value, settingsList);
       });
     }
+  }
+
+  function bindGlobalSearch() {
+    const input = $('#global-search-input');
+    const resultsEl = $('#global-search-results');
+    if (!input || !resultsEl) return;
+    input.addEventListener('input', () => {
+      state.globalSearch = String(input.value || '').trim().toLowerCase();
+      renderGlobalSearchResults();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        input.value = '';
+        state.globalSearch = '';
+        renderGlobalSearchResults();
+      }
+    });
+  }
+
+  function renderGlobalSearchResults() {
+    const resultsEl = $('#global-search-results');
+    if (!resultsEl) return;
+    const q = state.globalSearch || '';
+    if (!q) {
+      resultsEl.classList.add('hidden');
+      resultsEl.innerHTML = '';
+      return;
+    }
+    const rows = [];
+    MEAL_TYPES.forEach((meal) => {
+      getVisibleStoresForMeal(meal, { includeMeta: true })
+        .filter((s) => String(s.name || '').toLowerCase().includes(q) || String(cleanMemoForDisplay(s.memo || '')).toLowerCase().includes(q))
+        .forEach((s) => rows.push({
+          key: `store:${meal}:${s.id}`,
+          label: s.name,
+          meta: `가게 · ${mealLabel(meal)}`,
+          action: () => {
+            switchTab(meal).then(() => {
+              state.mainStoreSearch = String(s.name || '').toLowerCase();
+              const el = $('#store-search-main');
+              if (el) el.value = s.name || '';
+              renderStoreList();
+            });
+          },
+        }));
+    });
+    state.people
+      .filter((p) => String(p.name || '').toLowerCase().includes(q) || String(p.role || '').toLowerCase().includes(q))
+      .forEach((p) => rows.push({
+        key: `person:${p.id}`,
+        label: `${p.name} ${p.role || ''}`.trim(),
+        meta: '대상자 · 설정 > 대상자 추가',
+        action: () => {
+          switchTab('settings').then(() => switchSettingsSubtab('people'));
+        },
+      }));
+    state.cautions
+      .filter((c) => String(c.name || '').toLowerCase().includes(q) || String(c.note || '').toLowerCase().includes(q))
+      .forEach((c) => rows.push({
+        key: `caution:${c.id}`,
+        label: `${c.name} · ${c.note}`,
+        meta: '입맛 보호 · 설정 > 입맛 보호 대상자',
+        action: () => {
+          switchTab('settings').then(() => switchSettingsSubtab('taste-care'));
+        },
+      }));
+    MEAL_TYPES.forEach((meal) => {
+      (state.randomHistoryByMeal[meal] || [])
+        .filter((r) => String(r.storeName || '').toLowerCase().includes(q))
+        .forEach((r) => rows.push({
+          key: `history:${meal}:${r.id}`,
+          label: `${r.storeName} (${mealLabel(meal)})`,
+          meta: '기록 · 설정 > 기록 관리',
+          action: () => {
+            switchTab('settings').then(() => {
+              switchSettingsSubtab('history');
+              const mealFilter = $('#random-history-meal');
+              if (mealFilter) mealFilter.value = meal;
+              renderRandomHistoryManager();
+            });
+          },
+        }));
+    });
+    const shown = rows.slice(0, 60);
+    if (!shown.length) {
+      resultsEl.classList.remove('hidden');
+      resultsEl.innerHTML = '<div class="global-search-item"><div>검색 결과가 없습니다.</div></div>';
+      return;
+    }
+    resultsEl.classList.remove('hidden');
+    resultsEl.innerHTML = shown.map((row) => `
+      <button type="button" class="global-search-item" data-key="${escapeHtml(row.key)}">
+        <div>${escapeHtml(row.label)}</div>
+        <div class="meta">${escapeHtml(row.meta)}</div>
+      </button>
+    `).join('');
+    Array.from(resultsEl.querySelectorAll('.global-search-item')).forEach((btn, idx) => {
+      const row = shown[idx];
+      if (!row) return;
+      btn.addEventListener('click', () => {
+        row.action();
+        resultsEl.classList.add('hidden');
+      });
+    });
   }
 
   function switchSettingsSubtab(tab) {
@@ -610,10 +736,12 @@
     const outsideSet = new Set(state.assignments.outside);
     const lunchboxSet = new Set(state.assignments.lunchbox);
     const allNames = state.people.map((p) => p.name);
-    const poolNames = allNames.filter((n) => !outsideSet.has(n) && !lunchboxSet.has(n));
+    const poolNames = sortNamesByRoleAndName(allNames.filter((n) => !outsideSet.has(n) && !lunchboxSet.has(n)));
+    const outsideNames = sortNamesByRoleAndName(state.assignments.outside);
+    const lunchboxNames = sortNamesByRoleAndName(state.assignments.lunchbox);
 
-    state.assignments.outside.forEach((name) => outside.appendChild(buildPersonTag(name)));
-    state.assignments.lunchbox.forEach((name) => lunchbox.appendChild(buildPersonTag(name)));
+    outsideNames.forEach((name) => outside.appendChild(buildPersonTag(name)));
+    lunchboxNames.forEach((name) => lunchbox.appendChild(buildPersonTag(name)));
     poolNames.forEach((name) => pool.appendChild(buildPersonTag(name)));
 
     $('#count-outside').textContent = `총 ${state.assignments.outside.length}명`;
@@ -813,9 +941,7 @@
 
     renderStoreList();
     Maps.renderStores(getVisibleStores());
-    Roulette.setItems([]);
-    $('#roulette-result').textContent = '';
-    $('#btn-spin').disabled = true;
+    renderRouletteFromShared();
     renderVote();
   }
 
@@ -1221,25 +1347,181 @@
           alert('5일 제외 규칙으로 인해 후보가 부족합니다. 설정 > 기록 관리에서 삭제하거나 가게를 추가해주세요.');
           return;
         }
-        Roulette.setItems(picks);
-        $('#btn-spin').disabled = false;
-        $('#roulette-result').textContent = `후보 ${picks.length}곳을 무작위로 선정했습니다.`;
-        $('#roulette-result').classList.remove('winner');
+        await saveRouletteForMeal(state.meal, buildRouletteSession(picks, 'random'));
+        renderRouletteFromShared();
       } catch (e) {
         console.warn('roulette pick failed:', e);
         alert('후보 선정 중 오류가 발생했습니다.');
       }
     });
 
-    $('#btn-spin').addEventListener('click', () => {
+    const selectedBtn = $('#btn-pick-roulette-selected');
+    if (selectedBtn) {
+      selectedBtn.addEventListener('click', async () => {
+        const selected = await openRouletteSelectionModal();
+        if (!selected || !selected.length) return;
+        await saveRouletteForMeal(state.meal, buildRouletteSession(selected, 'selected'));
+        renderRouletteFromShared();
+      });
+    }
+
+    $('#btn-spin').addEventListener('click', async () => {
+      const current = state.rouletteByMeal[state.meal];
+      const items = current && Array.isArray(current.items) ? current.items : [];
+      if (items.length < 2) {
+        alert('먼저 룰렛 후보를 준비해주세요.');
+        return;
+      }
+      const winner = items[Math.floor(Math.random() * items.length)];
+      const spinId = `rspin_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      const next = {
+        ...current,
+        id: spinId,
+        status: 'spinning',
+        winnerId: winner.id,
+        winnerName: winner.name,
+        startAt: Date.now(),
+        durationMs: 4200,
+      };
       $('#btn-spin').disabled = true;
       $('#roulette-result').textContent = '돌리는 중…';
       $('#roulette-result').classList.remove('winner');
-      Roulette.spin(async (winner) => {
-        await appendRandomWinnerHistory(state.meal, winner, 'rouletteWinner', `roulette:${Date.now()}`);
-        $('#roulette-result').textContent = `🎉 오늘은 "${winner.name}" 입니다!`;
-        $('#roulette-result').classList.add('winner');
-        $('#btn-spin').disabled = false;
+      await saveRouletteForMeal(state.meal, next);
+      await appendRandomWinnerHistory(state.meal, winner, 'rouletteWinner', `roulette:${spinId}`);
+      renderRouletteFromShared();
+    });
+  }
+
+  function buildRouletteSession(items, mode) {
+    return {
+      id: `rset_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+      meal: state.meal,
+      mode: mode || 'random',
+      status: 'ready',
+      items: items.map((it) => ({ id: it.id, name: it.name })),
+      winnerId: '',
+      winnerName: '',
+      startAt: 0,
+      durationMs: 4200,
+      updatedAt: Date.now(),
+    };
+  }
+
+  function isRouletteSpinning(meal) {
+    const session = state.rouletteByMeal[meal];
+    if (!session || session.status !== 'spinning') return false;
+    const startAt = Number(session.startAt || 0);
+    const duration = Number(session.durationMs || 4200);
+    if (!startAt) return false;
+    return Date.now() < (startAt + duration + 200);
+  }
+
+  async function loadRouletteForMeal(meal) {
+    if (!window.Storage || typeof window.Storage.getRoulette !== 'function') {
+      state.rouletteByMeal[meal] = null;
+      return null;
+    }
+    try {
+      state.rouletteByMeal[meal] = await window.Storage.getRoulette(meal);
+    } catch (e) {
+      console.warn('getRoulette failed:', e);
+      state.rouletteByMeal[meal] = null;
+    }
+    return state.rouletteByMeal[meal];
+  }
+
+  async function saveRouletteForMeal(meal, session) {
+    state.rouletteByMeal[meal] = session || null;
+    if (!window.Storage || typeof window.Storage.saveRoulette !== 'function') return;
+    await window.Storage.saveRoulette(meal, session || null);
+  }
+
+  function renderRouletteFromShared() {
+    const resultEl = $('#roulette-result');
+    const spinBtn = $('#btn-spin');
+    if (!resultEl || !spinBtn) return;
+    const session = state.rouletteByMeal[state.meal];
+    if (!session || !Array.isArray(session.items) || session.items.length < 2) {
+      Roulette.setItems([]);
+      resultEl.textContent = '';
+      resultEl.classList.remove('winner');
+      spinBtn.disabled = true;
+      state.rouletteRenderedSessionId = '';
+      return;
+    }
+    Roulette.setItems(session.items);
+    spinBtn.disabled = session.status === 'spinning';
+    if (session.status === 'spinning' && session.winnerId) {
+      const endAt = Number(session.startAt || 0) + Number(session.durationMs || 4200);
+      const alreadyPlayed = state.rouletteRenderedSessionId === String(session.id || '');
+      if (Date.now() >= endAt) {
+        resultEl.textContent = `🎉 오늘은 "${session.winnerName || '가게'}" 입니다!`;
+        resultEl.classList.add('winner');
+        spinBtn.disabled = false;
+        state.rouletteRenderedSessionId = String(session.id || '');
+        return;
+      }
+      resultEl.textContent = '돌리는 중…';
+      resultEl.classList.remove('winner');
+      if (!alreadyPlayed) {
+        state.rouletteRenderedSessionId = String(session.id || '');
+        Roulette.play(session, () => {
+          resultEl.textContent = `🎉 오늘은 "${session.winnerName || '가게'}" 입니다!`;
+          resultEl.classList.add('winner');
+          spinBtn.disabled = false;
+        });
+      }
+      return;
+    }
+    resultEl.classList.remove('winner');
+    resultEl.textContent = session.mode === 'selected'
+      ? `선택 룰렛 후보 ${session.items.length}곳을 준비했습니다.`
+      : `후보 ${session.items.length}곳을 무작위로 선정했습니다.`;
+    spinBtn.disabled = false;
+    state.rouletteRenderedSessionId = '';
+  }
+
+  function openRouletteSelectionModal() {
+    const stores = getVisibleStores().filter((s) => !isBlockedByCaution(s));
+    if (stores.length < 2) {
+      alert('선택 가능한 가게가 2개 이상 필요합니다.');
+      return Promise.resolve(null);
+    }
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'visibility-modal-backdrop';
+      backdrop.innerHTML = `
+        <div class="visibility-modal" role="dialog" aria-modal="true">
+          <h3>선택 룰렛</h3>
+          <p class="muted">최대 10개까지 선택할 수 있습니다.</p>
+          ${stores.map((s) => `<label><input type="checkbox" value="${escapeHtml(s.id)}" /> ${escapeHtml(s.name)}</label>`).join('')}
+          <div class="actions">
+            <button type="button" data-action="cancel">취소</button>
+            <button type="button" data-action="save">룰렛 준비</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+      const close = (result) => {
+        backdrop.remove();
+        resolve(result);
+      };
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) close(null);
+      });
+      backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
+      backdrop.querySelector('[data-action="save"]').addEventListener('click', () => {
+        const ids = Array.from(backdrop.querySelectorAll('input[type="checkbox"]:checked')).map((el) => el.value);
+        if (ids.length < 2) {
+          alert('최소 2개 이상 선택해주세요.');
+          return;
+        }
+        if (ids.length > 10) {
+          alert('최대 10개까지만 선택할 수 있습니다.');
+          return;
+        }
+        const selected = stores.filter((s) => ids.includes(s.id)).slice(0, 10);
+        close(selected);
       });
     });
   }
@@ -1270,12 +1552,17 @@
       const startAt = new Date($('#vote-start').value).getTime();
       const endAt = new Date($('#vote-end').value).getTime();
       const candidates = window.__pendingVoteCandidates;
+      const voters = state.people.map((p) => p.name);
       if (!candidates || candidates.length < 2) {
         alert('먼저 "후보 무작위 선정" 버튼으로 후보를 뽑아주세요.');
         return;
       }
+      if (!voters.length) {
+        alert('투표 대상자(위대한 명단)가 없습니다. 설정에서 대상자를 먼저 추가해주세요.');
+        return;
+      }
       try {
-        await Voting.create(state.meal, candidates, startAt, endAt);
+        await Voting.create(state.meal, candidates, startAt, endAt, voters);
         window.__pendingVoteCandidates = null;
         renderVote();
       } catch (e) { alert(e.message); }
@@ -1332,19 +1619,37 @@
     $('#vote-status-label').textContent = statusLabel;
     $('#vote-timer').textContent = formatVoteRange(vote);
 
+    const votedSet = new Set(
+      Array.isArray(vote.votedPeople)
+        ? vote.votedPeople
+        : Object.values(vote.votes || {}).flatMap((list) => Array.isArray(list) ? list : [])
+    );
+    const allowedVoters = Array.isArray(vote.voters) && vote.voters.length
+      ? vote.voters
+      : state.people.map((p) => p.name);
+    const remainingVoters = allowedVoters.filter((name) => !votedSet.has(name));
+    renderVoteVoterSelect(remainingVoters);
+    const hintEl = $('#vote-voter-hint');
+    if (hintEl) {
+      hintEl.textContent = remainingVoters.length
+        ? `남은 투표 가능 대상자: ${remainingVoters.length}명`
+        : '모든 대상자의 투표가 완료되었습니다.';
+    }
+
     const ul = $('#vote-candidates');
     ul.innerHTML = '';
     vote.candidates.forEach((c) => {
       const li = document.createElement('li');
       const count = (vote.votes[c.id] || []).length;
-      const disabled = status !== 'open';
+      const disabled = status !== 'open' || !remainingVoters.length;
       li.innerHTML = `
         <span>${escapeHtml(c.name)} <span class="muted">· ${count}표</span></span>
         <button data-cid="${c.id}" ${disabled ? 'disabled' : ''}>${disabled ? '투표 불가' : '투표하기'}</button>
       `;
       li.querySelector('button').addEventListener('click', async () => {
-        const name = $('#voter-name').value.trim();
-        if (!name) { alert('투표자 이름을 먼저 입력해주세요.'); $('#voter-name').focus(); return; }
+        const voterSelect = $('#vote-voter-select');
+        const name = voterSelect ? String(voterSelect.value || '').trim() : '';
+        if (!name) { alert('투표 대상자를 먼저 선택해주세요.'); if (voterSelect) voterSelect.focus(); return; }
         try {
           await Voting.cast(state.meal, c.id, name);
           renderVote();
@@ -1378,6 +1683,24 @@
         const newStatus = Voting.status(vote);
         if (newStatus !== status) renderVote();
       }, 1000);
+    }
+  }
+
+  function renderVoteVoterSelect(remainingVoters) {
+    const select = $('#vote-voter-select');
+    if (!select) return;
+    const prev = select.value;
+    select.innerHTML = '<option value="">대상자를 선택하세요</option>';
+    remainingVoters.forEach((name) => {
+      const op = document.createElement('option');
+      op.value = name;
+      op.textContent = name;
+      select.appendChild(op);
+    });
+    if (remainingVoters.includes(prev)) {
+      select.value = prev;
+    } else {
+      select.value = '';
     }
   }
 

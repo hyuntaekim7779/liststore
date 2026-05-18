@@ -1,9 +1,13 @@
 /**
  * Roulette — canvas-based spinning wheel.
- * - 최대 5개 항목을 받아 룰렛으로 그리고 spin 시 한 항목을 선정.
+ * - 기본 랜덤 후보(최대 5개) + 선택 룰렛(최대 10개)
+ * - 외부에서 지정한 winnerId/startAt/duration으로 동기화 재생 가능
  */
 (function () {
   const COLORS = ['#5b6cff', '#ff9f43', '#10b981', '#ef4444', '#a855f7', '#f59e0b', '#06b6d4'];
+  const DEFAULT_DURATION = 4200;
+  const MIN_ITEMS = 2;
+  const MAX_ITEMS = 10;
 
   const Roulette = {
     canvas: null,
@@ -12,6 +16,7 @@
     rotation: 0,
     spinning: false,
     onResult: null,
+    spinSessionId: '',
 
     init(canvasId) {
       this.canvas = document.getElementById(canvasId);
@@ -21,8 +26,11 @@
     },
 
     setItems(items) {
-      this.items = items.slice(0, 5);
+      const safe = Array.isArray(items) ? items.filter((it) => it && it.id && it.name) : [];
+      this.items = safe.slice(0, MAX_ITEMS);
       this.rotation = 0;
+      this.spinning = false;
+      this.spinSessionId = '';
       this.draw();
     },
 
@@ -40,10 +48,10 @@
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#888';
-        ctx.font = '14px sans-serif';
+        ctx.font = '700 16px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('“랜덤 5개 뽑기” 를 눌러주세요', cx, cy);
+        ctx.fillText('“랜덤/선택 룰렛” 버튼으로 후보를 준비하세요', cx, cy);
         return;
       }
 
@@ -68,10 +76,12 @@
         ctx.translate(cx, cy);
         ctx.rotate(start + seg / 2);
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 13px sans-serif';
+        ctx.font = n <= 5 ? '800 18px sans-serif' : '800 15px sans-serif';
+        ctx.shadowColor = 'rgba(0,0,0,0.35)';
+        ctx.shadowBlur = 3;
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
-        const label = truncate(this.items[i].name, 12);
+        const label = truncate(this.items[i].name, n <= 5 ? 14 : 11);
         ctx.fillText(label, r - 12, 0);
         ctx.restore();
       }
@@ -86,24 +96,53 @@
       ctx.stroke();
     },
 
+    getWinnerById(winnerId) {
+      if (!winnerId) return null;
+      return this.items.find((it) => String(it.id) === String(winnerId)) || null;
+    },
+
     spin(onResult) {
-      if (this.spinning || this.items.length === 0) return;
+      if (this.spinning || this.items.length < MIN_ITEMS) return null;
+      const winner = this.items[Math.floor(Math.random() * this.items.length)];
+      const session = {
+        id: `rs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+        winnerId: winner.id,
+        startAt: Date.now(),
+        durationMs: DEFAULT_DURATION,
+      };
+      this.play(session, onResult);
+      return session;
+    },
+
+    play(session, onResult) {
+      if (!session || !session.winnerId || !Array.isArray(this.items) || this.items.length < MIN_ITEMS) return;
+      const winner = this.getWinnerById(session.winnerId);
+      if (!winner) return;
+      const duration = Math.max(1000, Number(session.durationMs) || DEFAULT_DURATION);
+      const startAt = Number(session.startAt) || Date.now();
+      const elapsed = Math.max(0, Date.now() - startAt);
+      const sessionId = String(session.id || `${session.winnerId}:${startAt}:${duration}`);
       this.spinning = true;
       this.onResult = onResult;
+      this.spinSessionId = sessionId;
 
       const n = this.items.length;
       const seg = (Math.PI * 2) / n;
-      const winnerIndex = Math.floor(Math.random() * n);
+      const winnerIndex = this.items.findIndex((it) => String(it.id) === String(session.winnerId));
+      if (winnerIndex < 0) {
+        this.spinning = false;
+        return;
+      }
       // The pointer is at top center (-PI/2). We want the middle of winner segment to land there.
       const targetAngle = -Math.PI / 2 - (winnerIndex * seg + seg / 2);
       const fullSpins = 5 + Math.floor(Math.random() * 3); // 5–7 turns
       const finalRotation = targetAngle - fullSpins * Math.PI * 2;
       const startRotation = this.rotation;
       const delta = finalRotation - normalizeAngle(startRotation, finalRotation);
-      const duration = 4200;
-      const startTime = performance.now();
+      const startTime = performance.now() - Math.min(elapsed, duration);
 
       const animate = (now) => {
+        if (this.spinSessionId !== sessionId) return;
         const t = Math.min(1, (now - startTime) / duration);
         const eased = easeOutCubic(t);
         this.rotation = startRotation + delta * eased;
@@ -112,7 +151,7 @@
           requestAnimationFrame(animate);
         } else {
           this.spinning = false;
-          if (this.onResult) this.onResult(this.items[winnerIndex]);
+          if (this.onResult) this.onResult(winner);
         }
       };
       requestAnimationFrame(animate);

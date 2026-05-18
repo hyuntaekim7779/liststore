@@ -21,6 +21,11 @@
     </nav>
     <img class="tabs-side-img right" src="assets/tabs-right.png" alt="설정 버튼 오른쪽 이미지" />
   </div>
+  <section class="global-search-wrap">
+    <label class="global-search-label" for="global-search-input">🔎 통합 검색</label>
+    <input id="global-search-input" type="text" placeholder="가게, 대상자, 입맛 보호 메모, 기록 검색" />
+    <div id="global-search-results" class="global-search-results hidden"></div>
+  </section>
 
   <div id="storage-error-banner" class="storage-error hidden"></div>
 
@@ -66,9 +71,10 @@
 
     <section class="card roulette-card">
       <h2>🎯 랜덤 룰렛</h2>
-      <p class="hint">등록된 가게 중에서 최대 <strong>5개</strong>를 무작위로 뽑아 룰렛을 돌립니다.</p>
+      <p class="hint">랜덤 후보(최대 <strong>5개</strong>) 또는 선택 룰렛(최대 <strong>10개</strong>)으로 돌릴 수 있습니다.</p>
       <div class="roulette-controls">
         <button id="btn-pick-roulette" class="btn btn-secondary">🎲 랜덤 5개 뽑기</button>
+        <button id="btn-pick-roulette-selected" class="btn btn-secondary">✅ 선택 룰렛</button>
         <button id="btn-spin" class="btn btn-primary" disabled>▶ 룰렛 돌리기</button>
       </div>
       <div class="roulette-stage">
@@ -113,10 +119,13 @@
         </div>
         <ul id="vote-candidates" class="vote-candidates"></ul>
         <div class="form-row">
-          <label>투표자 이름 *
-            <input type="text" id="voter-name" required placeholder="이름 필수 입력" />
+          <label>투표 대상자 선택 *
+            <select id="vote-voter-select">
+              <option value="">대상자를 선택하세요</option>
+            </select>
           </label>
         </div>
+        <p id="vote-voter-hint" class="hint">남은 투표 가능 대상자를 선택해 투표하세요.</p>
         <h3>투표 현황</h3>
         <ul id="vote-results" class="vote-results"></ul>
       </div>

@@ -4,8 +4,8 @@
  * 데이터 모델:
  *   stores 테이블: PartitionKey = meal key (예: lunch | dinner | fridayLunch), RowKey = store.id,
  *                  Payload (JSON 문자열, 가게 정보 전체)
- *   votes  테이블: PartitionKey = meal key (예: lunch | dinner | fridayLunch), RowKey = 'current',
- *                  Payload (JSON 문자열, 투표 정보 전체)
+ *   votes  테이블: PartitionKey = meal key (예: lunch | dinner | fridayLunch), RowKey = 'current'|'roulette_current',
+ *                  Payload (JSON 문자열, 투표/룰렛 정보 전체)
  *   people 테이블: PartitionKey = 'shared', RowKey = 'current',
  *                  Payload (JSON 문자열, 대상자/입맛보호/오늘점심구분 데이터)
  *   randomhistory 테이블: PartitionKey = meal key, RowKey = random history id,
@@ -216,6 +216,22 @@
     async clearVote(meal) {
       await ensureInit();
       await deleteEntity(TABLE_VOTES, meal, 'current');
+    },
+
+    async getRoulette(meal) {
+      await ensureInit();
+      const e = await getEntity(TABLE_VOTES, meal, 'roulette_current');
+      return parsePayload(e);
+    },
+
+    async saveRoulette(meal, roulette) {
+      await ensureInit();
+      await putEntity(TABLE_VOTES, meal, 'roulette_current', { Payload: JSON.stringify(roulette || null) });
+    },
+
+    async clearRoulette(meal) {
+      await ensureInit();
+      await deleteEntity(TABLE_VOTES, meal, 'roulette_current');
     },
 
     async getVoteHistory(meal) {

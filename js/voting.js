@@ -6,6 +6,8 @@
  *     meal: string,
  *     createdAt: number (ms),
  *     candidates: [{ id, name }],
+ *     voters: string[],
+ *     votedPeople: string[],
  *     startAt: number (ms),
  *     endAt: number (ms),
  *     votes: { [candidateId]: [voterName] }  // 한 후보당 투표자 이름 목록
@@ -85,7 +87,7 @@
       return this.current[meal];
     },
 
-    async create(meal, candidates, startAt, endAt) {
+    async create(meal, candidates, startAt, endAt, voters) {
       ensureMealCurrent(this.current, meal);
       if (!candidates || candidates.length < 2) {
         throw new Error('후보는 최소 2개 이상이어야 합니다.');
@@ -98,6 +100,8 @@
         meal,
         createdAt: Date.now(),
         candidates: candidates.map((c) => ({ id: c.id, name: c.name })),
+        voters: Array.isArray(voters) ? [...new Set(voters.map((n) => String(n || '').trim()).filter(Boolean))] : [],
+        votedPeople: [],
         startAt,
         endAt,
         votes: Object.fromEntries(candidates.map((c) => [c.id, []])),
@@ -119,16 +123,31 @@
         throw new Error('진행 중인 투표가 없습니다.');
       }
       this.current[meal] = vote;
+      if (!Array.isArray(vote.votedPeople)) {
+        vote.votedPeople = Array.from(
+          new Set(
+            Object.values(vote.votes || {})
+              .flatMap((list) => (Array.isArray(list) ? list : []))
+              .map((name) => String(name || '').trim())
+              .filter(Boolean)
+          )
+        );
+      }
 
       const now = Date.now();
       if (now < vote.startAt) throw new Error('아직 투표 시작 시간이 아닙니다.');
       if (now > vote.endAt)   throw new Error('투표가 이미 종료되었습니다.');
+      const allowedVoters = Array.isArray(vote.voters) ? vote.voters : [];
+      if (allowedVoters.length && !allowedVoters.includes(name)) {
+        throw new Error('투표 대상자 목록에 없는 이름입니다.');
+      }
 
       const already = Object.values(vote.votes).some((list) => list.includes(name));
       if (already) throw new Error('이미 투표하셨습니다. (이름 기준 1회 제한)');
 
       if (!vote.votes[candidateId]) vote.votes[candidateId] = [];
       vote.votes[candidateId].push(name);
+      if (!vote.votedPeople.includes(name)) vote.votedPeople.push(name);
       await window.Storage.saveVote(meal, vote);
       return vote;
     },
