@@ -1358,7 +1358,14 @@
     const selectedBtn = $('#btn-pick-roulette-selected');
     if (selectedBtn) {
       selectedBtn.addEventListener('click', async () => {
-        const selected = await openRouletteSelectionModal();
+        const selected = await openStorePickerModal({
+          title: '선택 룰렛',
+          subtitle: '룰렛에 넣을 가게를 선택하세요. (최소 2개, 최대 10개)',
+          saveLabel: '룰렛 준비',
+          minSelect: 2,
+          maxSelect: 10,
+          filterFn: (s) => !isBlockedByCaution(s),
+        });
         if (!selected || !selected.length) return;
         await saveRouletteForMeal(state.meal, buildRouletteSession(selected, 'selected'));
         renderRouletteFromShared();
@@ -1481,50 +1488,6 @@
     state.rouletteRenderedSessionId = '';
   }
 
-  function openRouletteSelectionModal() {
-    const stores = getVisibleStores().filter((s) => !isBlockedByCaution(s));
-    if (stores.length < 2) {
-      alert('선택 가능한 가게가 2개 이상 필요합니다.');
-      return Promise.resolve(null);
-    }
-    return new Promise((resolve) => {
-      const backdrop = document.createElement('div');
-      backdrop.className = 'visibility-modal-backdrop';
-      backdrop.innerHTML = `
-        <div class="visibility-modal" role="dialog" aria-modal="true">
-          <h3>선택 룰렛</h3>
-          <p class="muted">최대 10개까지 선택할 수 있습니다.</p>
-          ${stores.map((s) => `<label><input type="checkbox" value="${escapeHtml(s.id)}" /> ${escapeHtml(s.name)}</label>`).join('')}
-          <div class="actions">
-            <button type="button" data-action="cancel">취소</button>
-            <button type="button" data-action="save">룰렛 준비</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(backdrop);
-      const close = (result) => {
-        backdrop.remove();
-        resolve(result);
-      };
-      backdrop.addEventListener('click', (e) => {
-        if (e.target === backdrop) close(null);
-      });
-      backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
-      backdrop.querySelector('[data-action="save"]').addEventListener('click', () => {
-        const ids = Array.from(backdrop.querySelectorAll('input[type="checkbox"]:checked')).map((el) => el.value);
-        if (ids.length < 2) {
-          alert('최소 2개 이상 선택해주세요.');
-          return;
-        }
-        if (ids.length > 10) {
-          alert('최대 10개까지만 선택할 수 있습니다.');
-          return;
-        }
-        const selected = stores.filter((s) => ids.includes(s.id)).slice(0, 10);
-        close(selected);
-      });
-    });
-  }
 
   // ---------- Voting ----------
   function bindVoting() {
@@ -1534,7 +1497,7 @@
     $('#vote-end').value = toLocalDtInput(later);
 
     $('#btn-pick-vote').addEventListener('click', async () => {
-      const count = Math.max(2, Math.min(10, parseInt($('#vote-candidate-count').value, 10) || 4));
+      const count = Math.max(2, Math.min(15, parseInt($('#vote-candidate-count').value, 10) || 4));
       try {
         const picks = await pickRandomFromVisible(count);
         if (picks.length < 2) {
@@ -1548,13 +1511,29 @@
       }
     });
 
+    const voteSelectedBtn = $('#btn-pick-vote-selected');
+    if (voteSelectedBtn) {
+      voteSelectedBtn.addEventListener('click', async () => {
+        const selected = await openStorePickerModal({
+          title: '후보 선택 투표',
+          subtitle: '투표 후보로 넣을 가게를 선택하세요. (최소 2개, 최대 15개)',
+          saveLabel: '후보 확정',
+          minSelect: 2,
+          maxSelect: 15,
+          filterFn: (s) => !isBlockedByCaution(s),
+        });
+        if (!selected || !selected.length) return;
+        renderVotePreview(selected);
+      });
+    }
+
     $('#btn-create-vote').addEventListener('click', async () => {
       const startAt = new Date($('#vote-start').value).getTime();
       const endAt = new Date($('#vote-end').value).getTime();
       const candidates = window.__pendingVoteCandidates;
       const voters = state.people.map((p) => p.name);
       if (!candidates || candidates.length < 2) {
-        alert('먼저 "후보 무작위 선정" 버튼으로 후보를 뽑아주세요.');
+        alert('먼저 "후보 무작위 선정" 또는 "후보 선택 투표"로 후보를 준비해주세요.');
         return;
       }
       if (!voters.length) {
@@ -1569,6 +1548,7 @@
     });
 
     $('#btn-cancel-vote').addEventListener('click', async () => {
+      if (!(await verifyVoteDeletePassword())) return;
       if (!confirm('현재 투표를 종료/삭제하시겠어요?')) return;
       await Voting.clear(state.meal);
       renderVote();
@@ -1937,6 +1917,53 @@
     return true;
   }
 
+  function verifyVoteDeletePassword() {
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'visibility-modal-backdrop';
+      backdrop.innerHTML = `
+        <div class="visibility-modal" role="dialog" aria-modal="true">
+          <h3>투표 종료/삭제</h3>
+          <p class="muted">관리자가 지정한 암호로만 투표를 삭제할 수 있습니다.</p>
+          <label style="display:flex;flex-direction:column;gap:6px;margin:10px 0 14px;font-size:13px;color:var(--muted)">
+            암호 입력
+            <input type="password" id="vote-delete-password" autocomplete="off" placeholder="암호를 입력하세요" />
+          </label>
+          <div class="actions">
+            <button type="button" data-action="cancel">취소</button>
+            <button type="button" data-action="confirm">확인</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+      const close = (ok) => {
+        backdrop.remove();
+        resolve(ok);
+      };
+      const input = backdrop.querySelector('#vote-delete-password');
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) close(false);
+      });
+      backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(false));
+      const submit = () => {
+        const value = input ? String(input.value || '') : '';
+        if (value !== HISTORY_ADMIN_PASSWORD) {
+          alert('비밀번호가 올바르지 않습니다.');
+          if (input) input.focus();
+          return;
+        }
+        close(true);
+      };
+      backdrop.querySelector('[data-action="confirm"]').addEventListener('click', submit);
+      if (input) {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') submit();
+        });
+        setTimeout(() => input.focus(), 0);
+      }
+    });
+  }
+
   function clearVoteTimer() {
     if (state.voteTimer) { clearInterval(state.voteTimer); state.voteTimer = null; }
   }
@@ -2282,7 +2309,7 @@
     return out.sort((a, b) => a.label.localeCompare(b.label, 'ko'));
   }
 
-  function getStoreBlockOptionsByMeal() {
+  function getStoreBlockOptionsByMeal(filterFn) {
     const byMeal = {
       all: [],
       lunch: [],
@@ -2292,6 +2319,7 @@
     MEAL_TYPES.forEach((meal) => {
       const visible = getVisibleStoresForMeal(meal, { includeMeta: true });
       visible.forEach((store) => {
+        if (filterFn && !filterFn(store)) return;
         const key = getStoreBlockKeyFromStore(store, meal);
         if (!key) return;
         byMeal[meal].push({
@@ -2330,23 +2358,49 @@
     return `id:${sourceMeal}:${store && store.id ? store.id : ''}`;
   }
 
-  function openCautionStoreBlocksEditor(personName) {
-    const byMeal = getStoreBlockOptionsByMeal();
+  function resolveStoresFromBlockKeys(keys) {
+    const out = [];
+    const seen = new Set();
+    (keys || []).forEach((key) => {
+      if (!key || seen.has(key)) return;
+      for (const meal of MEAL_TYPES) {
+        const visible = getVisibleStoresForMeal(meal, { includeMeta: true });
+        const found = visible.find((s) => getStoreBlockKeyFromStore(s, meal) === key);
+        if (found) {
+          seen.add(key);
+          out.push({ id: found.id, name: found.name });
+          break;
+        }
+      }
+    });
+    return out;
+  }
+
+  function openStorePickerModal(config) {
+    const {
+      title = '가게 선택',
+      subtitle = '',
+      saveLabel = '저장',
+      minSelect = 0,
+      maxSelect = Number.MAX_SAFE_INTEGER,
+      initialSelected = [],
+      filterFn = null,
+      returnMode = 'stores',
+    } = config || {};
+    const byMeal = getStoreBlockOptionsByMeal(filterFn);
     const totalCount = MEAL_TYPES.reduce((sum, meal) => sum + byMeal[meal].length, 0);
     if (!totalCount) {
       alert('등록된 가게가 없어 선택할 수 없습니다.');
       return Promise.resolve(null);
     }
-    const selectedSet = new Set(
-      Array.isArray(state.cautionStoreBlocks[personName]) ? state.cautionStoreBlocks[personName] : []
-    );
+    const selectedSet = new Set(Array.isArray(initialSelected) ? initialSelected : []);
     return new Promise((resolve) => {
       const backdrop = document.createElement('div');
       backdrop.className = 'visibility-modal-backdrop';
       backdrop.innerHTML = `
         <div class="visibility-modal store-block-modal" role="dialog" aria-modal="true">
-          <h3>못가는 가게 선택</h3>
-          <p class="muted">${escapeHtml(personName)} 대상자의 제외 가게를 설정하세요.</p>
+          <h3>${escapeHtml(title)}</h3>
+          <p class="muted">${escapeHtml(subtitle)}</p>
           <div class="store-block-tabs">
             <button type="button" class="store-block-tab active" data-meal="all">전체</button>
             <button type="button" class="store-block-tab" data-meal="lunch">점심</button>
@@ -2361,7 +2415,7 @@
           <div class="store-block-list" id="store-block-list"></div>
           <div class="actions">
             <button type="button" data-action="cancel">취소</button>
-            <button type="button" data-action="save">저장</button>
+            <button type="button" data-action="save">${escapeHtml(saveLabel)}</button>
           </div>
         </div>
       `;
@@ -2444,9 +2498,34 @@
       }
       backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
       backdrop.querySelector('[data-action="save"]').addEventListener('click', () => {
-        close(Array.from(selectedSet));
+        const keys = Array.from(selectedSet);
+        if (keys.length < minSelect) {
+          alert(`최소 ${minSelect}개 이상 선택해주세요.`);
+          return;
+        }
+        if (keys.length > maxSelect) {
+          alert(`최대 ${maxSelect}개까지만 선택할 수 있습니다.`);
+          return;
+        }
+        if (returnMode === 'keys') close(keys);
+        else close(resolveStoresFromBlockKeys(keys));
       });
       renderMealList();
+    });
+  }
+
+  function openCautionStoreBlocksEditor(personName) {
+    const initial = Array.isArray(state.cautionStoreBlocks[personName])
+      ? state.cautionStoreBlocks[personName]
+      : [];
+    return openStorePickerModal({
+      title: '못가는 가게 선택',
+      subtitle: `${personName} 대상자의 제외 가게를 설정하세요.`,
+      saveLabel: '저장',
+      minSelect: 0,
+      maxSelect: Number.MAX_SAFE_INTEGER,
+      initialSelected: initial,
+      returnMode: 'keys',
     });
   }
 

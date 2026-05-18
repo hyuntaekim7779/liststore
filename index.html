@@ -89,14 +89,15 @@
         <h2>🗳️ 투표</h2>
         <button id="btn-vote-history" class="btn btn-secondary vote-history-btn" type="button" title="이전 투표 기록">🕘 이전 투표 기록</button>
       </div>
-      <p class="hint">랜덤으로 후보 가게를 뽑은 뒤, 투표 시작/종료 시간을 설정하세요. 해당 시간대에만 투표할 수 있습니다.</p>
+      <p class="hint">무작위 선정(최대 15개) 또는 선택 투표(최대 15개)로 후보를 정한 뒤, 시작/종료 시간을 설정하세요.</p>
 
       <div class="vote-setup">
         <div class="form-row two">
           <label>후보 개수
-            <input type="number" id="vote-candidate-count" min="2" max="10" value="4" />
+            <input type="number" id="vote-candidate-count" min="2" max="15" value="4" />
           </label>
           <button type="button" id="btn-pick-vote" class="btn btn-secondary">🎲 후보 무작위 선정</button>
+          <button type="button" id="btn-pick-vote-selected" class="btn btn-secondary">✅ 후보 선택 투표</button>
         </div>
         <div class="form-row two">
           <label>투표 시작 시간
