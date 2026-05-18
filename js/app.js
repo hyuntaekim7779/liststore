@@ -5,6 +5,8 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const MEAL_TYPES = ['lunch', 'dinner', 'fridayLunch'];
+  const ROULETTE_DEFAULT_LEAD_MS = 2000;
+  const ROULETTE_DEFAULT_DURATION_MS = 8000;
 
   const state = {
     activeTab: 'lunch',           // meal tab key | 'settings'
@@ -453,9 +455,11 @@
     const v = Voting.get(state.meal);
     const voteOpen = v && Voting.status(v) === 'open';
     const rouletteSpinning = isRouletteSpinning(state.meal);
-    const desired = (voteOpen || rouletteSpinning)
-      ? (window.AppConfig.pollIntervalVoteMs || 3000)
-      : (window.AppConfig.pollIntervalMs || 8000);
+    const desired = rouletteSpinning
+      ? (window.AppConfig.pollIntervalRouletteMs || 1000)
+      : voteOpen
+        ? (window.AppConfig.pollIntervalVoteMs || 3000)
+        : (window.AppConfig.pollIntervalMs || 3000);
     if (desired === pollCurrentMs && pollTimerHandle) return;
     if (pollTimerHandle) clearInterval(pollTimerHandle);
     pollCurrentMs = desired;
@@ -1330,15 +1334,19 @@
         status: 'spinning',
         winnerId: winner.id,
         winnerName: winner.name,
-        startAt: Date.now(),
-        durationMs: 4200,
+        startAt: Date.now() + getRouletteSpinLeadMs(),
+        durationMs: getRouletteSpinDurationMs(),
+        spinTurns: getRouletteSpinTurns(),
+        startRotation: 0,
+        updatedAt: Date.now(),
       };
       $('#btn-spin').disabled = true;
-      $('#roulette-result').textContent = '돌리는 중…';
+      $('#roulette-result').textContent = '룰렛이 곧 시작됩니다…';
       $('#roulette-result').classList.remove('winner');
       await saveRouletteForMeal(state.meal, next);
       await appendRandomWinnerHistory(state.meal, winner, 'rouletteWinner', `roulette:${spinId}`);
       renderRouletteFromShared();
+      schedulePoll();
     });
 
     const resetBtn = $('#btn-reset-roulette');
@@ -1372,7 +1380,9 @@
       winnerId: '',
       winnerName: '',
       startAt: 0,
-      durationMs: 4200,
+      durationMs: getRouletteSpinDurationMs(),
+      spinTurns: 0,
+      startRotation: 0,
       updatedAt: Date.now(),
     };
   }
@@ -1381,7 +1391,7 @@
     const session = state.rouletteByMeal[meal];
     if (!session || session.status !== 'spinning') return false;
     const startAt = Number(session.startAt || 0);
-    const duration = Number(session.durationMs || 4200);
+    const duration = Number(session.durationMs || getRouletteSpinDurationMs());
     if (!startAt) return false;
     return Date.now() < (startAt + duration + 200);
   }
@@ -1425,36 +1435,72 @@
       state.rouletteRenderedSessionId = '';
       return;
     }
-    Roulette.setItems(session.items);
-    spinBtn.disabled = session.status === 'spinning';
+    const itemSignature = Roulette.getItemsSignature(session.items);
+    const currentSignature = Roulette.getItemsSignature();
+    const itemsChanged = itemSignature !== currentSignature;
     if (session.status === 'spinning' && session.winnerId) {
-      const endAt = Number(session.startAt || 0) + Number(session.durationMs || 4200);
-      const alreadyPlayed = state.rouletteRenderedSessionId === String(session.id || '');
+      if (itemsChanged) Roulette.setItems(session.items);
+      const startAt = Number(session.startAt || 0);
+      const duration = Number(session.durationMs || getRouletteSpinDurationMs());
+      const endAt = startAt + duration;
+      const sessionId = String(session.id || `${session.winnerId}:${startAt}:${duration}`);
+      const playKey = `playing:${sessionId}`;
+      const settledKey = `settled:${sessionId}`;
+      spinBtn.disabled = true;
       if (Date.now() >= endAt) {
-        resultEl.textContent = `🎉 오늘은 "${session.winnerName || '가게'}" 입니다!`;
-        resultEl.classList.add('winner');
+        const winner = Roulette.settle(session);
+        showRouletteWinner(winner || Roulette.resolveWinner(session), session);
         spinBtn.disabled = false;
-        state.rouletteRenderedSessionId = String(session.id || '');
+        state.rouletteRenderedSessionId = settledKey;
         return;
       }
-      resultEl.textContent = '돌리는 중…';
+      resultEl.textContent = Date.now() < startAt ? '룰렛이 곧 시작됩니다…' : '룰렛이 돌아가고 있습니다…';
       resultEl.classList.remove('winner');
-      if (!alreadyPlayed) {
-        state.rouletteRenderedSessionId = String(session.id || '');
-        Roulette.play(session, () => {
-          resultEl.textContent = `🎉 오늘은 "${session.winnerName || '가게'}" 입니다!`;
-          resultEl.classList.add('winner');
+      if (state.rouletteRenderedSessionId !== playKey || !Roulette.spinning || itemsChanged) {
+        state.rouletteRenderedSessionId = playKey;
+        Roulette.play(session, (winner) => {
+          showRouletteWinner(winner || Roulette.resolveWinner(session), session);
           spinBtn.disabled = false;
+          state.rouletteRenderedSessionId = settledKey;
+          schedulePoll();
         });
       }
       return;
     }
+    Roulette.setItems(session.items);
     resultEl.classList.remove('winner');
     resultEl.textContent = session.mode === 'selected'
       ? `선택 룰렛 후보 ${session.items.length}곳을 준비했습니다.`
       : `후보 ${session.items.length}곳을 무작위로 선정했습니다.`;
     spinBtn.disabled = false;
     state.rouletteRenderedSessionId = '';
+  }
+
+  function showRouletteWinner(winner, session) {
+    const resultEl = $('#roulette-result');
+    const winnerName = (winner && winner.name) || Roulette.getDisplayWinner(session);
+    if (resultEl) {
+      resultEl.textContent = `🎉 오늘은 "${winnerName}" 입니다!`;
+      resultEl.classList.add('winner');
+    }
+    return winnerName;
+  }
+
+  function getRouletteSpinLeadMs() {
+    return getPositiveConfigNumber('rouletteSpinLeadMs', ROULETTE_DEFAULT_LEAD_MS);
+  }
+
+  function getRouletteSpinDurationMs() {
+    return getPositiveConfigNumber('rouletteSpinDurationMs', ROULETTE_DEFAULT_DURATION_MS);
+  }
+
+  function getRouletteSpinTurns() {
+    return 5 + Math.floor(Math.random() * 3);
+  }
+
+  function getPositiveConfigNumber(key, fallback) {
+    const value = Number(window.AppConfig && window.AppConfig[key]);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
   }
 
 

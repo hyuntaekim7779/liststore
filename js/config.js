@@ -14,6 +14,9 @@
  * corsProxy: 네이버 place 페이지 HTML 을 가져오는 데 사용하는 CORS 프록시.
  * placeLookup: URL 자동 등록 시 좌표/주소 자동 추출 활성화 여부.
  * pollIntervalMs: Azure 모드일 때 데이터 폴링 간격 (ms).
+ * pollIntervalRouletteMs: 룰렛 회전 중 폴링 간격 (ms).
+ * rouletteSpinLeadMs: 다른 브라우저가 회전 세션을 받을 수 있도록 실제 시작 전 대기 시간 (ms).
+ * rouletteSpinDurationMs: 회전 애니메이션 시간 (ms).
  */
 window.AppConfig = {
   storage: 'azure',
@@ -29,6 +32,9 @@ window.AppConfig = {
   corsProxy: 'https://corsproxy.io/?url=',
   placeLookup: true,
 
-  pollIntervalMs: 8000,        // 일반 폴링 주기
+  pollIntervalMs: 3000,        // 일반 폴링 주기
   pollIntervalVoteMs: 3000,    // 투표 진행 중 폴링 주기
+  pollIntervalRouletteMs: 1000, // 룰렛 회전 중 폴링 주기
+  rouletteSpinLeadMs: 2000,    // 다른 사용자 브라우저가 회전 시작 전에 세션을 받을 시간
+  rouletteSpinDurationMs: 8000,
 };

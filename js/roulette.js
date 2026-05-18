@@ -17,6 +17,7 @@
     spinning: false,
     onResult: null,
     spinSessionId: '',
+    itemSignature: '',
 
     init(canvasId) {
       this.canvas = document.getElementById(canvasId);
@@ -25,13 +26,23 @@
       this.draw();
     },
 
-    setItems(items) {
+    setItems(items, options = {}) {
       const safe = Array.isArray(items) ? items.filter((it) => it && it.id && it.name) : [];
-      this.items = safe.slice(0, MAX_ITEMS);
-      this.rotation = 0;
-      this.spinning = false;
-      this.spinSessionId = '';
+      const nextItems = safe.slice(0, MAX_ITEMS);
+      const nextSignature = getItemsSignature(nextItems);
+      const preserveRotation = Boolean(options.preserveRotation && nextSignature === this.itemSignature);
+      this.items = nextItems;
+      this.itemSignature = nextSignature;
+      if (!preserveRotation) {
+        this.rotation = 0;
+        this.spinning = false;
+        this.spinSessionId = '';
+      }
       this.draw();
+    },
+
+    getItemsSignature(items = this.items) {
+      return getItemsSignature(items);
     },
 
     draw() {
@@ -97,6 +108,39 @@
       return this.items.find((it) => String(it.id) === String(winnerId)) || null;
     },
 
+    getDisplayWinner(session) {
+      const winner = this.resolveWinner(session);
+      if (winner && winner.name) return winner.name;
+      return String((session && session.winnerName) || '가게');
+    },
+
+    getPointerWinner() {
+      if (!this.items.length) return null;
+      const n = this.items.length;
+      const seg = (Math.PI * 2) / n;
+      const pointerAngle = normalizePositiveAngle(-Math.PI / 2 - this.rotation);
+      const idx = Math.min(n - 1, Math.floor(pointerAngle / seg));
+      return this.items[idx] || null;
+    },
+
+    resolveWinner(session) {
+      const winnerId = session && typeof session === 'object' ? session.winnerId : session;
+      return this.getWinnerById(winnerId);
+    },
+
+    settle(session) {
+      if (!session || !session.winnerId || !Array.isArray(this.items) || this.items.length < MIN_ITEMS) return null;
+      const winnerIndex = this.items.findIndex((it) => String(it.id) === String(session.winnerId));
+      if (winnerIndex < 0) return null;
+      const n = this.items.length;
+      const seg = (Math.PI * 2) / n;
+      this.rotation = getTargetRotation(winnerIndex, seg);
+      this.spinning = false;
+      this.spinSessionId = String(session.id || `${session.winnerId}:${session.startAt || 0}:${session.durationMs || DEFAULT_DURATION}`);
+      this.draw();
+      return this.items[winnerIndex];
+    },
+
     spin(onResult) {
       if (this.spinning || this.items.length < MIN_ITEMS) return null;
       const winner = this.items[Math.floor(Math.random() * this.items.length)];
@@ -116,7 +160,6 @@
       if (!winner) return;
       const duration = Math.max(1000, Number(session.durationMs) || DEFAULT_DURATION);
       const startAt = Number(session.startAt) || Date.now();
-      const elapsed = Math.max(0, Date.now() - startAt);
       const sessionId = String(session.id || `${session.winnerId}:${startAt}:${duration}`);
       this.spinning = true;
       this.onResult = onResult;
@@ -130,16 +173,17 @@
         return;
       }
       // The pointer is at top center (-PI/2). We want the middle of winner segment to land there.
-      const targetAngle = -Math.PI / 2 - (winnerIndex * seg + seg / 2);
-      const fullSpins = 5 + Math.floor(Math.random() * 3); // 5–7 turns
+      const targetAngle = getTargetRotation(winnerIndex, seg);
+      const fullSpins = getSpinTurns(session, sessionId);
       const finalRotation = targetAngle - fullSpins * Math.PI * 2;
-      const startRotation = this.rotation;
+      const rawStartRotation = Number(session.startRotation);
+      const startRotation = Number.isFinite(rawStartRotation) ? rawStartRotation : this.rotation;
       const delta = finalRotation - normalizeAngle(startRotation, finalRotation);
-      const startTime = performance.now() - Math.min(elapsed, duration);
 
       const animate = (now) => {
         if (this.spinSessionId !== sessionId) return;
-        const t = Math.min(1, (now - startTime) / duration);
+        const elapsed = Date.now() - startAt;
+        const t = Math.max(0, Math.min(1, elapsed / duration));
         const eased = easeOutCubic(t);
         this.rotation = startRotation + delta * eased;
         this.draw();
@@ -147,60 +191,111 @@
           requestAnimationFrame(animate);
         } else {
           this.spinning = false;
-          if (this.onResult) this.onResult(winner);
+          const settledWinner = this.settle(session) || winner;
+          if (this.onResult) this.onResult(settledWinner);
         }
       };
       requestAnimationFrame(animate);
+    },
+
+    __test: {
+      wrapLabelLines,
     },
   };
 
   function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 
   function wrapLabelLines(ctx, text, maxWidth, maxLines) {
-    const raw = String(text || '').trim();
+    const raw = String(text || '').replace(/\s+/g, ' ').trim();
     if (!raw) return [''];
-    const lines = [];
-    let i = 0;
-    while (i < raw.length && lines.length < maxLines) {
-      let line = '';
-      while (i < raw.length) {
-        const test = line + raw[i];
-        if (line && ctx.measureText(test).width > maxWidth) break;
-        line = test;
-        i += 1;
-      }
-      if (lines.length === maxLines - 1 && i < raw.length) {
-        let last = line + raw.slice(i);
-        while (last.length > 1 && ctx.measureText(`${last}…`).width > maxWidth) {
-          last = last.slice(0, -1);
+    if (ctx.measureText(raw).width <= maxWidth) return [raw];
+
+    const words = raw.split(' ').filter(Boolean);
+    if (words.length > 1) {
+      const lines = [];
+      let current = '';
+      for (const word of words) {
+        const next = current ? `${current} ${word}` : word;
+        if (!current || ctx.measureText(next).width <= maxWidth) {
+          current = next;
+          continue;
         }
-        lines.push(`${last}…`);
-        break;
+        lines.push(current);
+        current = word;
+        if (lines.length === maxLines - 1) break;
       }
-      lines.push(line);
+      const usedText = lines.concat(current).join(' ');
+      const remainder = raw.slice(usedText.length).trim();
+      if (remainder) current = `${current} ${remainder}`.trim();
+      if (current) lines.push(ellipsize(ctx, current, maxWidth));
+      return lines.slice(0, maxLines).filter(Boolean);
     }
-    return lines.filter(Boolean).length ? lines.filter(Boolean) : [raw];
+
+    return [ellipsize(ctx, raw, maxWidth)];
   }
 
   function drawSliceLabel(ctx, text, labelR, fontSize, maxTextWidth) {
-    ctx.font = `800 ${fontSize}px sans-serif`;
+    const raw = String(text || '').replace(/\s+/g, ' ').trim();
+    let fittedFontSize = fontSize;
+    if (raw && !raw.includes(' ')) {
+      while (fittedFontSize > 11) {
+        ctx.font = `800 ${fittedFontSize}px sans-serif`;
+        if (ctx.measureText(raw).width <= maxTextWidth) break;
+        fittedFontSize -= 1;
+      }
+    }
+    ctx.font = `800 ${fittedFontSize}px sans-serif`;
     ctx.fillStyle = '#fff';
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 3;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const lines = wrapLabelLines(ctx, text, maxTextWidth, 2);
-    const lineHeight = fontSize * 1.08;
+    const lines = wrapLabelLines(ctx, raw, maxTextWidth, 2);
+    const lineHeight = fittedFontSize * 1.08;
     const startY = -((lines.length - 1) * lineHeight) / 2;
     lines.forEach((line, idx) => {
       ctx.fillText(line, labelR, startY + idx * lineHeight);
     });
   }
 
+  function ellipsize(ctx, text, maxWidth) {
+    let value = String(text || '').trim();
+    if (!value || ctx.measureText(value).width <= maxWidth) return value;
+    while (value.length > 1 && ctx.measureText(`${value}…`).width > maxWidth) {
+      value = value.slice(0, -1);
+    }
+    return `${value}…`;
+  }
+
   function normalizeAngle(start, target) {
     // Keep start such that target < start (so we spin in negative dir).
     while (target > start) start += Math.PI * 2;
     return start;
+  }
+
+  function normalizePositiveAngle(angle) {
+    const full = Math.PI * 2;
+    return ((angle % full) + full) % full;
+  }
+
+  function getTargetRotation(winnerIndex, seg) {
+    return -Math.PI / 2 - (winnerIndex * seg + seg / 2);
+  }
+
+  function getItemsSignature(items) {
+    return (Array.isArray(items) ? items : [])
+      .map((it) => `${String(it && it.id)}:${String(it && it.name)}`)
+      .join('|');
+  }
+
+  function getSpinTurns(session, sessionId) {
+    const configured = Number(session && session.spinTurns);
+    if (Number.isFinite(configured) && configured >= 5) return configured;
+    let hash = 0;
+    for (const ch of String(sessionId || '')) {
+      hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
+    }
+    return 5 + Math.abs(hash % 3);
   }
 
   window.Roulette = Roulette;

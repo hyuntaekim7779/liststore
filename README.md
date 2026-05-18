@@ -126,8 +126,10 @@ HTML 스크래핑 대신 **Naver Developers Local Search API** 를 사용하면 
 ### 폴링 (실시간 동기화)
 
 Azure 모드에서는 데이터를 주기적으로 다시 읽어와 UI를 갱신합니다.
-- 평시: 8초 (`pollIntervalMs`)
+- 평시: 3초 (`pollIntervalMs`)
 - 투표 진행 중: 3초 (`pollIntervalVoteMs`)
+- 룰렛 회전 중: 1초 (`pollIntervalRouletteMs`)
+- 룰렛은 다른 브라우저가 회전 세션을 받을 수 있도록 기본 2초 뒤 시작하고 8초 동안 재생됩니다.
 - 탭이 백그라운드일 때는 일시 중단
 
 간격은 `js/config.js` 에서 조정 가능.
