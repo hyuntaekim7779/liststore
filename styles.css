@@ -41,7 +41,7 @@ body {
   font-size: 40px;
   line-height: 1.1;
   cursor: pointer;
-  transform: translateY(36px);
+  transform: translateY(44px);
 }
 
 .meal-tabs {
@@ -783,7 +783,7 @@ main {
   }
   .app-header h1 {
     font-size: 28px;
-    transform: translateY(24px);
+    transform: translateY(30px);
   }
   #panel-meal { grid-template-columns: 1fr; }
   #panel-meal .today-groups-card,

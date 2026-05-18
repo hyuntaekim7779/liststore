@@ -1466,7 +1466,7 @@
     $('#vote-end').value = toLocalDtInput(later);
 
     $('#btn-pick-vote').addEventListener('click', async () => {
-      const count = Math.max(2, Math.min(15, parseInt($('#vote-candidate-count').value, 10) || 4));
+      const count = Math.max(2, Math.min(15, parseInt($('#vote-candidate-count').value, 10) || 5));
       try {
         const picks = await pickRandomFromVisible(count);
         if (picks.length < 2) {
