@@ -38,6 +38,13 @@ test('map location button reloads only the map module before moving to fixed loc
   assert.match(mapsSource, /reloadNaverMapScript\(\)/);
 });
 
+test('map info windows include a close button that closes the popup', () => {
+  assert.match(mapsSource, /map-info-close/);
+  assert.match(mapsSource, /function\s+bindInfoWindowCloseButton\(info\)/);
+  assert.match(mapsSource, /closeBtn\.addEventListener\('click'/);
+  assert.match(mapsSource, /info\.close\(\)/);
+});
+
 test('roulette reset confirmation uses the app modal instead of the browser confirm', () => {
   assert.match(appSource, /confirmAppDialog\(\s*'🧺 룰렛 초기화'/);
   assert.match(appSource, /className:\s*'vote-delete-confirm-modal'/);

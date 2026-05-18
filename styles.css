@@ -326,6 +326,48 @@ main {
   border: 1px solid var(--border);
   background: #eef0f5;
 }
+.map-info-window {
+  position: relative;
+  min-width: 190px;
+  padding: 8px 28px 8px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.map-info-body {
+  word-break: keep-all;
+}
+.map-info-title {
+  font-size: 14px;
+}
+.map-info-address {
+  color: #555;
+}
+.map-info-muted {
+  color: #777;
+}
+.map-info-memo {
+  color: var(--primary);
+}
+.map-info-close {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  background: #f3f4f8;
+  color: #555;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 20px;
+  padding: 0;
+  cursor: pointer;
+}
+.map-info-close:hover {
+  background: #e8ebf5;
+  color: #1f2330;
+}
 
 .roulette-controls {
   display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;

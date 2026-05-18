@@ -13,6 +13,7 @@
   let fixedCompanyInfo = null;
   let pickModeListener = null;
   let pickModeCallback = null;
+  let nextInfoWindowId = 1;
   const DEFAULT_ZOOM = 17; // 종로권 기준 약 50m 축척
   const FIXED_LOCATION = {
     name: '연강빌딩',
@@ -102,23 +103,20 @@
           },
         });
         const cleanMemo = stripPlaceIdToken(s.memo);
+        const infoId = makeInfoWindowId();
         const info = new naver.maps.InfoWindow({
-          content: `
-            <div style="padding:8px 12px;min-width:180px;font-size:13px;line-height:1.55">
-              <strong style="font-size:14px">${escapeHtml(s.name)}</strong><br/>
-              ${s.address ? '<span style="color:#555">' + escapeHtml(s.address) + '</span><br/>' : ''}
-              ${s.category ? '<span style="color:#888">' + escapeHtml(s.category) + '</span><br/>' : ''}
-              ${s.phone ? '<span>' + escapeHtml(s.phone) + '</span><br/>' : ''}
-              ${cleanMemo ? '<span style="color:#5b6cff">📝 ' + escapeHtml(cleanMemo) + '</span><br/>' : ''}
-              ${s.url ? '<a href="' + encodeURI(s.url) + '" target="_blank" rel="noopener">네이버 지도에서 보기</a>' : ''}
-            </div>`,
+          content: buildStoreInfoContent(s, cleanMemo, infoId),
           disableAnchor: false,
           disableAutoPan: true,
         });
+        info.__closeButtonId = infoId;
         // 클릭 시 토글 (이미 열려있으면 닫기)
         naver.maps.Event.addListener(marker, 'click', () => {
           if (info.getMap()) info.close();
-          else info.open(map, marker);
+          else {
+            info.open(map, marker);
+            bindInfoWindowCloseButton(info);
+          }
         });
         markers.push(marker);
         if (autoFit) {
@@ -146,6 +144,7 @@
       ensureFixedCompanyMarker();
       if (fixedCompanyInfo && fixedCompanyMarker) {
         fixedCompanyInfo.open(map, fixedCompanyMarker);
+        bindInfoWindowCloseButton(fixedCompanyInfo);
       }
       return {
         name: FIXED_LOCATION.name,
@@ -311,32 +310,79 @@
           anchor: new naver.maps.Point(16, 16),
         },
       });
+      const fixedInfoId = makeInfoWindowId();
       fixedCompanyInfo = new naver.maps.InfoWindow({
-        content: `
-          <div style="padding:8px 12px;min-width:190px;font-size:13px;line-height:1.5">
-            <strong style="font-size:14px">🏢 ${escapeHtml(FIXED_LOCATION.name)}</strong><br/>
-            <span style="color:#555">도로명: ${escapeHtml(FIXED_LOCATION.roadAddress)}</span><br/>
-            <span style="color:#777">지번: ${escapeHtml(FIXED_LOCATION.jibunAddress)}</span>
-          </div>`,
+        content: buildFixedCompanyInfoContent(fixedInfoId),
         disableAutoPan: true,
       });
+      fixedCompanyInfo.__closeButtonId = fixedInfoId;
       naver.maps.Event.addListener(fixedCompanyMarker, 'click', () => {
         if (!fixedCompanyInfo) return;
         if (fixedCompanyInfo.getMap()) fixedCompanyInfo.close();
-        else fixedCompanyInfo.open(map, fixedCompanyMarker);
+        else {
+          fixedCompanyInfo.open(map, fixedCompanyMarker);
+          bindInfoWindowCloseButton(fixedCompanyInfo);
+        }
       });
       return;
     }
     fixedCompanyMarker.setPosition(position);
     fixedCompanyMarker.setMap(map);
     if (fixedCompanyInfo) {
-      fixedCompanyInfo.setContent(`
-        <div style="padding:8px 12px;min-width:190px;font-size:13px;line-height:1.5">
-          <strong style="font-size:14px">🏢 ${escapeHtml(FIXED_LOCATION.name)}</strong><br/>
-          <span style="color:#555">도로명: ${escapeHtml(FIXED_LOCATION.roadAddress)}</span><br/>
-          <span style="color:#777">지번: ${escapeHtml(FIXED_LOCATION.jibunAddress)}</span>
-        </div>`);
+      if (!fixedCompanyInfo.__closeButtonId) fixedCompanyInfo.__closeButtonId = makeInfoWindowId();
+      fixedCompanyInfo.setContent(buildFixedCompanyInfoContent(fixedCompanyInfo.__closeButtonId));
     }
+  }
+
+  function makeInfoWindowId() {
+    return `map-info-${nextInfoWindowId++}`;
+  }
+
+  function buildStoreInfoContent(store, cleanMemo, infoId) {
+    return `
+      <div class="map-info-window" data-map-info-id="${escapeHtml(infoId)}">
+        <button type="button" class="map-info-close" data-map-info-close="${escapeHtml(infoId)}" aria-label="상세 정보 닫기">×</button>
+        <div class="map-info-body">
+          <strong class="map-info-title">${escapeHtml(store.name)}</strong><br/>
+          ${store.address ? '<span class="map-info-address">' + escapeHtml(store.address) + '</span><br/>' : ''}
+          ${store.category ? '<span class="map-info-muted">' + escapeHtml(store.category) + '</span><br/>' : ''}
+          ${store.phone ? '<span>' + escapeHtml(store.phone) + '</span><br/>' : ''}
+          ${cleanMemo ? '<span class="map-info-memo">📝 ' + escapeHtml(cleanMemo) + '</span><br/>' : ''}
+          ${store.url ? '<a href="' + encodeURI(store.url) + '" target="_blank" rel="noopener">네이버 지도에서 보기</a>' : ''}
+        </div>
+      </div>`;
+  }
+
+  function buildFixedCompanyInfoContent(infoId) {
+    return `
+      <div class="map-info-window" data-map-info-id="${escapeHtml(infoId)}">
+        <button type="button" class="map-info-close" data-map-info-close="${escapeHtml(infoId)}" aria-label="상세 정보 닫기">×</button>
+        <div class="map-info-body">
+          <strong class="map-info-title">🏢 ${escapeHtml(FIXED_LOCATION.name)}</strong><br/>
+          <span class="map-info-address">도로명: ${escapeHtml(FIXED_LOCATION.roadAddress)}</span><br/>
+          <span class="map-info-muted">지번: ${escapeHtml(FIXED_LOCATION.jibunAddress)}</span>
+        </div>
+      </div>`;
+  }
+
+  function bindInfoWindowCloseButton(info) {
+    setTimeout(() => {
+      const id = info && info.__closeButtonId;
+      if (!id) return;
+      const closeBtn = document.querySelector(`.map-info-close[data-map-info-close="${cssEscape(id)}"]`);
+      if (!closeBtn || closeBtn.dataset.bound === 'true') return;
+      closeBtn.dataset.bound = 'true';
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        info.close();
+      });
+    }, 0);
+  }
+
+  function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
+    return String(value).replace(/["\\]/g, '\\$&');
   }
 
   function reloadNaverMapScript() {
