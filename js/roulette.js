@@ -71,21 +71,14 @@
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // label — 슬라이스 중앙(반지름·각도)에 맞춰 배치
+        // label — 슬라이스 중앙, 길면 최대 2줄
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(start + seg / 2);
-        const labelR = r * 0.62;
-        const fontSize = Math.max(11, Math.min(18, Math.floor(seg * labelR * 0.95)));
-        ctx.font = `800 ${fontSize}px sans-serif`;
-        ctx.fillStyle = '#fff';
-        ctx.shadowColor = 'rgba(0,0,0,0.35)';
-        ctx.shadowBlur = 3;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const maxChars = Math.max(4, Math.floor((seg * labelR) / (fontSize * 0.52)));
-        const label = truncate(this.items[i].name, maxChars);
-        ctx.fillText(label, labelR, 0);
+        const labelR = r * 0.58;
+        const fontSize = Math.max(12, Math.min(17, Math.floor(seg * labelR * 0.9)));
+        const maxTextWidth = Math.min(seg * labelR * 1.2, r * 0.52);
+        drawSliceLabel(ctx, this.items[i].name, labelR, fontSize, maxTextWidth);
         ctx.restore();
       }
 
@@ -162,7 +155,48 @@
   };
 
   function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
-  function truncate(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+  function wrapLabelLines(ctx, text, maxWidth, maxLines) {
+    const raw = String(text || '').trim();
+    if (!raw) return [''];
+    const lines = [];
+    let i = 0;
+    while (i < raw.length && lines.length < maxLines) {
+      let line = '';
+      while (i < raw.length) {
+        const test = line + raw[i];
+        if (line && ctx.measureText(test).width > maxWidth) break;
+        line = test;
+        i += 1;
+      }
+      if (lines.length === maxLines - 1 && i < raw.length) {
+        let last = line + raw.slice(i);
+        while (last.length > 1 && ctx.measureText(`${last}…`).width > maxWidth) {
+          last = last.slice(0, -1);
+        }
+        lines.push(`${last}…`);
+        break;
+      }
+      lines.push(line);
+    }
+    return lines.filter(Boolean).length ? lines.filter(Boolean) : [raw];
+  }
+
+  function drawSliceLabel(ctx, text, labelR, fontSize, maxTextWidth) {
+    ctx.font = `800 ${fontSize}px sans-serif`;
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 3;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = wrapLabelLines(ctx, text, maxTextWidth, 2);
+    const lineHeight = fontSize * 1.08;
+    const startY = -((lines.length - 1) * lineHeight) / 2;
+    lines.forEach((line, idx) => {
+      ctx.fillText(line, labelR, startY + idx * lineHeight);
+    });
+  }
+
   function normalizeAngle(start, target) {
     // Keep start such that target < start (so we spin in negative dir).
     while (target > start) start += Math.PI * 2;
