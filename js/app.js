@@ -689,9 +689,9 @@
     const outsideNames = sortNamesByRoleAndName(state.assignments.outside);
     const lunchboxNames = sortNamesByRoleAndName(state.assignments.lunchbox);
 
-    outsideNames.forEach((name) => outside.appendChild(buildPersonTag(name)));
-    lunchboxNames.forEach((name) => lunchbox.appendChild(buildPersonTag(name)));
-    poolNames.forEach((name) => pool.appendChild(buildPersonTag(name)));
+    outsideNames.forEach((name) => outside.appendChild(buildPersonTag(name, 'outside')));
+    lunchboxNames.forEach((name) => lunchbox.appendChild(buildPersonTag(name, 'lunchbox')));
+    poolNames.forEach((name) => pool.appendChild(buildPersonTag(name, 'pool')));
 
     $('#count-outside').textContent = `총 ${state.assignments.outside.length}명`;
     $('#count-lunchbox').textContent = `총 ${state.assignments.lunchbox.length}명`;
@@ -699,12 +699,16 @@
     if (poolCount) poolCount.textContent = `총 ${poolNames.length}명`;
   }
 
-  function buildPersonTag(name) {
+  function buildPersonTag(name, currentGroup = 'pool') {
     const cautionNotes = getCautionNotesByName(name);
     const hasCaution = cautionNotes.length > 0;
     const tag = document.createElement('span');
     tag.className = 'person-tag';
     tag.draggable = true;
+    tag.dataset.group = currentGroup;
+    tag.tabIndex = 0;
+    tag.setAttribute('role', 'button');
+    tag.setAttribute('aria-label', `${formatPersonLabel(name)} 이동 메뉴`);
     tag.textContent = '';
     const label = document.createElement('span');
     label.className = 'person-tag-label';
@@ -720,7 +724,71 @@
       e.dataTransfer.setData('text/plain', name);
       e.dataTransfer.effectAllowed = 'move';
     });
+    tag.addEventListener('click', (e) => {
+      if (!isMobileAssignmentMode()) return;
+      e.preventDefault();
+      showMobileAssignmentMenu(name, currentGroup).then((selectedGroup) => {
+        if (!selectedGroup) return;
+        movePersonToGroup(name, selectedGroup);
+      });
+    });
+    tag.addEventListener('keydown', (e) => {
+      if (!isMobileAssignmentMode()) return;
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      showMobileAssignmentMenu(name, currentGroup).then((selectedGroup) => {
+        if (!selectedGroup) return;
+        movePersonToGroup(name, selectedGroup);
+      });
+    });
     return tag;
+  }
+
+  function isMobileAssignmentMode() {
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 560px)').matches);
+  }
+
+  function assignmentGroupLabel(group) {
+    return ({
+      outside: '외식 파견단',
+      lunchbox: '도시락 본부',
+      pool: '대상자',
+    }[group] || group);
+  }
+
+  function showMobileAssignmentMenu(name, currentGroup) {
+    if (!isMobileAssignmentMode()) return Promise.resolve(null);
+    const groups = ['outside', 'lunchbox', 'pool'].filter((group) => group !== currentGroup);
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'visibility-modal-backdrop';
+      backdrop.innerHTML = `
+        <div class="visibility-modal assignment-move-modal" role="dialog" aria-modal="true">
+          <h3>${escapeHtml(formatPersonLabel(name))}</h3>
+          <p class="muted">이동할 위치를 선택하세요.</p>
+          <div class="assignment-move-actions">
+            ${groups.map((group) => (
+              `<button type="button" data-group="${group}">${escapeHtml(assignmentGroupLabel(group))}</button>`
+            )).join('')}
+          </div>
+          <div class="actions">
+            <button type="button" data-action="cancel">취소</button>
+          </div>
+        </div>`;
+      document.body.appendChild(backdrop);
+
+      const close = (selectedGroup) => {
+        backdrop.remove();
+        resolve(selectedGroup || null);
+      };
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) close(null);
+      });
+      backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
+      Array.from(backdrop.querySelectorAll('[data-group]')).forEach((btn) => {
+        btn.addEventListener('click', () => close(btn.dataset.group));
+      });
+    });
   }
 
   function formatPersonLabel(name) {
