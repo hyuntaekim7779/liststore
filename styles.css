@@ -934,32 +934,44 @@ main {
   .app-header h1 {
     position: relative;
     z-index: 1;
-    font-size: 30px;
-    transform: translateY(22px);
+    font-size: 32px;
+    transform: none;
     color: #f4f5ff;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   }
   .tabs-banner-row {
-    flex-direction: column;
+    display: grid;
+    grid-template-areas: "left" "right" "tabs";
+    justify-items: center;
     align-items: center;
-    gap: 8px;
-    padding: 0 10px 12px;
+    gap: 0;
+    padding: 6px 10px 16px;
   }
   .tabs-side-img {
-    width: min(80vw, 320px);
-    height: clamp(112px, 32vw, 150px);
+    width: min(78vw, 320px);
+    height: clamp(106px, 30vw, 144px);
     max-height: none;
     object-fit: cover;
     transform: none !important;
     border-color: #4a4b55;
     filter: brightness(0.62);
   }
+  .tabs-side-img.left {
+    grid-area: left;
+    border-radius: 12px 12px 0 0;
+  }
+  .tabs-side-img.right {
+    grid-area: right;
+    border-top: 0;
+    border-radius: 0 0 12px 12px;
+  }
   .meal-tabs {
+    grid-area: tabs;
     width: 100%;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
-    padding: 0;
+    padding: 14px 0 0;
   }
   .meal-tab {
     min-width: 0;
@@ -973,6 +985,10 @@ main {
     line-height: 1.25;
     white-space: normal;
     word-break: keep-all;
+  }
+  .meal-tab[data-tab="fridayLunch"] {
+    text-align: center;
+    justify-content: center;
   }
   .meal-tab.active {
     background: #2634ce;
@@ -1084,6 +1100,15 @@ main {
     height: 360px;
     border-color: #4a4b55;
   }
+  .map-header {
+    align-items: center;
+  }
+  .map-header h2 {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+    font-size: 18px;
+    white-space: nowrap;
+  }
   .store-form .form-row { flex-direction: column; align-items: stretch; }
   .store-form .form-row.two { flex-direction: row; }
   .roulette-controls {
@@ -1170,7 +1195,11 @@ main {
     border-color: #6068dd;
     color: #f2f3ff;
   }
-  #btn-map-my-location { width: 100%; margin-top: 10px; }
+  #btn-map-my-location {
+    flex: 1 1 auto;
+    width: auto;
+    margin-top: 0;
+  }
   .store-search-input {
     width: 100%;
     max-width: none;
@@ -1181,5 +1210,266 @@ main {
   }
   .store-block-search-row .store-search-input {
     max-width: none;
+  }
+}
+
+@media (min-width: 561px) and (max-width: 1024px) {
+  body {
+    background: #101116;
+    color: #f1f2ff;
+  }
+  .site-top {
+    padding-bottom: 14px;
+  }
+  .app-header {
+    padding: 18px 12px 4px;
+  }
+  .app-header h1 {
+    position: relative;
+    z-index: 1;
+    font-size: 38px;
+    transform: none;
+    color: #f4f5ff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  }
+  .tabs-banner-row {
+    display: grid;
+    grid-template-areas:
+      "left right"
+      "tabs tabs";
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-items: center;
+    align-items: center;
+    gap: 12px 16px;
+    max-width: 920px;
+    padding: 4px 18px 14px;
+    margin: 0 auto;
+  }
+  .tabs-side-img {
+    width: min(42vw, 390px);
+    height: clamp(140px, 22vw, 220px);
+    max-height: none;
+    object-fit: cover;
+    transform: none !important;
+    border-color: #4a4b55;
+    filter: brightness(0.62);
+  }
+  .tabs-side-img.left { grid-area: left; }
+  .tabs-side-img.right { grid-area: right; }
+  .meal-tabs {
+    grid-area: tabs;
+    width: min(100%, 640px);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding: 2px 0 0;
+  }
+  .meal-tab {
+    min-width: 0;
+    min-height: 70px;
+    padding: 8px 8px;
+    border-radius: 999px;
+    background: #4a4a4d;
+    border-color: #4c4d57;
+    color: #edeef8;
+    font-size: 18px;
+    line-height: 1.22;
+    white-space: normal;
+    word-break: keep-all;
+  }
+  .meal-tab[data-tab="fridayLunch"] {
+    text-align: center;
+    justify-content: center;
+  }
+  .meal-tab.active {
+    background: #2634ce;
+    border-color: #2634ce;
+    box-shadow: 0 7px 18px rgba(38, 52, 206, 0.42);
+  }
+  #panel-meal {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 0 18px 60px;
+  }
+  #panel-meal .today-groups-card {
+    grid-column: 1;
+    grid-row: 1;
+    margin-left: 0;
+  }
+  #panel-meal .meal-map-card {
+    grid-column: 2;
+    grid-row: 1;
+    margin-left: 0;
+  }
+  #panel-meal .meal-list-card {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  #panel-meal .roulette-card {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  #panel-meal .vote-card {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  .card {
+    background: #1b1b1f;
+    border-color: #45464f;
+    border-radius: 12px;
+    padding: 16px 16px 18px;
+    box-shadow: none;
+  }
+  .card h2 {
+    color: #f2f3ff;
+    font-size: 20px;
+    line-height: 1.25;
+  }
+  .muted {
+    color: #aaacba;
+  }
+  .hint {
+    color: #b4b5c2;
+    font-size: 13px;
+  }
+  .map-header {
+    align-items: center;
+    gap: 8px;
+  }
+  .map-header h2 {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+    font-size: 17px;
+    white-space: nowrap;
+  }
+  #btn-map-my-location {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    margin-top: 0;
+    padding: 9px 10px;
+  }
+  .today-groups-wrap {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    border-color: #45464f;
+    background: #18191e;
+  }
+  .today-group-col {
+    border-left: none;
+    border-top: 1px solid #444650;
+  }
+  .today-group-col:first-child {
+    border-top: none;
+  }
+  .today-group-col h3 {
+    background: #18191e;
+    color: #f0f1ff;
+    font-size: 16px;
+  }
+  .drop-zone {
+    min-height: 86px;
+    height: auto;
+    gap: 6px;
+    padding: 10px 8px;
+    background: #17171a;
+    border-top-color: #3f414b;
+  }
+  .person-tag {
+    width: calc(50% - 3px);
+    min-width: 0;
+    height: 32px;
+    background: #161820;
+    border-color: #4b5274;
+    color: #f5f6ff;
+    cursor: pointer;
+  }
+  .person-tag:active {
+    background: #252d72;
+  }
+  .meal-map-card .map {
+    height: 500px;
+    border-color: #4a4b55;
+  }
+  .meal-list-card #store-list {
+    max-height: 500px;
+  }
+  .store-list li {
+    background: #17181d;
+    border-color: #3f414d;
+    color: #f1f2ff;
+  }
+  .store-list li:hover {
+    background: #20222b;
+  }
+  .store-list li.selected {
+    background: #252d72;
+    border-color: #6671ff;
+  }
+  .store-list .s-meta {
+    color: #b4b5c2;
+  }
+  .btn {
+    min-height: 44px;
+    border-radius: 10px;
+  }
+  .btn-secondary {
+    background: #4b4d60;
+    color: #dce0ff;
+  }
+  .btn-primary {
+    background: #2634ce;
+  }
+  .roulette-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .roulette-controls .btn {
+    width: 100%;
+  }
+  #btn-reset-roulette {
+    align-self: center;
+    justify-self: start;
+  }
+  .roulette-stage {
+    width: min(100%, 380px);
+  }
+  .roulette-result {
+    color: #f2f3ff;
+  }
+  .vote-setup input,
+  .vote-active select,
+  .settings-subpanel .form-row input,
+  .settings-subpanel .form-row textarea,
+  .settings-subpanel .form-row select,
+  .store-form input,
+  .store-form textarea,
+  .store-search-input {
+    background: #2a2a2d;
+    border-color: #4a4b55;
+    color: #f2f3ff;
+  }
+  .visibility-modal-backdrop {
+    background: rgba(0, 0, 0, 0.58);
+  }
+  .visibility-modal {
+    background: #1d1d22;
+    border-color: #4c4d57;
+    color: #f2f3ff;
+  }
+  .visibility-modal .actions button {
+    background: #30313a;
+    border-color: #575967;
+    color: #f2f3ff;
+  }
+  .assignment-move-modal {
+    background: #1d1d22;
+  }
+  .assignment-move-actions button {
+    background: #252a5f;
+    border-color: #6068dd;
+    color: #f2f3ff;
   }
 }

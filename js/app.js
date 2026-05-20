@@ -745,7 +745,9 @@
   }
 
   function isMobileAssignmentMode() {
-    return Boolean(window.matchMedia && window.matchMedia('(max-width: 560px)').matches);
+    if (!window.matchMedia) return false;
+    return window.matchMedia('(max-width: 1024px)').matches
+      || window.matchMedia('(pointer: coarse)').matches;
   }
 
   function assignmentGroupLabel(group) {
