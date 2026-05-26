@@ -20,6 +20,7 @@
   const KEY_PEOPLE = 'ls.people.v1';
   const KEY_CAUTION = 'ls.cautions.v1';
   const KEY_ASSIGN = 'ls.assignments.v1';
+  const KEY_ASSIGNMENT_PINS = 'ls.assignmentPins.v1';
   const KEY_ASSIGN_RESET = 'ls.assignments.reset.date.v1';
   const KEY_ASSIGN_RESET_SCHEDULE = 'ls.assignments.reset.schedule.v1';
   const KEY_PEOPLE_BUNDLE = 'ls.people.bundle.v1';
@@ -108,6 +109,7 @@
         people: safeParse(localStorage.getItem(KEY_PEOPLE), []),
         cautions: safeParse(localStorage.getItem(KEY_CAUTION), []),
         assignments: safeParse(localStorage.getItem(KEY_ASSIGN), { outside: [], lunchbox: [] }),
+        assignmentPins: safeParse(localStorage.getItem(KEY_ASSIGNMENT_PINS), {}),
         resetState: safeParse(localStorage.getItem(KEY_ASSIGN_RESET_SCHEDULE), null),
         resetDate: localStorage.getItem(KEY_ASSIGN_RESET) || '',
       };
@@ -118,6 +120,7 @@
       localStorage.setItem(KEY_PEOPLE, JSON.stringify(safe.people || []));
       localStorage.setItem(KEY_CAUTION, JSON.stringify(safe.cautions || []));
       localStorage.setItem(KEY_ASSIGN, JSON.stringify(safe.assignments || { outside: [], lunchbox: [] }));
+      localStorage.setItem(KEY_ASSIGNMENT_PINS, JSON.stringify(safe.assignmentPins || {}));
       localStorage.setItem(KEY_ASSIGN_RESET_SCHEDULE, JSON.stringify(safe.resetState || null));
       localStorage.setItem(KEY_ASSIGN_RESET, safe.resetDate || '');
     },

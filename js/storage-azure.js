@@ -307,6 +307,7 @@
           people: [],
           cautions: [],
           assignments: { outside: [], lunchbox: [] },
+          assignmentPins: {},
           resetDate: '',
         };
       }

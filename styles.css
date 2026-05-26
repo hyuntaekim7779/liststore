@@ -732,7 +732,8 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 0;
-  padding: 0 8px;
+  position: relative;
+  padding: 0 28px 0 8px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
@@ -747,9 +748,46 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.person-tag.is-pinned {
+  border-color: #8190ff;
+  background: #eef0ff;
+}
+.person-tag.is-pin-paused {
+  border-style: dashed;
+}
 .person-tag-label {
+  min-width: 0;
+  width: 100%;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.person-pin-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 22px;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.52;
+}
+.person-pin-btn:hover,
+.person-tag.is-pinned .person-pin-btn {
+  opacity: 1;
+}
+.person-tag.is-pin-active .person-pin-btn {
+  color: var(--primary-dark);
+}
+.person-tag.is-pin-paused .person-pin-btn {
+  filter: grayscale(1);
 }
 .drop-zone.pool { min-height: 0; }
 
@@ -1064,7 +1102,7 @@ main {
     width: calc(50% - 3px);
     min-width: 0;
     height: 34px;
-    padding: 0 8px;
+    padding: 0 28px 0 8px;
     background: #161820;
     border-color: #4b5274;
     color: #f5f6ff;
@@ -1073,6 +1111,14 @@ main {
   }
   .person-tag:active {
     background: #252d72;
+  }
+  .person-tag.is-pinned {
+    border-color: #7580ef;
+    background: #1b2140;
+  }
+  .person-pin-btn {
+    color: #d9dcff;
+    opacity: 0.75;
   }
   #person-list {
     grid-auto-flow: row;
@@ -1380,6 +1426,7 @@ main {
     width: calc(50% - 3px);
     min-width: 0;
     height: 32px;
+    padding: 0 28px 0 8px;
     background: #161820;
     border-color: #4b5274;
     color: #f5f6ff;
@@ -1387,6 +1434,14 @@ main {
   }
   .person-tag:active {
     background: #252d72;
+  }
+  .person-tag.is-pinned {
+    border-color: #7580ef;
+    background: #1b2140;
+  }
+  .person-pin-btn {
+    color: #d9dcff;
+    opacity: 0.75;
   }
   .meal-map-card .map {
     height: 500px;

@@ -19,6 +19,7 @@
     cautions: [],
     cautionStoreBlocks: {},
     assignments: { outside: [], lunchbox: [] },
+    assignmentPins: {},
     assignmentsResetState: { lunch: '', night: '' },
     settingsSubtab: 'people',
     randomHistoryByMeal: { lunch: [], dinner: [], fridayLunch: [] },
@@ -89,8 +90,10 @@
   const PEOPLE_KEY = 'ls.people.v1';
   const CAUTION_KEY = 'ls.cautions.v1';
   const ASSIGN_KEY = 'ls.assignments.v1';
+  const ASSIGNMENT_PINS_KEY = 'ls.assignmentPins.v1';
   const ASSIGN_RESET_KEY = 'ls.assignments.reset.date.v1';
   const ASSIGN_RESET_SCHEDULE_KEY = 'ls.assignments.reset.schedule.v1';
+  const ASSIGNMENT_PIN_GROUPS = ['outside', 'lunchbox', 'pool'];
   const ROLE_OPTIONS = ['사원 (선임)', '대리', '과장', '차장', '부장', '이사', '팀장님'];
   const HISTORY_ADMIN_PASSWORD = 'MTP2026';
 
@@ -109,16 +112,21 @@
         cautions: safeLocalParse(CAUTION_KEY, []),
         cautionStoreBlocks: {},
         assignments: safeLocalParse(ASSIGN_KEY, { outside: [], lunchbox: [] }),
+        assignmentPins: safeLocalParse(ASSIGNMENT_PINS_KEY, {}),
         resetState: safeLocalParse(ASSIGN_RESET_SCHEDULE_KEY, null) || localStorage.getItem(ASSIGN_RESET_KEY) || '',
       };
     }
     state.people = sortPeopleByRoleAndName(normalizePeople(bundle.people || []));
     state.cautions = normalizeCautions(bundle.cautions || []);
     state.cautionStoreBlocks = normalizeCautionStoreBlocks(bundle.cautionStoreBlocks || {});
+    state.assignmentPins = normalizeAssignmentPins(bundle.assignmentPins || safeLocalParse(ASSIGNMENT_PINS_KEY, {}));
     const peopleNames = new Set(state.people.map((p) => p.name));
     state.cautions = state.cautions.filter((c) => peopleNames.has(c.name));
     Object.keys(state.cautionStoreBlocks).forEach((name) => {
       if (!peopleNames.has(name)) delete state.cautionStoreBlocks[name];
+    });
+    Object.keys(state.assignmentPins).forEach((name) => {
+      if (!peopleNames.has(name)) delete state.assignmentPins[name];
     });
     const loadedAssign = bundle.assignments || { outside: [], lunchbox: [] };
     state.assignments = {
@@ -126,8 +134,9 @@
       lunchbox: Array.isArray(loadedAssign.lunchbox) ? loadedAssign.lunchbox : [],
     };
     state.assignmentsResetState = normalizeAssignmentsResetState(bundle.resetState || bundle.resetDate || '');
-    normalizeAssignments();
-    maybeResetAssignmentsBySchedule();
+    const normalized = normalizeAssignments();
+    const resetDone = maybeResetAssignmentsBySchedule();
+    if (normalized && !resetDone) persistPeopleBundle();
   }
 
   function savePeopleData() {
@@ -196,6 +205,25 @@
     };
   }
 
+  function normalizeAssignmentPins(input) {
+    if (!input || typeof input !== 'object') return {};
+    const out = {};
+    Object.entries(input).forEach(([name, pin]) => {
+      const normalizedName = String(name || '').trim();
+      if (!normalizedName) return;
+      const rawGroup = pin && typeof pin === 'object' ? pin.group : pin;
+      const group = ASSIGNMENT_PIN_GROUPS.includes(rawGroup) ? rawGroup : 'pool';
+      const pinned = pin && typeof pin === 'object' ? pin.pinned !== false : true;
+      if (!pinned) return;
+      out[normalizedName] = {
+        group,
+        pinned: true,
+        updatedAt: pin && typeof pin === 'object' && pin.updatedAt ? String(pin.updatedAt) : '',
+      };
+    });
+    return out;
+  }
+
   function normalizeCautionStoreBlocks(input) {
     if (!input || typeof input !== 'object') return {};
     const out = {};
@@ -220,6 +248,7 @@
       cautions: state.cautions,
       cautionStoreBlocks: state.cautionStoreBlocks,
       assignments: state.assignments,
+      assignmentPins: state.assignmentPins,
       resetState: state.assignmentsResetState,
     };
     if (window.Storage && typeof window.Storage.savePeopleBundle === 'function') {
@@ -228,6 +257,7 @@
         localStorage.setItem(PEOPLE_KEY, JSON.stringify(state.people));
         localStorage.setItem(CAUTION_KEY, JSON.stringify(state.cautions));
         localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
+        localStorage.setItem(ASSIGNMENT_PINS_KEY, JSON.stringify(state.assignmentPins));
         localStorage.setItem(ASSIGN_RESET_SCHEDULE_KEY, JSON.stringify(state.assignmentsResetState));
       });
       return;
@@ -235,6 +265,7 @@
     localStorage.setItem(PEOPLE_KEY, JSON.stringify(state.people));
     localStorage.setItem(CAUTION_KEY, JSON.stringify(state.cautions));
     localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
+    localStorage.setItem(ASSIGNMENT_PINS_KEY, JSON.stringify(state.assignmentPins));
     localStorage.setItem(ASSIGN_RESET_SCHEDULE_KEY, JSON.stringify(state.assignmentsResetState));
   }
 
@@ -249,11 +280,93 @@
   }
 
   function normalizeAssignments() {
+    const beforeOutside = (state.assignments.outside || []).join('\u0001');
+    const beforeLunchbox = (state.assignments.lunchbox || []).join('\u0001');
     const all = new Set(state.people.map((p) => p.name));
     state.assignments.outside = Array.from(new Set(state.assignments.outside.filter((n) => all.has(n))));
     state.assignments.lunchbox = Array.from(new Set(state.assignments.lunchbox.filter((n) => all.has(n))));
     const outsideSet = new Set(state.assignments.outside);
     state.assignments.lunchbox = state.assignments.lunchbox.filter((n) => !outsideSet.has(n));
+    const pinChanged = applyEffectiveAssignmentPins();
+    return pinChanged
+      || beforeOutside !== state.assignments.outside.join('\u0001')
+      || beforeLunchbox !== state.assignments.lunchbox.join('\u0001');
+  }
+
+  function getAssignmentPinTimeState(date = new Date()) {
+    const seoul = getSeoulDateTimeParts(date);
+    const minutesFromMidnight = seoul.hour * 60 + seoul.minute;
+    const monToThu = ['Mon', 'Tue', 'Wed', 'Thu'];
+    const isFriday = seoul.weekday === 'Fri';
+    const mondayRestoreWindow = seoul.weekday === 'Mon'
+      && minutesFromMidnight >= (10 * 60 + 50)
+      && minutesFromMidnight < (13 * 60 + 30);
+    const lunchPinWindow = monToThu.includes(seoul.weekday)
+      && minutesFromMidnight >= (11 * 60 + 30)
+      && minutesFromMidnight < (13 * 60 + 30);
+    const active = !isFriday && (mondayRestoreWindow || lunchPinWindow);
+    return {
+      active,
+      temporarilyReleased: !active && (isFriday || minutesFromMidnight >= (13 * 60 + 30)),
+      weekday: seoul.weekday,
+      minutesFromMidnight,
+    };
+  }
+
+  function isAssignmentPinEffectiveNow() {
+    return getAssignmentPinTimeState().active;
+  }
+
+  function isPersonManuallyPinned(name) {
+    return Boolean(state.assignmentPins[name] && state.assignmentPins[name].pinned);
+  }
+
+  function applyEffectiveAssignmentPins() {
+    if (!isAssignmentPinEffectiveNow()) return false;
+    const beforeOutside = (state.assignments.outside || []).join('\u0001');
+    const beforeLunchbox = (state.assignments.lunchbox || []).join('\u0001');
+    const all = new Set(state.people.map((p) => p.name));
+    Object.entries(state.assignmentPins).forEach(([name, pin]) => {
+      if (!all.has(name) || !pin || !pin.pinned) return;
+      const group = ASSIGNMENT_PIN_GROUPS.includes(pin.group) ? pin.group : 'pool';
+      state.assignments.outside = state.assignments.outside.filter((n) => n !== name);
+      state.assignments.lunchbox = state.assignments.lunchbox.filter((n) => n !== name);
+      if (group === 'outside') state.assignments.outside.push(name);
+      if (group === 'lunchbox') state.assignments.lunchbox.push(name);
+    });
+    state.assignments.outside = Array.from(new Set(state.assignments.outside));
+    state.assignments.lunchbox = Array.from(new Set(state.assignments.lunchbox));
+    return beforeOutside !== state.assignments.outside.join('\u0001')
+      || beforeLunchbox !== state.assignments.lunchbox.join('\u0001');
+  }
+
+  function buildAssignmentsFromEffectivePins() {
+    const next = { outside: [], lunchbox: [] };
+    if (!isAssignmentPinEffectiveNow()) return next;
+    const all = new Set(state.people.map((p) => p.name));
+    Object.entries(state.assignmentPins).forEach(([name, pin]) => {
+      if (!all.has(name) || !pin || !pin.pinned) return;
+      const group = ASSIGNMENT_PIN_GROUPS.includes(pin.group) ? pin.group : 'pool';
+      if (group === 'outside') next.outside.push(name);
+      if (group === 'lunchbox') next.lunchbox.push(name);
+    });
+    return {
+      outside: Array.from(new Set(next.outside)),
+      lunchbox: Array.from(new Set(next.lunchbox)),
+    };
+  }
+
+  function setAssignmentPin(name, group) {
+    if (!ASSIGNMENT_PIN_GROUPS.includes(group)) return;
+    state.assignmentPins[name] = {
+      group,
+      pinned: true,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function clearAssignmentPin(name) {
+    delete state.assignmentPins[name];
   }
 
   function sortNamesByRoleAndName(names) {
@@ -287,7 +400,7 @@
     }
 
     if (!didReset) return false;
-    state.assignments = { outside: [], lunchbox: [] };
+    state.assignments = buildAssignmentsFromEffectivePins();
     state.assignmentsResetState = nextState;
     saveAssignments();
     return true;
@@ -296,8 +409,10 @@
   function startDailyAssignmentsResetWatcher() {
     setInterval(() => {
       const resetDone = maybeResetAssignmentsBySchedule();
+      const pinChanged = resetDone ? false : normalizeAssignments();
+      if (pinChanged) persistPeopleBundle();
       updateTodayGroupTitle();
-      if (!resetDone) return;
+      if (!resetDone && !pinChanged) return;
       renderPeopleAndAssignments();
       if (MEAL_TYPES.includes(state.activeTab)) {
         renderStoreList();
@@ -353,23 +468,26 @@
     }, 60 * 1000);
   }
 
-  function getSeoulDateTimeParts() {
+  function getSeoulDateTimeParts(date = new Date()) {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Asia/Seoul',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
+      weekday: 'short',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
-    }).formatToParts(new Date());
+    }).formatToParts(date);
     const year = parts.find((p) => p.type === 'year')?.value || '0000';
     const month = parts.find((p) => p.type === 'month')?.value || '01';
     const day = parts.find((p) => p.type === 'day')?.value || '01';
+    const weekday = parts.find((p) => p.type === 'weekday')?.value || '';
     const hour = Number(parts.find((p) => p.type === 'hour')?.value || 0);
     const minute = Number(parts.find((p) => p.type === 'minute')?.value || 0);
     return {
       dateKey: `${year}-${month}-${day}`,
+      weekday,
       hour,
       minute,
     };
@@ -665,12 +783,16 @@
     state.assignments.lunchbox = state.assignments.lunchbox.filter((n) => n !== name);
     if (group === 'outside') state.assignments.outside.push(name);
     if (group === 'lunchbox') state.assignments.lunchbox.push(name);
+    if (state.assignmentPins[name] && state.assignmentPins[name].pinned) {
+      setAssignmentPin(name, group);
+    }
     saveAssignments();
     renderPeopleAndAssignments();
   }
 
   function renderPeopleAndAssignments() {
-    normalizeAssignments();
+    const normalized = normalizeAssignments();
+    if (normalized) persistPeopleBundle();
     renderCautionPersonOptions();
     renderPersonSettingsList();
 
@@ -710,16 +832,37 @@
     tag.setAttribute('role', 'button');
     tag.setAttribute('aria-label', `${formatPersonLabel(name)} 이동 메뉴`);
     tag.textContent = '';
+    const pin = state.assignmentPins[name];
+    const isPinned = Boolean(pin && pin.pinned);
+    const pinActive = isPinned && isAssignmentPinEffectiveNow();
+    tag.classList.toggle('is-pinned', isPinned);
+    tag.classList.toggle('is-pin-active', pinActive);
+    tag.classList.toggle('is-pin-paused', isPinned && !pinActive);
     const label = document.createElement('span');
     label.className = 'person-tag-label';
     const personText = formatPersonLabel(name);
     label.textContent = hasCaution ? `📢 ${personText}` : personText;
     tag.appendChild(label);
+    const pinBtn = document.createElement('button');
+    pinBtn.type = 'button';
+    pinBtn.className = 'person-pin-btn';
+    pinBtn.dataset.action = 'assignment-pin';
+    pinBtn.textContent = '📌';
+    pinBtn.setAttribute('aria-label', `${formatPersonLabel(name)} 고정 메뉴`);
+    tag.appendChild(pinBtn);
     if (hasCaution) {
       tag.title = `입맛 보호 메모\n- ${cautionNotes.join('\n- ')}`;
     } else {
       tag.removeAttribute('title');
     }
+    pinBtn.title = isPinned
+      ? (pinActive ? '고정 적용 중' : '고정 일시 해제 중')
+      : '현재 위치 고정';
+    pinBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showAssignmentPinMenu(name, currentGroup);
+    });
     tag.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', name);
       e.dataTransfer.effectAllowed = 'move';
@@ -756,6 +899,71 @@
       lunchbox: '도시락 본부',
       pool: '대상자',
     }[group] || group);
+  }
+
+  function getAssignmentPinStatusText(name) {
+    const pin = state.assignmentPins[name];
+    if (!pin || !pin.pinned) {
+      return '현재 위치를 고정하면 월~목 점심 시간에는 초기화에서 제외됩니다.';
+    }
+    const timeState = getAssignmentPinTimeState();
+    const groupLabel = assignmentGroupLabel(pin.group || 'pool');
+    if (timeState.active) {
+      return `고정 적용 중: ${groupLabel} 위치를 유지합니다.`;
+    }
+    if (timeState.temporarilyReleased) {
+      return `고정 일시 해제 중: ${groupLabel} 고정은 저장되어 있으며 다음 적용 시간에 다시 유지됩니다.`;
+    }
+    return `고정 대기 중: ${groupLabel} 고정은 저장되어 있습니다.`;
+  }
+
+  function showAssignmentPinMenu(name, currentGroup) {
+    const isPinned = isPersonManuallyPinned(name);
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'visibility-modal-backdrop';
+      backdrop.innerHTML = `
+        <div class="visibility-modal assignment-pin-modal" role="dialog" aria-modal="true">
+          <h3>${escapeHtml(formatPersonLabel(name))}</h3>
+          <p class="muted">${escapeHtml(getAssignmentPinStatusText(name))}</p>
+          <p class="muted">월~목 11:30~13:00 점심 고정, 13:30 이후와 금요일은 일시 해제, 차주 월요일 10:50부터 다시 적용됩니다.</p>
+          <div class="assignment-move-actions">
+            <button type="button" data-action="pin">${escapeHtml(isPinned ? '현재 위치로 고정 갱신' : '현재 위치 고정')}</button>
+            ${isPinned ? '<button type="button" data-action="unpin">고정 해제</button>' : ''}
+          </div>
+          <div class="actions">
+            <button type="button" data-action="cancel">취소</button>
+          </div>
+        </div>`;
+      document.body.appendChild(backdrop);
+
+      const close = (changed) => {
+        backdrop.remove();
+        resolve(Boolean(changed));
+      };
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) close(false);
+      });
+      backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(false));
+      const pinBtn = backdrop.querySelector('[data-action="pin"]');
+      if (pinBtn) {
+        pinBtn.addEventListener('click', () => {
+          setAssignmentPin(name, currentGroup);
+          saveAssignments();
+          renderPeopleAndAssignments();
+          close(true);
+        });
+      }
+      const unpinBtn = backdrop.querySelector('[data-action="unpin"]');
+      if (unpinBtn) {
+        unpinBtn.addEventListener('click', () => {
+          clearAssignmentPin(name);
+          saveAssignments();
+          renderPeopleAndAssignments();
+          close(true);
+        });
+      }
+    });
   }
 
   function showMobileAssignmentMenu(name, currentGroup) {
@@ -826,6 +1034,7 @@
         if (action !== 'delete') return;
         state.cautions = state.cautions.filter((c) => c.name !== p.name);
         delete state.cautionStoreBlocks[p.name];
+        clearAssignmentPin(p.name);
         state.people = state.people.filter((x) => x.id !== p.id);
         savePeopleData();
         saveCautions();
@@ -873,6 +1082,10 @@
     if (state.cautionStoreBlocks[oldName]) {
       state.cautionStoreBlocks[name] = [...state.cautionStoreBlocks[oldName]];
       delete state.cautionStoreBlocks[oldName];
+    }
+    if (state.assignmentPins[oldName]) {
+      state.assignmentPins[name] = { ...state.assignmentPins[oldName] };
+      delete state.assignmentPins[oldName];
     }
     savePeopleData();
     saveAssignments();

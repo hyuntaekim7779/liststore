@@ -1,0 +1,49 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+const storageSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'storage.js'), 'utf8');
+const stylesSource = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
+const htmlSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+
+test('assignment pin state is persisted with the people bundle', () => {
+  assert.match(appSource, /assignmentPins:\s*\{\}/);
+  assert.match(appSource, /const\s+ASSIGNMENT_PINS_KEY\s*=\s*'ls\.assignmentPins\.v1'/);
+  assert.match(appSource, /function\s+normalizeAssignmentPins\(input\)/);
+  assert.match(appSource, /assignmentPins:\s*state\.assignmentPins/);
+  assert.match(storageSource, /const\s+KEY_ASSIGNMENT_PINS\s*=\s*'ls\.assignmentPins\.v1'/);
+  assert.match(storageSource, /assignmentPins:\s*safeParse\(localStorage\.getItem\(KEY_ASSIGNMENT_PINS\),\s*\{\}\)/);
+  assert.match(storageSource, /localStorage\.setItem\(KEY_ASSIGNMENT_PINS,\s*JSON\.stringify\(safe\.assignmentPins\s*\|\|\s*\{\}\)\)/);
+  assert.match(htmlSource, /js\/app\.js\?v=18/);
+});
+
+test('assignment pins follow lunch active, temporary release, and next Monday restore windows', () => {
+  assert.match(appSource, /function\s+getAssignmentPinTimeState\(date\s*=\s*new Date\(\)\)/);
+  assert.match(appSource, /weekday:\s*'short'/);
+  assert.match(appSource, /const\s+monToThu\s*=\s*\['Mon',\s*'Tue',\s*'Wed',\s*'Thu'\]/);
+  assert.match(appSource, /minutesFromMidnight\s*>=\s*\(11\s*\*\s*60\s*\+\s*30\)/);
+  assert.match(appSource, /minutesFromMidnight\s*<\s*\(13\s*\*\s*60\s*\+\s*30\)/);
+  assert.match(appSource, /seoul\.weekday\s*===\s*'Mon'\s*&&\s*minutesFromMidnight\s*>=\s*\(10\s*\*\s*60\s*\+\s*50\)/);
+  assert.match(appSource, /seoul\.weekday\s*===\s*'Fri'/);
+  assert.match(appSource, /temporarilyReleased/);
+});
+
+test('assignment reset keeps only currently effective pinned people', () => {
+  assert.match(appSource, /function\s+buildAssignmentsFromEffectivePins\(\)/);
+  assert.match(appSource, /state\.assignments\s*=\s*buildAssignmentsFromEffectivePins\(\)/);
+  assert.match(appSource, /function\s+applyEffectiveAssignmentPins\(\)/);
+  assert.match(appSource, /isAssignmentPinEffectiveNow\(\)/);
+  assert.match(appSource, /if\s*\(state\.assignmentPins\[name\]\s*&&\s*state\.assignmentPins\[name\]\.pinned\)/);
+});
+
+test('person tags include a pin icon and pin management menu', () => {
+  assert.match(appSource, /className\s*=\s*'person-pin-btn'/);
+  assert.match(appSource, /data-action="pin"/);
+  assert.match(appSource, /data-action="unpin"/);
+  assert.match(appSource, /function\s+showAssignmentPinMenu\(name,\s*currentGroup\)/);
+  assert.match(appSource, /assignment-pin-modal/);
+  assert.match(stylesSource, /\.person-pin-btn/);
+  assert.match(stylesSource, /\.person-tag\.is-pinned/);
+});
