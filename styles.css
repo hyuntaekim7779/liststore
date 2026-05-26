@@ -816,7 +816,7 @@ main {
   color: var(--primary-dark);
 }
 .person-tag.is-pin-paused .person-pin-btn {
-  filter: grayscale(1);
+  filter: hue-rotate(200deg) saturate(0.85);
 }
 .drop-zone.pool { min-height: 0; }
 
