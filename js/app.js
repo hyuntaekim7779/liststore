@@ -912,7 +912,7 @@
       return `고정 적용 중: ${groupLabel} 위치를 유지합니다.`;
     }
     if (timeState.temporarilyReleased) {
-      return `고정 일시 해제 중: ${groupLabel} 고정은 저장되어 있으며 다음 적용 시간에 다시 유지됩니다.`;
+      return `현재는 고정 해제 시간입니다. ${groupLabel} 고정은 저장되어 있으며 다음 적용 시간에 다시 유지됩니다.`;
     }
     return `고정 대기 중: ${groupLabel} 고정은 저장되어 있습니다.`;
   }
@@ -926,7 +926,11 @@
         <div class="visibility-modal assignment-pin-modal" role="dialog" aria-modal="true">
           <h3>${escapeHtml(formatPersonLabel(name))}</h3>
           <p class="muted">${escapeHtml(getAssignmentPinStatusText(name))}</p>
-          <p class="muted">월~목 11:30~13:00 점심 고정, 13:30 이후와 금요일은 일시 해제, 차주 월요일 10:50부터 다시 적용됩니다.</p>
+          <div class="assignment-pin-help">
+            <div><strong>적용</strong><span>월~목 11:30~13:00 점심 고정</span></div>
+            <div><strong>해제</strong><span>13:30 이후, 금요일</span></div>
+            <div><strong>재적용</strong><span>차주 월요일 10:50부터</span></div>
+          </div>
           <div class="assignment-move-actions">
             <button type="button" data-action="pin">${escapeHtml(isPinned ? '현재 위치로 고정 갱신' : '현재 위치 고정')}</button>
             ${isPinned ? '<button type="button" data-action="unpin">고정 해제</button>' : ''}

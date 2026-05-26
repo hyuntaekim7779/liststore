@@ -292,6 +292,35 @@ main {
 .assignment-move-actions button:active {
   transform: translateY(1px);
 }
+.assignment-pin-modal {
+  width: min(420px, calc(100% - 24px));
+}
+.assignment-pin-help {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #dfe5ff;
+  border-radius: 10px;
+  background: #f7f8ff;
+  color: #556070;
+  font-size: 13px;
+}
+.assignment-pin-help div {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.assignment-pin-help strong {
+  color: #3441c4;
+  white-space: nowrap;
+}
+.assignment-pin-help span {
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
 .app-message-modal {
   border-color: #dfe5ff;
   box-shadow: 0 18px 42px rgba(69, 88, 217, 0.18);
@@ -673,7 +702,7 @@ main {
   max-width: none;
   margin: 0;
   padding: 0 10px 60px;
-  grid-template-columns: minmax(430px, 500px) minmax(0, 0.9fr) minmax(0, 0.7fr);
+  grid-template-columns: minmax(500px, 560px) minmax(0, 0.85fr) minmax(0, 0.65fr);
   align-items: stretch;
 }
 #panel-meal .today-groups-card { grid-column: 1; grid-row: 1; margin-left: 0; }
@@ -741,7 +770,7 @@ main {
   border: 1px solid #dbe2ff;
   background: #f4f7ff;
   cursor: grab;
-  width: 142px;
+  width: min(168px, calc(100% - 4px));
   height: 28px;
   justify-content: center;
   white-space: nowrap;
@@ -1236,6 +1265,14 @@ main {
   .assignment-move-modal {
     background: #1d1d22;
   }
+  .assignment-pin-help {
+    background: #181b2a;
+    border-color: #4c4d67;
+    color: #d6d8ea;
+  }
+  .assignment-pin-help strong {
+    color: #aeb6ff;
+  }
   .assignment-move-actions button {
     background: #252a5f;
     border-color: #6068dd;
@@ -1521,6 +1558,14 @@ main {
   }
   .assignment-move-modal {
     background: #1d1d22;
+  }
+  .assignment-pin-help {
+    background: #181b2a;
+    border-color: #4c4d67;
+    color: #d6d8ea;
+  }
+  .assignment-pin-help strong {
+    color: #aeb6ff;
   }
   .assignment-move-actions button {
     background: #252a5f;

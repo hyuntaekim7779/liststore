@@ -16,7 +16,7 @@ test('assignment pin state is persisted with the people bundle', () => {
   assert.match(storageSource, /const\s+KEY_ASSIGNMENT_PINS\s*=\s*'ls\.assignmentPins\.v1'/);
   assert.match(storageSource, /assignmentPins:\s*safeParse\(localStorage\.getItem\(KEY_ASSIGNMENT_PINS\),\s*\{\}\)/);
   assert.match(storageSource, /localStorage\.setItem\(KEY_ASSIGNMENT_PINS,\s*JSON\.stringify\(safe\.assignmentPins\s*\|\|\s*\{\}\)\)/);
-  assert.match(htmlSource, /js\/app\.js\?v=18/);
+  assert.match(htmlSource, /js\/app\.js\?v=19/);
 });
 
 test('assignment pins follow lunch active, temporary release, and next Monday restore windows', () => {
@@ -46,4 +46,20 @@ test('person tags include a pin icon and pin management menu', () => {
   assert.match(appSource, /assignment-pin-modal/);
   assert.match(stylesSource, /\.person-pin-btn/);
   assert.match(stylesSource, /\.person-tag\.is-pinned/);
+});
+
+test('desktop assignment columns give person names more room by reducing map width', () => {
+  assert.match(stylesSource, /#panel-meal\s*{[\s\S]*grid-template-columns:\s*minmax\(500px,\s*560px\)\s+minmax\(0,\s*0\.85fr\)\s+minmax\(0,\s*0\.65fr\);/);
+  assert.match(stylesSource, /\.person-tag\s*{[\s\S]*width:\s*min\(168px,\s*calc\(100%\s*-\s*4px\)\);/);
+  assert.match(stylesSource, /\.person-tag-label\s*{[\s\S]*text-align:\s*center;/);
+});
+
+test('assignment pin guidance uses scan-friendly rows instead of one wrapped sentence', () => {
+  assert.match(appSource, /assignment-pin-help/);
+  assert.match(appSource, /<strong>적용<\/strong>/);
+  assert.match(appSource, /<strong>해제<\/strong>/);
+  assert.match(appSource, /<strong>재적용<\/strong>/);
+  assert.doesNotMatch(appSource, /금요일은 일시 해제/);
+  assert.match(stylesSource, /\.assignment-pin-help/);
+  assert.match(stylesSource, /\.assignment-pin-help\s+strong/);
 });
