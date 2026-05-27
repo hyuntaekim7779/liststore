@@ -801,22 +801,31 @@ main {
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #6b7280;
-  font-size: 13px;
-  line-height: 22px;
+  color: #2ea8f5;
   padding: 0;
   cursor: pointer;
-  opacity: 0.52;
+  opacity: 0.72;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .person-pin-btn:hover,
 .person-tag.is-pinned .person-pin-btn {
   opacity: 1;
 }
 .person-tag.is-pin-active .person-pin-btn {
-  color: var(--primary-dark);
+  color: #128fdf;
 }
 .person-tag.is-pin-paused .person-pin-btn {
-  filter: grayscale(1);
+  color: #4bb9ff;
+  opacity: 0.7;
+}
+.person-pin-btn svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: currentColor;
+  filter: drop-shadow(0 1px 1px rgba(0, 68, 120, 0.18));
 }
 .drop-zone.pool { min-height: 0; }
 
@@ -1146,8 +1155,8 @@ main {
     background: #1b2140;
   }
   .person-pin-btn {
-    color: #d9dcff;
-    opacity: 0.75;
+    color: #43b8ff;
+    opacity: 0.9;
   }
   #person-list {
     grid-auto-flow: row;
@@ -1477,8 +1486,8 @@ main {
     background: #1b2140;
   }
   .person-pin-btn {
-    color: #d9dcff;
-    opacity: 0.75;
+    color: #43b8ff;
+    opacity: 0.9;
   }
   .meal-map-card .map {
     height: 500px;

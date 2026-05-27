@@ -847,7 +847,7 @@
     pinBtn.type = 'button';
     pinBtn.className = 'person-pin-btn';
     pinBtn.dataset.action = 'assignment-pin';
-    pinBtn.textContent = '📌';
+    pinBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 3.5l6 6-2 2-1.7-1.7-4.1 4.1v4.6L11 20.2 8.1 15.5 3.5 12.7l1.7-1.7h4.6l4.1-4.1L12.5 5.5l2-2z"/></svg>';
     pinBtn.setAttribute('aria-label', `${formatPersonLabel(name)} 고정 메뉴`);
     tag.appendChild(pinBtn);
     if (hasCaution) {

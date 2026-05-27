@@ -16,7 +16,7 @@ test('assignment pin state is persisted with the people bundle', () => {
   assert.match(storageSource, /const\s+KEY_ASSIGNMENT_PINS\s*=\s*'ls\.assignmentPins\.v1'/);
   assert.match(storageSource, /assignmentPins:\s*safeParse\(localStorage\.getItem\(KEY_ASSIGNMENT_PINS\),\s*\{\}\)/);
   assert.match(storageSource, /localStorage\.setItem\(KEY_ASSIGNMENT_PINS,\s*JSON\.stringify\(safe\.assignmentPins\s*\|\|\s*\{\}\)\)/);
-  assert.match(htmlSource, /js\/app\.js\?v=19/);
+  assert.match(htmlSource, /js\/app\.js\?v=20/);
 });
 
 test('assignment pins follow lunch active, temporary release, and next Monday restore windows', () => {
@@ -40,11 +40,14 @@ test('assignment reset keeps only currently effective pinned people', () => {
 
 test('person tags include a pin icon and pin management menu', () => {
   assert.match(appSource, /className\s*=\s*'person-pin-btn'/);
+  assert.match(appSource, /pinBtn\.innerHTML\s*=\s*'<svg viewBox="0 0 24 24"/);
   assert.match(appSource, /data-action="pin"/);
   assert.match(appSource, /data-action="unpin"/);
   assert.match(appSource, /function\s+showAssignmentPinMenu\(name,\s*currentGroup\)/);
   assert.match(appSource, /assignment-pin-modal/);
   assert.match(stylesSource, /\.person-pin-btn/);
+  assert.match(stylesSource, /\.person-pin-btn svg\s*{[\s\S]*fill:\s*currentColor;/);
+  assert.match(stylesSource, /\.person-tag\.is-pin-active \.person-pin-btn\s*{[\s\S]*color:\s*#128fdf;/);
   assert.match(stylesSource, /\.person-tag\.is-pinned/);
 });
 
