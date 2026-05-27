@@ -826,24 +826,30 @@ main {
   display: block;
   filter: drop-shadow(0 1px 1px rgba(0, 68, 120, 0.18));
 }
-.person-pin-head,
-.person-pin-tail {
+.person-pin-body {
   fill: #ef7fa8;
 }
-.person-pin-needle {
-  fill: #fff;
+.person-pin-needle-outline {
+  fill: none;
   stroke: #a94870;
-  stroke-width: 0.9;
-  stroke-linejoin: round;
+  stroke-width: 3;
+  stroke-linecap: round;
 }
-.person-tag.is-pinned .person-pin-head,
-.person-tag.is-pinned .person-pin-tail {
+.person-pin-needle {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+}
+.person-tag.is-pinned .person-pin-body {
   fill: #128fdf;
 }
-.person-tag.is-pinned .person-pin-needle {
-  fill: #fff;
+.person-tag.is-pinned .person-pin-needle-outline {
   stroke: #096aa8;
-  stroke-width: 1.05;
+}
+.person-tag.is-pinned .person-pin-needle {
+  stroke: #fff;
+  stroke-width: 1.35;
 }
 .drop-zone.pool { min-height: 0; }
 

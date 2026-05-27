@@ -16,7 +16,7 @@ test('assignment pin state is persisted with the people bundle', () => {
   assert.match(storageSource, /const\s+KEY_ASSIGNMENT_PINS\s*=\s*'ls\.assignmentPins\.v1'/);
   assert.match(storageSource, /assignmentPins:\s*safeParse\(localStorage\.getItem\(KEY_ASSIGNMENT_PINS\),\s*\{\}\)/);
   assert.match(storageSource, /localStorage\.setItem\(KEY_ASSIGNMENT_PINS,\s*JSON\.stringify\(safe\.assignmentPins\s*\|\|\s*\{\}\)\)/);
-  assert.match(htmlSource, /js\/app\.js\?v=21/);
+  assert.match(htmlSource, /js\/app\.js\?v=22/);
 });
 
 test('assignment pins follow lunch active, temporary release, and next Monday restore windows', () => {
@@ -40,17 +40,19 @@ test('assignment reset keeps only currently effective pinned people', () => {
 
 test('person tags include a pin icon and pin management menu', () => {
   assert.match(appSource, /className\s*=\s*'person-pin-btn'/);
-  assert.match(appSource, /person-pin-head/);
+  assert.match(appSource, /person-pin-body/);
+  assert.match(appSource, /person-pin-needle-outline/);
   assert.match(appSource, /person-pin-needle/);
   assert.match(appSource, /data-action="pin"/);
   assert.match(appSource, /data-action="unpin"/);
   assert.match(appSource, /function\s+showAssignmentPinMenu\(name,\s*currentGroup\)/);
   assert.match(appSource, /assignment-pin-modal/);
   assert.match(stylesSource, /\.person-pin-btn/);
-  assert.match(stylesSource, /\.person-pin-head,\s*[\r\n]+\.person-pin-tail\s*{[\s\S]*fill:\s*#ef7fa8;/);
-  assert.match(stylesSource, /\.person-pin-needle\s*{[\s\S]*fill:\s*#fff;[\s\S]*stroke:\s*#a94870;/);
-  assert.match(stylesSource, /\.person-tag\.is-pinned \.person-pin-head,[\s\S]*\.person-tag\.is-pinned \.person-pin-tail\s*{[\s\S]*fill:\s*#128fdf;/);
-  assert.match(stylesSource, /\.person-tag\.is-pinned \.person-pin-needle\s*{[\s\S]*fill:\s*#fff;[\s\S]*stroke:\s*#096aa8;/);
+  assert.match(stylesSource, /\.person-pin-body\s*{[\s\S]*fill:\s*#ef7fa8;/);
+  assert.match(stylesSource, /\.person-pin-needle-outline\s*{[\s\S]*stroke:\s*#a94870;[\s\S]*stroke-width:\s*3;/);
+  assert.match(stylesSource, /\.person-pin-needle\s*{[\s\S]*stroke:\s*#fff;[\s\S]*stroke-width:\s*1\.35;/);
+  assert.match(stylesSource, /\.person-tag\.is-pinned \.person-pin-body\s*{[\s\S]*fill:\s*#128fdf;/);
+  assert.match(stylesSource, /\.person-tag\.is-pinned \.person-pin-needle-outline\s*{[\s\S]*stroke:\s*#096aa8;/);
   assert.match(stylesSource, /\.person-tag\.is-pinned/);
 });
 
