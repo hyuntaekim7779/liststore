@@ -801,7 +801,7 @@ main {
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #2ea8f5;
+  color: #ef7fa8;
   padding: 0;
   cursor: pointer;
   opacity: 0.72;
@@ -817,15 +817,33 @@ main {
   color: #128fdf;
 }
 .person-tag.is-pin-paused .person-pin-btn {
-  color: #4bb9ff;
-  opacity: 0.7;
+  color: #128fdf;
+  opacity: 0.92;
 }
 .person-pin-btn svg {
   width: 15px;
   height: 15px;
   display: block;
-  fill: currentColor;
   filter: drop-shadow(0 1px 1px rgba(0, 68, 120, 0.18));
+}
+.person-pin-head,
+.person-pin-tail {
+  fill: #ef7fa8;
+}
+.person-pin-needle {
+  fill: #fff;
+  stroke: #a94870;
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+}
+.person-tag.is-pinned .person-pin-head,
+.person-tag.is-pinned .person-pin-tail {
+  fill: #128fdf;
+}
+.person-tag.is-pinned .person-pin-needle {
+  fill: #fff;
+  stroke: #096aa8;
+  stroke-width: 1.05;
 }
 .drop-zone.pool { min-height: 0; }
 
@@ -1155,7 +1173,7 @@ main {
     background: #1b2140;
   }
   .person-pin-btn {
-    color: #43b8ff;
+    color: #f29abb;
     opacity: 0.9;
   }
   #person-list {
@@ -1486,7 +1504,7 @@ main {
     background: #1b2140;
   }
   .person-pin-btn {
-    color: #43b8ff;
+    color: #f29abb;
     opacity: 0.9;
   }
   .meal-map-card .map {
