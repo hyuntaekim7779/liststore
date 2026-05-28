@@ -298,16 +298,12 @@
     const minutesFromMidnight = seoul.hour * 60 + seoul.minute;
     const monToThu = ['Mon', 'Tue', 'Wed', 'Thu'];
     const isFriday = seoul.weekday === 'Fri';
-    const mondayRestoreWindow = seoul.weekday === 'Mon'
+    const dailyRestoreWindow = monToThu.includes(seoul.weekday)
       && minutesFromMidnight >= (10 * 60 + 50)
       && minutesFromMidnight < (13 * 60 + 30);
-    const lunchPinWindow = monToThu.includes(seoul.weekday)
-      && minutesFromMidnight >= (11 * 60 + 30)
-      && minutesFromMidnight < (13 * 60 + 30);
-    const active = !isFriday && (mondayRestoreWindow || lunchPinWindow);
     return {
-      active,
-      temporarilyReleased: !active && (isFriday || minutesFromMidnight >= (13 * 60 + 30)),
+      active: dailyRestoreWindow,
+      temporarilyReleased: !dailyRestoreWindow && (isFriday || minutesFromMidnight >= (13 * 60 + 30)),
       weekday: seoul.weekday,
       minutesFromMidnight,
     };
@@ -927,9 +923,9 @@
           <h3>${escapeHtml(formatPersonLabel(name))}</h3>
           <p class="muted">${escapeHtml(getAssignmentPinStatusText(name))}</p>
           <div class="assignment-pin-help">
-            <div><strong>적용</strong><span>월~목 11:30~13:00 점심 고정</span></div>
+            <div><strong>적용</strong><span>월~목 10:50~13:30 점심 고정</span></div>
             <div><strong>해제</strong><span>13:30 이후, 금요일</span></div>
-            <div><strong>재적용</strong><span>차주 월요일 10:50부터</span></div>
+            <div><strong>재적용</strong><span>다음날 10:50부터, 금요일은 차주 월요일 10:50</span></div>
           </div>
           <div class="assignment-move-actions">
             <button type="button" data-action="pin">${escapeHtml(isPinned ? '현재 위치로 고정 갱신' : '현재 위치 고정')}</button>

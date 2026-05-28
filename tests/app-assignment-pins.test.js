@@ -16,18 +16,20 @@ test('assignment pin state is persisted with the people bundle', () => {
   assert.match(storageSource, /const\s+KEY_ASSIGNMENT_PINS\s*=\s*'ls\.assignmentPins\.v1'/);
   assert.match(storageSource, /assignmentPins:\s*safeParse\(localStorage\.getItem\(KEY_ASSIGNMENT_PINS\),\s*\{\}\)/);
   assert.match(storageSource, /localStorage\.setItem\(KEY_ASSIGNMENT_PINS,\s*JSON\.stringify\(safe\.assignmentPins\s*\|\|\s*\{\}\)\)/);
-  assert.match(htmlSource, /js\/app\.js\?v=22/);
+  assert.match(htmlSource, /js\/app\.js\?v=23/);
 });
 
-test('assignment pins follow lunch active, temporary release, and next Monday restore windows', () => {
+test('assignment pins reapply next day at 10:50 except Friday waits until Monday', () => {
   assert.match(appSource, /function\s+getAssignmentPinTimeState\(date\s*=\s*new Date\(\)\)/);
   assert.match(appSource, /weekday:\s*'short'/);
   assert.match(appSource, /const\s+monToThu\s*=\s*\['Mon',\s*'Tue',\s*'Wed',\s*'Thu'\]/);
-  assert.match(appSource, /minutesFromMidnight\s*>=\s*\(11\s*\*\s*60\s*\+\s*30\)/);
+  assert.match(appSource, /const\s+dailyRestoreWindow\s*=\s*monToThu\.includes\(seoul\.weekday\)/);
+  assert.match(appSource, /minutesFromMidnight\s*>=\s*\(10\s*\*\s*60\s*\+\s*50\)/);
   assert.match(appSource, /minutesFromMidnight\s*<\s*\(13\s*\*\s*60\s*\+\s*30\)/);
-  assert.match(appSource, /seoul\.weekday\s*===\s*'Mon'\s*&&\s*minutesFromMidnight\s*>=\s*\(10\s*\*\s*60\s*\+\s*50\)/);
+  assert.match(appSource, /active:\s*dailyRestoreWindow/);
   assert.match(appSource, /seoul\.weekday\s*===\s*'Fri'/);
   assert.match(appSource, /temporarilyReleased/);
+  assert.doesNotMatch(appSource, /mondayRestoreWindow/);
 });
 
 test('assignment reset keeps only currently effective pinned people', () => {
@@ -67,6 +69,8 @@ test('assignment pin guidance uses scan-friendly rows instead of one wrapped sen
   assert.match(appSource, /<strong>적용<\/strong>/);
   assert.match(appSource, /<strong>해제<\/strong>/);
   assert.match(appSource, /<strong>재적용<\/strong>/);
+  assert.match(appSource, /다음날 10:50부터/);
+  assert.match(appSource, /금요일은 차주 월요일 10:50/);
   assert.doesNotMatch(appSource, /금요일은 일시 해제/);
   assert.match(stylesSource, /\.assignment-pin-help/);
   assert.match(stylesSource, /\.assignment-pin-help\s+strong/);
