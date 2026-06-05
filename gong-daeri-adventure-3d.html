@@ -1,0 +1,3298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>공대리의 모험 3D - 회사인 RPG</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  background: #000; color: #2c1810; user-select: none;
+}
+#canvas { display: block; width: 100%; height: 100%; }
+/* 로딩 화면 (인트로 영상) */
+.loading-screen {
+  position: fixed; inset: 0; z-index: 200;
+  background: #000; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; transition: opacity 0.6s ease;
+}
+.loading-screen.hidden { opacity: 0; pointer-events: none; }
+.loading-screen video {
+  width: 100%; height: 100%; object-fit: contain; background: #000;
+}
+.loading-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end; padding-bottom: 8vh; pointer-events: none;
+}
+.loading-title {
+  color: #fff; font-size: 26px; font-weight: bold; letter-spacing: 3px;
+  text-shadow: 2px 2px 0 #c0392b, 4px 4px 8px rgba(0,0,0,0.8);
+  margin-bottom: 16px; animation: loadpulse 1.6s infinite;
+}
+@keyframes loadpulse { 0%,100%{opacity:0.7;} 50%{opacity:1;} }
+.loading-bar-wrap { width: 240px; height: 10px; background: rgba(255,255,255,0.2); border: 2px solid #fff; border-radius: 6px; overflow: hidden; margin-bottom: 14px; }
+.loading-bar { height: 100%; width: 0%; background: linear-gradient(90deg,#f1c40f,#e67e22); transition: width 0.2s; }
+.loading-btns { display: flex; gap: 10px; pointer-events: auto; }
+.loading-btn {
+  background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #fff;
+  padding: 10px 22px; font-size: 14px; font-weight: bold; border-radius: 8px;
+  cursor: pointer; font-family: inherit; text-shadow: 1px 1px 0 #000;
+}
+.loading-btn:hover { background: rgba(192,57,43,0.85); }
+.hud { position: fixed; z-index: 10; }
+.hud-stats {
+  top: 12px; left: 12px;
+  background: rgba(245, 232, 197, 0.96);
+  border: 3px solid #2c1810; border-radius: 8px;
+  padding: 10px 14px; font-size: 13px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  min-width: 260px; max-width: 300px;
+}
+.hud-info {
+  top: 12px; right: 12px;
+  background: rgba(245, 232, 197, 0.96);
+  border: 3px solid #2c1810; border-radius: 8px;
+  padding: 10px 14px; font-size: 11px;
+  max-width: 250px; line-height: 1.6;
+}
+.hud-controls {
+  bottom: 12px; right: 12px;
+  background: rgba(245, 232, 197, 0.92);
+  border: 2px solid #2c1810; border-radius: 8px;
+  padding: 8px 12px; font-size: 11px; line-height: 1.7; max-width: 270px;
+}
+.hud-mode {
+  bottom: 12px; left: 12px;
+  background: rgba(245, 232, 197, 0.92);
+  border: 2px solid #2c1810; border-radius: 8px;
+  padding: 6px 12px; font-size: 12px; font-weight: bold;
+}
+.hud-hint {
+  bottom: 90px; left: 50%; transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.82); color: #fff;
+  padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: bold;
+  border: 2px solid #fff; display: none; text-shadow: 1px 1px 0 #000; white-space: nowrap;
+}
+/* F사 전용 HUD */
+.fsa-hud {
+  top: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(20, 10, 30, 0.92); color: #fff;
+  border: 3px solid #a040ff; border-radius: 10px;
+  padding: 8px 18px; text-align: center; display: none;
+  box-shadow: 0 4px 20px rgba(160,60,255,0.5); min-width: 320px;
+}
+.fsa-timer { font-size: 30px; font-weight: bold; letter-spacing: 2px; text-shadow: 2px 2px 0 #000; }
+.fsa-timer.danger { color: #ff4466; animation: blink 0.8s infinite; }
+@keyframes blink { 50% { opacity: 0.4; } }
+.fsa-sub { font-size: 11px; line-height: 1.5; margin-top: 4px; opacity: 0.95; }
+.fsa-toast {
+  top: 120px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.9); color: #fff; border: 2px solid #ffcc00;
+  padding: 10px 22px; border-radius: 8px; font-size: 15px; font-weight: bold;
+  display: none; text-shadow: 1px 1px 0 #000; z-index: 20;
+}
+.hp-bar {
+  width: 150px; height: 10px; background: #333; border: 1px solid #000;
+  display: inline-block; vertical-align: middle; overflow: hidden;
+}
+.hp-fill { height: 100%; background: linear-gradient(180deg, #5cb85c, #3a8a3a); transition: width 0.3s; }
+.hp-fill.mid { background: linear-gradient(180deg, #f0ad4e, #c8862a); }
+.hp-fill.low { background: linear-gradient(180deg, #d9534f, #a03735); }
+.xp-bar {
+  width: 150px; height: 11px; background: #1a2733; border: 1px solid #000; border-radius: 3px;
+  display: inline-block; vertical-align: middle; overflow: hidden; box-shadow: inset 0 0 2px rgba(0,0,0,0.6);
+}
+.xp-fill { height: 100%; background: linear-gradient(180deg, #5dbcff, #1f7fd6); box-shadow: 0 0 8px #3aa6ff; transition: width 0.4s; }
+.stat-row { display: flex; align-items: center; justify-content: space-between; margin: 3px 0; gap: 6px; }
+.sp-notice {
+  text-align: center; margin-top: 6px; padding: 5px;
+  background: #fec; border: 2px solid #ca5; border-radius: 4px;
+  font-size: 11px; font-weight: bold; color: #a40; animation: pulse 1.5s infinite;
+}
+.hunt-badge {
+  display: inline-block; background: linear-gradient(180deg, #8e44ad, #5c2d91);
+  color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 10px;
+  text-shadow: 1px 1px 0 #000; margin-left: 6px;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 150, 0, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 150, 0, 0); }
+}
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75);
+  display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: #f5e8c5; border: 4px solid #2c1810; border-radius: 12px;
+  width: 100%; max-width: 520px; max-height: 95vh; overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+}
+.modal-title {
+  background: linear-gradient(180deg, #c0392b, #8b2520); color: #fff;
+  padding: 10px 16px; text-align: center; font-weight: bold; font-size: 15px;
+  text-shadow: 1px 1px 0 #000; border-bottom: 3px solid #2c1810; letter-spacing: 1px;
+  position: sticky; top: 0; z-index: 1;
+}
+.modal-title.fsa { background: linear-gradient(180deg, #8e44ad, #4a2070); }
+.modal-body { padding: 14px; }
+.battle-arena {
+  background: linear-gradient(180deg, #87ceeb 0%, #fce 50%, #98c098 100%);
+  border: 2px solid #2c1810; border-radius: 6px; padding: 12px; min-height: 160px; margin-bottom: 10px;
+}
+.enemy-side { text-align: right; margin-bottom: 8px; }
+.player-side { text-align: left; }
+.sprite-emoji { font-size: 50px; line-height: 1; display: inline-block; filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.2)); }
+.name-card {
+  background: rgba(255,255,255,0.92); border: 1px solid #2c1810; padding: 3px 8px;
+  font-size: 11px; display: inline-block; border-radius: 3px; margin-bottom: 4px; font-weight: bold;
+}
+.elem-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; color: #fff; font-weight: bold; margin-left: 4px; vertical-align: middle; }
+.mod-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; margin-right: 4px; color: #fff; text-shadow: 1px 1px 0 #000; }
+.message-box {
+  background: #fff; border: 2px solid #2c1810; padding: 10px 12px; font-size: 13px;
+  min-height: 60px; line-height: 1.6; margin-bottom: 10px; border-radius: 4px;
+}
+.action-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.btn {
+  background: linear-gradient(180deg, #fff, #d8c896); border: 2px solid #2c1810;
+  padding: 12px 8px; font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px;
+  color: #2c1810; font-family: inherit; transition: all 0.1s;
+}
+.btn:hover:not(:disabled) { background: linear-gradient(180deg, #ffe, #ecc972); transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.attack { background: linear-gradient(180deg, #f88, #c33); color: #fff; }
+.btn.heal { background: linear-gradient(180deg, #afa, #383); color: #fff; }
+.btn.skill { background: linear-gradient(180deg, #fec, #c83); color: #fff; }
+.btn.capture { background: linear-gradient(180deg, #a4f, #538); color: #fff; }
+.btn.team { background: linear-gradient(180deg, #6cf, #258); color: #fff; }
+.btn.fsa { background: linear-gradient(180deg, #c8f, #639); color: #fff; }
+.btn.full-width { grid-column: 1 / -1; }
+.btn.primary-glow { box-shadow: 0 0 0 2px #fc6, 0 3px 0 #2c1810; }
+.skill-info { font-size: 10px; font-weight: normal; opacity: 0.9; }
+.skill-row { background: #fff; border: 2px solid #2c1810; padding: 10px; margin-bottom: 8px; border-radius: 4px; }
+.skill-row .skill-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 13px; flex-wrap: wrap; }
+.skill-row .skill-name-text { font-weight: bold; }
+.skill-row .skill-desc { font-size: 11px; color: #555; margin: 6px 0 8px; }
+.skill-row .skill-dmg { font-size: 11px; background: #fcf3df; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; }
+.skill-row.ultimate { border-color: #8e44ad; background: linear-gradient(180deg,#fff,#f0e0ff); }
+.team-row { background: #fff; border: 2px solid #2c1810; padding: 8px 10px; margin-bottom: 6px; border-radius: 4px; display: flex; align-items: center; gap: 8px; }
+.team-row.fainted { opacity: 0.5; background: #ddd; }
+.team-row .team-sprite { font-size: 32px; }
+.team-row .team-info { flex: 1; font-size: 12px; }
+.elev-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.lv-pip { display: inline-block; width: 12px; height: 12px; background: #ddd; border: 1px solid #888; margin-right: 2px; border-radius: 2px; }
+.lv-pip.filled { background: linear-gradient(180deg, #f1c40f, #c89020); border-color: #2c1810; }
+.title-screen { text-align: center; padding: 26px 20px; }
+.title-screen h1 { font-size: 28px; color: #c0392b; text-shadow: 2px 2px 0 #2c1810, 4px 4px 0 rgba(0,0,0,0.2); margin-bottom: 4px; letter-spacing: 2px; }
+.title-screen .tagline { font-size: 12px; color: #666; margin: 4px 0 10px; }
+.title-screen .big-emoji { font-size: 56px; margin: 6px 0; }
+.title-screen .lore { background: #fff; border: 2px solid #2c1810; padding: 12px; font-size: 12px; margin: 10px 0; line-height: 1.7; text-align: left; border-radius: 4px; }
+.start-btn {
+  background: linear-gradient(180deg, #fdc, #c63); border: 3px solid #2c1810;
+  padding: 12px 32px; font-size: 17px; font-weight: bold; cursor: pointer; border-radius: 8px;
+  color: #fff; font-family: inherit; text-shadow: 1px 1px 0 #2c1810; box-shadow: 0 4px 0 #2c1810;
+  margin-top: 6px; letter-spacing: 1px;
+}
+.start-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #2c1810; }
+.start-btn.hunt { background: linear-gradient(180deg, #c8f, #639); }
+.start-btn.fsa { background: linear-gradient(180deg, #b6f, #527); }
+.shake { animation: shake 0.4s; }
+@keyframes shake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-6px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} }
+.key-cap { display: inline-block; background: #fff; padding: 1px 6px; border: 1px solid #2c1810; border-radius: 3px; font-size: 10px; margin: 1px; font-weight: bold; box-shadow: 0 2px 0 #2c1810; }
+.npc-legend { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.elem-table { font-size: 11px; line-height: 1.6; background: #fff; border: 1px solid #2c1810; padding: 6px 10px; border-radius: 4px; margin-top: 6px; }
+/* 전투 키보드 선택 하이라이트 */
+/* 키보드 선택 커서 — 맥동 테두리 + 움직이는 화살표 (가시성 강화) */
+.btn.sel, #modalContent .sel {
+  outline: 5px solid #ffd24a !important; outline-offset: 2px;
+  box-shadow: 0 0 0 3px #2c1810, 0 0 22px 5px #ffd24a !important;
+  position: relative; z-index: 3;
+  animation: selpulse 0.7s ease-in-out infinite;
+}
+@keyframes selpulse {
+  0%, 100% { outline-color: #ffd24a; box-shadow: 0 0 0 3px #2c1810, 0 0 18px 4px #ffd24a; }
+  50%      { outline-color: #ffffff; box-shadow: 0 0 0 3px #2c1810, 0 0 30px 9px #ffe98a; }
+}
+.btn.sel::before, #modalContent .sel::before {
+  content: '▶'; position: absolute; top: 50%; transform: translateY(-50%);
+  color: #ffd24a; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 0 #000, 0 0 8px #ffd24a;
+  animation: arrowbob 0.55s ease-in-out infinite;
+}
+@keyframes arrowbob { 0%, 100% { left: 3px; } 50% { left: 12px; } }
+/* F사 5초 카운트다운 오버레이 */
+.fsa-count { position: fixed; inset: 0; z-index: 160; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(10,5,20,0.8); }
+.fsa-count.active { display: flex; }
+.fsa-count .msg { color: #ffe27a; font-size: clamp(18px,3.6vw,32px); font-weight: bold; text-shadow: 2px 2px 0 #000; margin-bottom: 22px; text-align: center; padding: 0 24px; line-height: 1.5; }
+.fsa-count .num { color: #fff; font-size: clamp(72px,16vw,170px); font-weight: bold; text-shadow: 0 0 36px #a040ff, 3px 3px 0 #000; }
+/* 휴대폰 UI (가방/진행 현황) */
+.modal-overlay.phone-mode .modal { background: transparent; border: none; box-shadow: none; max-width: 330px; overflow: visible; }
+.phone {
+  width: 300px; max-width: 88vw; margin: 0 auto; background: #14161c;
+  border: 3px solid #2b2f3a; border-radius: 34px; padding: 12px 10px 14px;
+  box-shadow: 0 0 0 2px #000, 0 18px 50px rgba(0,0,0,0.75); position: relative;
+}
+.phone-notch { width: 110px; height: 18px; background: #000; border-radius: 0 0 14px 14px; margin: -12px auto 8px; }
+.phone-screen { background: linear-gradient(180deg, #eef3f8, #dce6f0); border-radius: 22px; padding: 8px 10px 12px; min-height: 300px; }
+.phone-status { display: flex; justify-content: space-between; font-size: 10px; color: #445; font-weight: bold; padding: 2px 4px 6px; }
+.phone-app-title { text-align: center; font-size: 17px; font-weight: bold; color: #223; margin-bottom: 8px; letter-spacing: 1px; }
+.phone-body { display: flex; flex-direction: column; gap: 7px; }
+.phone-banner { background: #2980b9; color: #fff; border-radius: 10px; padding: 8px; text-align: center; font-size: 13px; font-weight: bold; }
+.phone-note { font-size: 10px; color: #667; text-align: center; margin: 0 0 2px; }
+.phone-app {
+  display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px;
+  background: #fff; border: 2px solid #c3cdd8; border-radius: 14px; padding: 9px 12px;
+  cursor: pointer; font-family: inherit; color: #223; text-align: left; box-shadow: 0 2px 0 #b6c2cf;
+}
+.phone-app .ic { font-size: 24px; }
+.phone-app .nm { font-weight: bold; font-size: 13px; }
+.phone-app .sub { font-size: 10px; color: #6a7a88; }
+.phone-app.heal { background: linear-gradient(180deg,#eafff0,#d6f5e2); border-color: #6fcf97; }
+.phone-app.skill { background: linear-gradient(180deg,#fff4e0,#ffe6c2); border-color: #f0ad4e; }
+.phone-app:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.phone-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 2px solid #c3cdd8; border-radius: 12px; padding: 8px 12px; font-size: 12px; color: #223; }
+.phone-row.done { background: #e8f7ee; border-color: #8fd6a8; }
+.phone-row.dim { opacity: 0.6; }
+.phone-row-r { color: #2980b9; font-weight: bold; }
+.phone-switch { text-align: center; font-size: 10px; color: #778; margin-top: 8px; }
+.phone-close-btn { margin-top: 8px; width: 100%; background: #2b2f3a; color: #fff; border: none; border-radius: 14px; padding: 11px; font-family: inherit; font-weight: bold; font-size: 14px; cursor: pointer; }
+.phone-home { width: 90px; height: 5px; background: #444; border-radius: 3px; margin: 9px auto 0; }
+.phone.slide-in { animation: phoneslide 0.32s cubic-bezier(.2,.7,.3,1); }
+@keyframes phoneslide { from { transform: translateX(46%) rotateY(18deg); opacity: 0; } to { transform: translateX(0) rotateY(0); opacity: 1; } }
+/* 휴대폰 키보드 선택 하이라이트 */
+#modalContent .phone-app.sel, #modalContent .phone-close-btn.sel { outline: 4px solid #ffd24a !important; outline-offset: 2px; box-shadow: 0 0 0 2px #2c1810, 0 0 16px #ffd24a !important; }
+#modalContent .phone-app.sel::before, #modalContent .phone-close-btn.sel::before { content: ''; }
+/* 엔딩 시네마틱 */
+.ending-screen { position: fixed; inset: 0; z-index: 150; display: none; align-items: center; justify-content: center; flex-direction: column; background: #000; }
+.ending-screen.active { display: flex; }
+.ending-cut {
+  width: min(92vw, 860px); height: min(56vh, 520px); border-radius: 14px;
+  border: 4px solid rgba(255,255,255,0.85); box-shadow: 0 12px 60px rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+  transition: opacity 0.5s ease; opacity: 1;
+}
+.ending-cut.fade { opacity: 0; }
+.ending-art { font-size: clamp(60px, 14vw, 150px); line-height: 1.1; text-align: center; filter: drop-shadow(3px 4px 6px rgba(0,0,0,0.5)); }
+.ending-art .sub { font-size: clamp(28px, 7vw, 70px); }
+.ending-caption {
+  position: absolute; bottom: 0; left: 0; right: 0; padding: 14px 18px;
+  background: linear-gradient(0deg, rgba(0,0,0,0.85), rgba(0,0,0,0)); color: #fff;
+  font-size: clamp(14px, 2.4vw, 20px); font-weight: bold; text-align: center; text-shadow: 1px 1px 0 #000;
+}
+.ending-cutno { position: absolute; top: 10px; right: 14px; color: rgba(255,255,255,0.8); font-size: 13px; font-weight: bold; }
+.ending-narr { color: #ffe; font-size: clamp(13px, 2.2vw, 19px); text-align: center; margin-top: 18px; line-height: 1.7; max-width: 860px; padding: 0 16px; text-shadow: 1px 1px 0 #000; min-height: 56px; }
+.ending-banner { font-size: clamp(26px, 6vw, 52px); font-weight: bold; letter-spacing: 3px; margin-bottom: 14px; text-shadow: 3px 3px 0 rgba(0,0,0,0.6); }
+.ending-final { text-align: center; }
+.ending-skip { position: fixed; bottom: 16px; right: 16px; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #fff; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: bold; font-size: 13px; }
+/* 진화 연출 오버레이 (가운데는 투명 → 3D 진화 모션 노출) */
+.evolve-screen { position: fixed; inset: 0; z-index: 160; display: none; pointer-events: none; }
+.evolve-screen.active { display: block; }
+.evolve-top { position: absolute; top: 6vh; left: 0; right: 0; text-align: center; }
+.evolve-banner { color: #ffd24a; font-size: clamp(22px,5vw,40px); font-weight: bold; letter-spacing: 2px; text-shadow: 2px 2px 0 #000, 0 0 18px #ffcc33; animation: loadpulse 1s infinite; }
+.evolve-names { color: #fff; font-size: clamp(14px,3vw,22px); margin-top: 10px; text-shadow: 1px 1px 0 #000; }
+.evolve-names b { color: #aef; }
+.evolve-bottom { position: absolute; bottom: 6vh; left: 0; right: 0; text-align: center; }
+.evolve-count { color: #fff; font-size: 16px; font-weight: bold; text-shadow: 1px 1px 0 #000; margin-bottom: 10px; }
+.evolve-skip { pointer-events: auto; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #fff; padding: 8px 18px; border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: bold; font-size: 13px; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<audio id="titleMusic" src="assets/title.mp3" loop preload="auto"></audio>
+<audio id="fsaMusic" src="assets/fsa.mp3" loop preload="auto"></audio>
+<div class="fsa-count" id="fsaCount"></div>
+<div class="ending-screen" id="endingScreen"></div>
+<div class="evolve-screen" id="evolveScreen"></div>
+
+<div class="loading-screen" id="loadingScreen">
+  <video id="loadVideo" src="assets/loading.mp4" muted autoplay playsinline preload="auto"></video>
+  <div class="loading-overlay">
+    <div class="loading-title">공대리의 모험 3D</div>
+    <div class="loading-bar-wrap"><div class="loading-bar" id="loadingBar"></div></div>
+    <div class="loading-btns">
+      <button class="loading-btn" id="unmuteBtn">🔊 소리 켜기</button>
+      <button class="loading-btn" id="skipBtn">⏭ 건너뛰기</button>
+    </div>
+  </div>
+</div>
+
+<div class="hud hud-stats" id="hudStats" style="display:none;"></div>
+<div class="hud hud-info" id="hudInfo" style="display:none;"></div>
+<div class="hud hud-controls" id="hudControls" style="display:none;">
+  <b>🎮 조작법</b><br>
+  <span class="key-cap">W</span><span class="key-cap">A</span><span class="key-cap">S</span><span class="key-cap">D</span> / 방향키 이동<br>
+  <span class="key-cap">E</span> 입장/조사 · <span class="key-cap">Space</span>/<span class="key-cap">Enter</span> 확인<br>
+  <span class="key-cap">Q</span> 스킬 강화 · <span class="key-cap">B</span> 가방(휴대폰)<br>
+  <hr style="margin:5px 0; border-color:#2c1810;">
+  <b>📷 카메라</b><br>
+  <span class="key-cap">1</span> 기본 · <span class="key-cap">2</span> 하이앵글 · <span class="key-cap">3</span> 시네마틱<br>
+  <span class="key-cap">R</span> 초기화 · <span class="key-cap">C</span> 1인칭/3인칭<br>
+  <hr style="margin:5px 0; border-color:#2c1810;">
+  <span class="npc-legend" style="background:#e33;"></span>빌런 · <span class="npc-legend" style="background:#3c6;"></span>동료<br>
+  <span class="npc-legend" style="background:#f80;"></span>험한 · <span class="npc-legend" style="background:#a0f;"></span>갓
+</div>
+<div class="hud hud-mode" id="hudMode" style="display:none;"></div>
+<div class="hud hud-hint" id="hudHint"></div>
+<div class="hud fsa-hud" id="fsaHud"></div>
+<div class="hud fsa-toast" id="fsaToast"></div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+// ===== CONSTANTS =====
+const STARTER_HP = 100;
+const HP_PER_GYM = 60;
+const HP_PER_LEVEL = 15;
+const SP_PER_LEVEL = 2;
+const BAKKAS_HEAL = 60;
+const MAX_SKILL_LEVEL = 7;          // 스킬 7단계 (7레벨=하이퍼 "험한")
+const PLAYER_MAX_LEVEL = 20;        // 공대리 20레벨 만렙
+const HOTTEOK_HEAL_PCT = 0.2;       // 호떡: 최대체력 20% 회복
+const PRICE_HOTTEOK = 40;
+// 진화 단계 (포켓몬식): 5레벨, 12레벨
+const EVOLUTIONS = {
+  5:  { name: '나쁜말을 구분하는 공대리', dmgBonus: 0.15, knowledge: 40, shirt: 0xff5fa0, glassFrame: 0x111111, aura: 0x66ccff },
+  12: { name: '통달한 공대리',           dmgBonus: 0.35, knowledge: 90, shirt: 0xffd24a, glassFrame: 0x8e44ad, aura: 0xffcc33 }
+};
+const MAX_NPCS = 15;
+const SPAWN_INTERVAL = 2.8;
+const MAP_HALF = 88;
+const TEAMS_BALL_START = 8;
+const FSA_TIME = 180; // 3분
+const FSA_MUNBU_DMG = 160;
+const FSA_ONI_DMG = 80;
+
+const ELEMENTS = {
+  '압박': { icon: '🔥', color: '#e74c3c', counters: '기만', desc: '강하게 밀어붙임' },
+  '방어': { icon: '🛡️', color: '#3498db', counters: '압박', desc: '버티고 막아냄' },
+  '기만': { icon: '🎭', color: '#9b59b6', counters: '방어', desc: '교묘하게 속임' }
+};
+
+const MODIFIERS = [
+  { key: 'normal',     name: '',            hpMult: 1.0, dmgMult: 1.0, xpMult: 1.0,  chance: 0.62, tagColor: null, badgeColor: null, indicator: null },
+  { key: 'hard',       name: '험한',        hpMult: 1.6, dmgMult: 1.3, xpMult: 1.6,  chance: 0.20, tagColor: 'rgba(230,130,30,0.92)', badgeColor: '#e08020', indicator: 0xff8800 },
+  { key: 'brutal',     name: '야근에 찌든', hpMult: 2.6, dmgMult: 1.8, xpMult: 2.8,  chance: 0.12, tagColor: 'rgba(160,30,30,0.92)', badgeColor: '#c02020', indicator: 0xcc0000 },
+  { key: 'impossible', name: '갓',          hpMult: 6.5, dmgMult: 3.2, xpMult: 12.0, chance: 0.06, tagColor: 'rgba(120,30,200,0.95)', badgeColor: '#8030d0', indicator: 0xa020ff }
+];
+function pickModifier() {
+  const r = Math.random(); let acc = 0;
+  for (const m of MODIFIERS) { acc += m.chance; if (r < acc) return m; }
+  return MODIFIERS[0];
+}
+
+// 스킬: 7레벨 만렙 시 하이퍼("험한 OO")로 각성 + 고유 효과
+const SKILLS = {
+  '야근 버티기':         { dmg: [8, 14],   element: '방어', desc: '기본 근성으로 버틴다',          hyper: { mode: 'dot',    dot: [5, 20], turns: 3, desc: '추가타로 도트 5~20(3턴)' } },
+  '엑셀 매크로':         { dmg: [16, 26],  element: '압박', desc: '매크로로 자동 공격',            hyper: { mode: 'double', desc: '2연타 공격' } },
+  '고객 어르기':         { dmg: [26, 40],  element: '기만', desc: '고객을 어르며 시간을 끈다',     hyper: { mode: 'silence', turns: 1, desc: '빌런 스킬 1턴 봉인' } },
+  '조용히 떠넘기기':     { dmg: [42, 60],  element: '기만', desc: '쥐도 새도 모르게 떠넘긴다',     hyper: { mode: 'dot',    dot: [10, 20], turns: 3, desc: '도트 10~20(3턴)' } },
+  'F사 전용 사직서 제출': { dmg: [70, 110], element: '압박', desc: '모든 것을 끝내는 궁극의 한 방', ultimate: true, hyper: { mode: 'double', desc: '2연타 궁극기' } }
+};
+
+// 신규 빌런 (knowledge = 업무 지식력)
+const ENEMIES = {
+  '나쁜말김대리':                  { sprite: '😤', color: 0xc0392b, hp: [26, 36], skill: '막말 시전',         dmg: [9, 15],  element: '압박', xp: 16, knowledge: 30 },
+  '말많은정대리':                  { sprite: '🗣️', color: 0xe67e22, hp: [34, 46], skill: '무한 질문',          dmg: [7, 14],  element: '기만', xp: 20, knowledge: 25, intro: '말많은 정대리: "저 질문이 있습니다! 저의 출생의 비밀은 무엇입니까?"' },
+  '전화안받고채팅만하는고객사담당자': { sprite: '📵', color: 0x9b59b6, hp: [24, 34], skill: '읽씹 콤보',         dmg: [10, 18], element: '기만', xp: 18, knowledge: 20 },
+  '미션주는 이차장':               { sprite: '📋', color: 0x6b1a1a, hp: [40, 54], skill: '갑작스런 업무 배정', dmg: [12, 22], element: '압박', xp: 28, knowledge: 55 }
+};
+
+// 신규 동료
+const ALLIES = [
+  { name: '박팀장님', sprite: '🧑‍💼', text: '"공대리, 이거 마시고 힘내!"',       effect: 'heal', amount: 30 },
+  { name: '김팀장님', sprite: '👨‍💼', text: '"오늘은 칼퇴해. 내가 막아줄게."',   effect: 'full' },
+  { name: '김부장님', sprite: '🧓',    text: '"자네, 박카스 하나 챙겨가게."',     effect: 'item' },
+  { name: '김차장님', sprite: '🧔',    text: '"커피 한 잔 하고 가."',            effect: 'heal', amount: 20 },
+  { name: '이과장님', sprite: '🧑‍💼', text: '"고생 많지? 이거 받아."',          effect: 'heal', amount: 15 }
+];
+
+const GYMS = [
+  { id: 'yeonggang', name: '영강빌딩', x: 0, z: -45, color: 0x7f8c8d, secondary: 0x95a5a6,
+    floors: 7, leaderFloor: 7, shopFloors: [2, 5, 7],
+    leader: { name: '영강 허이사', sprite: '🧑‍💼', hp: 80, element: '압박', knowledge: 50, skills: [{ name: '자료 트집잡기', dmg: [10, 18] }, { name: '주말 호출', dmg: [12, 22] }] },
+    reward: '엑셀 매크로', intro: '영강 허이사: "공대리, 이 보고서 다시 작성해와. 오타가 있잖아."', xp: 80 },
+  { id: 'k-sa', name: '고객사 K사', x: 45, z: 0, color: 0xc0392b, secondary: 0xe74c3c,
+    floors: 4, leaderFloor: 4, shopFloors: [2],
+    leader: { name: 'K사 PM', sprite: '🧑‍💻', hp: 130, element: '기만', knowledge: 70, skills: [{ name: '요구사항 추가', dmg: [15, 28] }, { name: '납기 단축', dmg: [18, 32] }] },
+    reward: '고객 어르기', intro: 'K사 PM: "이번주까지 추가 기능 다 넣어주세요. 협업이잖아요?"', xp: 110 },
+  { id: 'c-sa', name: '고객사 C사', x: 0, z: 45, color: 0x27ae60, secondary: 0x2ecc71,
+    floors: 4, leaderFloor: 4, shopFloors: [3],
+    leader: { name: 'C사 부장', sprite: '🧓', hp: 170, element: '압박', knowledge: 95, skills: [{ name: '갑질 전화', dmg: [20, 32] }, { name: '검수 거부', dmg: [18, 36] }] },
+    reward: '조용히 떠넘기기', intro: 'C사 부장: "이게 결과물이라고? 우리가 돈 주는 거 모르나?"', xp: 140 }
+];
+
+const BOSSES = [
+  { name: '박경필 수석', sprite: '🧙‍♂️', hp: 150, element: '방어', knowledge: 60,  skills: [{ name: '자리에 CCTV 설치', dmg: [22, 32] }, { name: '폰트 검수', dmg: [14, 22] }], intro: '박경필 수석: "공대리, 너 일 안 하지? 자리에 CCTV 설치해야겠다."', xp: 150 },
+  { name: '이경동 상무', sprite: '👴',    hp: 200, element: '압박', knowledge: 110, skills: [{ name: '위에서 찍어내리기 (상무급)', dmg: [25, 45] }, { name: '임원 호출', dmg: [20, 38] }], intro: '이경동 상무: "내가 누군지 알지? 토 달지 말고 그냥 해와."', xp: 180 },
+  { name: '일진 담당자', sprite: '😈',    hp: 180, element: '기만', knowledge: 80,  skills: [{ name: '땡깡 부리기', dmg: [22, 40] }, { name: '협박 메일', dmg: [18, 34] }], intro: '일진 담당자: "이대로면 우리 거래 끊을 거야. 진짜야."', xp: 220 },
+  { name: '이다송 대리', sprite: '👩‍💼', hp: 230, element: '기만', knowledge: 100, skills: [{ name: '동기 견제', dmg: [30, 50] }, { name: '뒤에서 험담', dmg: [25, 42] }], intro: '이다송 대리: "공대리, 너 이번 평가 D 받을 것 같던데~?"', xp: 280 }
+];
+
+const FIRST_NAMES = ['민수','지영','현우','서연','도윤','예린','준호','하은','시우','나연','재민','소율','태양','유진','동현','미래','성호','아린','경태','수빈'];
+const CAPTURED_ENEMY_SKILLS = [
+  { name: '눈치 주기', baseDmg: [10,16] }, { name: '카톡 폭탄', baseDmg: [12,20] },
+  { name: '잔소리 폭격', baseDmg: [14,22] }, { name: '한숨 쉬기', baseDmg: [8,14] },
+  { name: '뒷담화', baseDmg: [16,24] }, { name: '회식 강요', baseDmg: [12,18] }
+];
+const CAPTURED_ALLY_SKILLS = [
+  { name: '응원 한마디', baseDmg: [12,18] }, { name: '센스 있는 농담', baseDmg: [14,20] },
+  { name: '커피 사주기', baseDmg: [10,16] }, { name: '맛집 추천', baseDmg: [14,22] },
+  { name: '주식 정보 공유', baseDmg: [16,24] }
+];
+
+const HOME  = { x: -50, z: 0 };
+const UJEDO = { x: 50, z: 50 };
+const FSA   = { x: -50, z: -50 };
+const HOTTEOK = { x: -68, z: -50 }; // 신사 호떡집 (F사 옆)
+const TOWER = { x: 0, z: -75 };
+const STORE = { x: 50, z: -45 }; // 총총박스 (냉장고 상점)
+
+// 상점 가격
+const PRICE_TEAMSBALL = 10;
+const PRICE_COLA = 50;
+
+// F사 층 정의 (배열 순서: B2 → 5F)
+const FLOORS = [
+  { tag: 'B2', label: '지하 2층 · 다방',          floorColor: 0x6b4a3a },
+  { tag: 'B1', label: '지하 1층 · IT개발팀',       floorColor: 0x3a4a5a },
+  { tag: '1F', label: '1층 · 경비실/출입구',       floorColor: 0x5a5a4a },
+  { tag: '2F', label: '2층 · IT개발 2팀',          floorColor: 0x3a4a5a },
+  { tag: '3F', label: '3층 · IT 엔지니어실',       floorColor: 0x4a3a5a },
+  { tag: '4F', label: '4층 · 보안 관제실',         floorColor: 0x222233 },
+  { tag: '5F', label: '5층 · AI 사업부',           floorColor: 0x42566a }
+];
+const FLOOR_B2 = 0, FLOOR_B1 = 1, FLOOR_1F = 2, FLOOR_2F = 3, FLOOR_3F = 4, FLOOR_4F = 5, FLOOR_5F = 6;
+const ROOM = 21;
+const FSA_ROOM = 27;        // F사 확장 사무실 이동 범위
+const ELEV_POS    = { x: -16, z: -16 };
+const UP_STAIRS_POS = { x: 16, z: 16 };
+const DOWN_STAIRS_POS = { x: -16, z: 16 };
+const STAIRS_POS  = UP_STAIRS_POS; // 기존 건물 충돌 계산 호환용
+const HIDES       = [ { x:-18, z:18 }, { x:18, z:-18 }, { x:-18, z:-18 } ];
+const EXIT_POS    = { x: 0, z: -20 };
+const VACCINE_POS = { x: 16, z: 0 };
+const TRAP_POS    = { x: -16, z: 14 };
+const ONI_SPAWN   = { x: 0, z: 18 };
+const FSA_REENTRY_DESKS = {
+  yong: { x: -2.4, z: -15, rot: 0, name: '용전임' },
+  gong: { x: 2.4, z: -15, rot: 0, name: '공대리' }
+};
+const AI_DIVISION_DESKS = [
+  { x: -16, z: -10, rot: 0, name: '성수석' },
+  { x: -10, z: -10, rot: 0, name: '채정영책임' },
+  { x: -4,  z: -10, rot: 0, name: '박찌오전임' },
+  { x: 4,   z: -10, rot: 0 },
+  { x: 10,  z: -10, rot: 0 },
+  { x: -13, z: 4,   rot: Math.PI },
+  { x: -7,  z: 4,   rot: Math.PI },
+  { x: TRAP_POS.x, z: TRAP_POS.z, rot: Math.PI }
+];
+
+// ===== STATE =====
+const state = {
+  mode: 'title', player: null, battle: null,
+  gymsCleared: [], bossIndex: 0, bossesCleared: false,
+  huntMode: false, team: [], activeIndex: 0,
+  currentBuilding: null, messages: [], fsa: null
+};
+
+const CAM_PRESETS = {
+  default: { height: 12, distance: 14, look: 1.5 },
+  high:    { height: 24, distance: 9,  look: 1.0 },
+  cinema:  { height: 6,  distance: 19, look: 2.2 }
+};
+const camCtrl = { mode: 'third', preset: 'default', cur: { x: 0, y: 12, z: 19 }, firstYaw: 0, yaw: 0, pitch: 0, eye: { x: 0, y: 2.5, z: 5 } };
+
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function log(msg) { state.messages.push(msg); if (state.messages.length > 5) state.messages.shift(); }
+function calcLevelMult(skillLevel) { return 1 + (skillLevel - 1) * 0.2; }
+function dist2D(a, b) { return Math.hypot(a.x - b.x, a.z - b.z); }
+function modalIsOpen() { return document.getElementById('modal').classList.contains('active'); }
+
+function getActiveFighter() {
+  if (state.activeIndex === 0) return state.player;
+  return state.team[state.activeIndex - 1];
+}
+
+function calculateDamage(skillName, enemyElement) {
+  const skill = SKILLS[skillName];
+  const lvl = state.player.skills[skillName];
+  const base = rand(skill.dmg[0], skill.dmg[1]);
+  const levelMult = calcLevelMult(lvl);
+  let elemMult = 1.0, effectMsg = '';
+  if (enemyElement) {
+    if (skill.element === enemyElement) { elemMult = 0.75; effectMsg = '😐 효과가 별로다... (동일 속성)'; }
+    else if (ELEMENTS[skill.element].counters === enemyElement) { elemMult = 1.5; effectMsg = '⭐ 효과가 굉장하다! (상성 우위)'; }
+    else if (ELEMENTS[enemyElement] && ELEMENTS[enemyElement].counters === skill.element) { elemMult = 0.7; effectMsg = '😣 효과가 미미하다... (상성 열세)'; }
+  }
+  const crit = Math.random() < 0.1;
+  const evoMult = 1 + (state.player.evoBonus || 0); // 진화 시 스킬 데미지 상승
+  const dmg = Math.max(1, Math.floor(base * levelMult * elemMult * evoMult * (crit ? 1.5 : 1)));
+  return { dmg, crit, effectMsg };
+}
+function calculateCapturedDamage(captured, enemyElement) {
+  const base = rand(captured.skill.dmg[0], captured.skill.dmg[1]);
+  const levelMult = 1 + (captured.level - 1) * 0.12;
+  let elemMult = 1.0, effectMsg = '';
+  if (enemyElement) {
+    if (captured.skill.element === enemyElement) { elemMult = 0.75; effectMsg = '😐 효과가 별로다...'; }
+    else if (ELEMENTS[captured.skill.element].counters === enemyElement) { elemMult = 1.5; effectMsg = '⭐ 효과가 굉장하다!'; }
+    else if (ELEMENTS[enemyElement] && ELEMENTS[enemyElement].counters === captured.skill.element) { elemMult = 0.7; effectMsg = '😣 효과가 미미하다...'; }
+  }
+  const crit = Math.random() < 0.08;
+  const dmg = Math.max(1, Math.floor(base * levelMult * elemMult * (crit ? 1.5 : 1)));
+  return { dmg, crit, effectMsg };
+}
+function xpForLevel(lv) { return 50 + (lv - 1) * 35; }
+function gainXP(amount) {
+  const p = state.player;
+  if (p.level >= PLAYER_MAX_LEVEL) { log('⭐ 이미 만렙(Lv.20)!'); return; }
+  p.xp += amount;
+  log(`📈 경험치 +${amount} (${p.xp}/${p.xpToNext})`);
+  let leveled = 0;
+  while (p.level < PLAYER_MAX_LEVEL && p.xp >= p.xpToNext) {
+    p.xp -= p.xpToNext;
+    p.level++; p.maxHp += HP_PER_LEVEL; p.hp = p.maxHp;
+    p.skillPoints += SP_PER_LEVEL; p.xpToNext = xpForLevel(p.level);
+    leveled++;
+    // 진화 단계 도달(5, 12레벨) → 전투 종료 후 진화 연출 예약
+    if (EVOLUTIONS[p.level]) state.pendingEvolution = p.level;
+  }
+  if (p.level >= PLAYER_MAX_LEVEL) p.xp = 0;
+  if (leveled > 0) log(`🌟 레벨업! Lv.${p.level} (HP 풀회복 +${HP_PER_LEVEL * leveled}, SP +${SP_PER_LEVEL * leveled})`);
+}
+
+// ===== THREE SETUP =====
+const canvas = document.getElementById('canvas');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.Fog(0x87ceeb, 50, 150);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 300);
+camera.position.set(0, 12, 19);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+sun.position.set(45, 60, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 200;
+sun.shadow.camera.left = -100; sun.shadow.camera.right = 100;
+sun.shadow.camera.top = 100; sun.shadow.camera.bottom = -100;
+scene.add(sun);
+
+// 루트 그룹
+const overworldRoot = new THREE.Group();
+scene.add(overworldRoot);
+const fsaRoot = new THREE.Group();
+fsaRoot.visible = false;
+scene.add(fsaRoot);
+const bldRoot = new THREE.Group(); // 일반 건물(도장) 내부
+bldRoot.visible = false;
+scene.add(bldRoot);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), new THREE.MeshLambertMaterial({ color: 0x7cb342 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+overworldRoot.add(ground);
+const pathMat = new THREE.MeshLambertMaterial({ color: 0xd4b896 });
+const pathH = new THREE.Mesh(new THREE.PlaneGeometry(140, 3), pathMat); pathH.rotation.x = -Math.PI/2; pathH.position.y = 0.01; overworldRoot.add(pathH);
+const pathV = new THREE.Mesh(new THREE.PlaneGeometry(3, 140), pathMat); pathV.rotation.x = -Math.PI/2; pathV.position.y = 0.01; overworldRoot.add(pathV);
+
+// ===== MESH BUILDERS =====
+function createSign(text, bgColor = 'rgba(255,255,255,0.95)', textColor = '#2c1810') {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = bgColor; ctx.fillRect(0, 0, 512, 128);
+  ctx.strokeStyle = '#2c1810'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, 506, 122);
+  ctx.fillStyle = textColor; ctx.font = 'bold 40px "Malgun Gothic", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 256, 64);
+  const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  s.scale.set(8, 2, 1); return s;
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+function createNameTag(name, isAlly, modBg) {
+  const c = document.createElement('canvas'); c.width = 420; c.height = 80;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = modBg || (isAlly ? 'rgba(40,170,80,0.92)' : 'rgba(200,50,50,0.92)');
+  roundRect(ctx, 8, 8, 404, 64, 18); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke();
+  let fs = 28; if (name.length > 16) fs = 15; else if (name.length > 11) fs = 19; else if (name.length > 8) fs = 23;
+  ctx.fillStyle = '#fff'; ctx.font = `bold ${fs}px "Malgun Gothic", sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.strokeText(name, 210, 40); ctx.fillText(name, 210, 40);
+  const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  s.scale.set(4.2, 0.8, 1); s.position.y = 4.2; return s;
+}
+function setTagName(sprite, name, bg) {
+  const c = document.createElement('canvas'); c.width = 420; c.height = 80;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = bg; roundRect(ctx, 8, 8, 404, 64, 18); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke();
+  let fs = 28; if (name.length > 16) fs = 15; else if (name.length > 11) fs = 19; else if (name.length > 8) fs = 23;
+  ctx.fillStyle = '#fff'; ctx.font = `bold ${fs}px "Malgun Gothic", sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.strokeText(name, 210, 40); ctx.fillText(name, 210, 40);
+  sprite.material.map = new THREE.CanvasTexture(c); sprite.material.map.minFilter = THREE.LinearFilter;
+  sprite.material.needsUpdate = true;
+}
+
+// 마인크래프트풍 고퀄 캐릭터 빌더
+function cMat(c, opts) { return new THREE.MeshLambertMaterial(Object.assign({ color: c }, opts || {})); }
+function cBox(w, h, d, m, x, y, z, parent, shadow) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), (m && m.isMaterial) ? m : cMat(m));
+  mesh.position.set(x, y, z); if (shadow !== false) mesh.castShadow = true; parent.add(mesh); return mesh;
+}
+function createHumanoid(shirtColor, accent, cfg) {
+  cfg = cfg || {};
+  const skinC = cfg.skin != null ? cfg.skin : 0xffcc99;
+  const hairC = cfg.hair != null ? cfg.hair : 0x2a1a0a;
+  const pantsC = cfg.pants != null ? cfg.pants : 0x394b59;
+  const shoesC = cfg.shoes != null ? cfg.shoes : 0x222222;
+  const shirtM = cMat(shirtColor);
+  const skinM = cMat(skinC);
+  const g = new THREE.Group();
+
+  // 신발 + 다리(바지)
+  [-0.2, 0.2].forEach(x => {
+    cBox(0.34, 0.18, 0.44, shoesC, x, 0.09, 0.06, g);
+    cBox(0.3, 0.66, 0.32, pantsC, x, 0.5, 0, g);
+  });
+  // 몸통(셔츠) + 벨트 + 칼라
+  cBox(0.84, 1.2, 0.52, shirtM, 0, 1.4, 0, g);
+  cBox(0.86, 0.1, 0.54, 0x2a1a0a, 0, 0.86, 0, g, false);
+  cBox(0.5, 0.14, 0.28, cfg.collar != null ? cfg.collar : 0xf5f5f5, 0, 1.96, 0.16, g, false);
+  // 왼팔
+  cBox(0.22, 0.92, 0.32, shirtM, -0.53, 1.46, 0, g);
+  cBox(0.21, 0.26, 0.3, skinM, -0.53, 0.93, 0, g);
+  // 오른팔 (휴대폰 모션용 그룹 — 어깨 피벗)
+  const rArm = new THREE.Group(); rArm.position.set(0.53, 2.0, 0);
+  cBox(0.22, 0.92, 0.32, shirtM, 0, -0.54, 0, rArm);
+  cBox(0.21, 0.26, 0.3, skinM, 0, -1.07, 0, rArm);
+  if (cfg.twophones) {
+    // 오른손에 휴대폰 2개
+    cBox(0.16, 0.3, 0.05, 0x111111, -0.07, -1.18, 0.2, rArm, false); cBox(0.11, 0.22, 0.02, 0x55ccff, -0.07, -1.16, 0.23, rArm, false);
+    cBox(0.16, 0.3, 0.05, 0x223355, 0.1, -1.2, 0.16, rArm, false); cBox(0.11, 0.22, 0.02, 0xff88cc, 0.1, -1.18, 0.19, rArm, false);
+  }
+  g.add(rArm); g.userData.rightArm = rArm;
+  // 목 + 머리
+  cBox(0.26, 0.16, 0.26, skinM, 0, 2.0, 0, g, false);
+  cBox(0.64, 0.62, 0.62, skinM, 0, 2.32, 0, g);
+  // 귀
+  [-0.35, 0.35].forEach(x => cBox(0.07, 0.16, 0.18, skinM, x, 2.3, 0, g, false));
+  // 눈 + 입
+  [-0.14, 0.14].forEach(x => cBox(0.1, 0.12, 0.04, 0x2a2a2a, x, 2.37, 0.32, g, false));
+  cBox(0.18, 0.045, 0.03, cfg.mouth != null ? cfg.mouth : 0x9a5a4a, 0, 2.16, 0.32, g, false);
+  // 머리카락
+  const hs = cfg.hairStyle || 'short';
+  if (hs !== 'bald') {
+    cBox(0.7, 0.16, 0.68, hairC, 0, 2.66, 0, g, false);
+    cBox(0.7, 0.46, 0.16, hairC, 0, 2.42, -0.27, g, false);
+    if (hs === 'side') cBox(0.16, 0.4, 0.66, hairC, -0.37, 2.42, 0, g, false);
+    if (hs === 'spiky') [-0.2, 0, 0.2].forEach(x => cBox(0.14, 0.2, 0.14, hairC, x, 2.8, 0, g, false));
+    if (hs === 'bun') cBox(0.28, 0.28, 0.28, hairC, 0, 2.62, -0.36, g, false);
+    if (hs === 'long') cBox(0.72, 0.6, 0.18, hairC, 0, 2.05, -0.3, g, false);
+    if (hs === 'curly') [-0.28, 0, 0.28].forEach(x => cBox(0.22, 0.22, 0.22, hairC, x, 2.66, 0, g, false));
+  } else {
+    cBox(0.66, 0.08, 0.64, hairC, 0, 2.6, -0.04, g, false);
+  }
+  // 안경
+  if (cfg.glasses) {
+    const fr = cfg.glassFrame != null ? cfg.glassFrame : 0x1a1a1a;
+    [-0.15, 0.15].forEach(x => cBox(0.21, 0.21, 0.05, fr, x, 2.37, 0.33, g, false));
+    cBox(0.12, 0.05, 0.05, fr, 0, 2.37, 0.33, g, false);
+    cBox(0.06, 0.05, 0.16, fr, -0.32, 2.39, 0.18, g, false);
+    cBox(0.06, 0.05, 0.16, fr, 0.32, 2.39, 0.18, g, false);
+    [-0.15, 0.15].forEach(x => { const l = cBox(0.16, 0.16, 0.02, 0xbfe3ff, x, 2.37, 0.355, g, false); l.material.transparent = true; l.material.opacity = 0.45; });
+  }
+  // 수염
+  if (cfg.beard) cBox(0.5, 0.18, 0.12, hairC, 0, 2.12, 0.29, g, false);
+  // 모자
+  if (cfg.hat != null) { cBox(0.72, 0.22, 0.72, cfg.hat, 0, 2.74, 0, g, false); cBox(0.92, 0.06, 0.92, cfg.hat, 0, 2.66, 0, g, false); }
+  // 넥타이
+  if (accent != null) cBox(0.16, 0.62, 0.04, accent, 0, 1.56, 0.27, g, false);
+  // 사원증(목걸이)
+  if (cfg.badge) { cBox(0.02, 0.5, 0.02, 0x333333, 0, 1.78, 0.27, g, false); cBox(0.22, 0.3, 0.03, cfg.badge === true ? 0xffffff : cfg.badge, 0, 1.45, 0.28, g, false); }
+  // 휴대폰(손에 들고 채팅)
+  if (cfg.phone) { const p = cBox(0.18, 0.32, 0.05, 0x111111, 0.5, 1.2, 0.34, g, false); cBox(0.13, 0.24, 0.02, 0x55ccff, 0.5, 1.22, 0.37, g, false); }
+  // 클립보드(업무 지시)
+  if (cfg.clipboard) { cBox(0.32, 0.44, 0.04, 0x8b5a2b, -0.5, 1.25, 0.34, g, false); cBox(0.26, 0.36, 0.02, 0xffffff, -0.5, 1.25, 0.37, g, false); }
+  // 백팩(본체 + 어깨끈)
+  if (cfg.backpack != null) {
+    const bp = cfg.backpack === true ? 0xc0392b : cfg.backpack;
+    cBox(0.72, 0.92, 0.3, bp, 0, 1.5, -0.37, g);
+    cBox(0.5, 0.4, 0.14, 0x222222, 0, 1.42, -0.5, g, false);
+    [-0.28, 0.28].forEach(x => cBox(0.12, 0.9, 0.08, bp, x, 1.6, 0.24, g, false));
+  }
+  g.userData.bodyMat = shirtM;
+  return g;
+}
+function createNPC(npcType, color, displayName, modifier, cfg) {
+  const g = createHumanoid(color, cfg ? cfg.tie : undefined, cfg);
+  let indCol = (modifier && modifier.indicator) ? modifier.indicator : (npcType === 'ally' ? 0x33cc66 : 0xff2233);
+  const ind = new THREE.Mesh(new THREE.SphereGeometry(0.22,12,12), new THREE.MeshBasicMaterial({ color: indCol }));
+  ind.position.y = 3.3; g.add(ind);
+  const tag = createNameTag(displayName, npcType === 'ally', modifier ? modifier.tagColor : null);
+  g.add(tag);
+  g.userData.indicator = ind; g.userData.nameTag = tag;
+  return g;
+}
+// NPC별 특색 외형 설정
+function npcCfgFor(isAlly, baseName) {
+  const A = {
+    '박팀장님': { shirt: 0x34495e, tie: 0x2980b9, glasses: true, hairStyle: 'side', badge: true, pants: 0x2c3e50 },
+    '김팀장님': { shirt: 0x16a085, tie: 0x1abc9c, hairStyle: 'short', badge: 0xf1c40f, pants: 0x2c3e50 },
+    '김부장님': { shirt: 0x7f8c8d, tie: 0x34495e, glasses: true, beard: true, hairStyle: 'bald', badge: true, pants: 0x515a5a },
+    '김차장님': { shirt: 0x2c3e50, tie: 0x8e44ad, hairStyle: 'short', badge: true, pants: 0x212f3c },
+    '이과장님': { shirt: 0x2980b9, tie: 0xe67e22, glasses: true, hairStyle: 'short', badge: 0x2ecc71, pants: 0x21618c }
+  };
+  const E = {
+    '나쁜말김대리': { shirt: 0xc0392b, hairStyle: 'spiky', mouth: 0xe74c3c, pants: 0x222222 },
+    '말많은정대리': { shirt: 0xe67e22, hairStyle: 'curly', mouth: 0xc0392b, glasses: true, pants: 0x6e2c00 },
+    '전화안받고채팅만하는고객사담당자': { shirt: 0x9b59b6, hairStyle: 'long', glasses: true, phone: true, pants: 0x4a235a },
+    '미션주는 이차장': { shirt: 0x6b1a1a, tie: 0x000000, beard: true, hairStyle: 'side', clipboard: true, pants: 0x2c1810 }
+  };
+  const map = isAlly ? A : E;
+  if (map[baseName]) return map[baseName];
+  // 폴백: 이름 해시로 약간의 변화
+  let h = 0; for (let i = 0; i < baseName.length; i++) h = (h * 31 + baseName.charCodeAt(i)) & 0xffff;
+  const styles = ['short', 'side', 'spiky', 'curly', 'bun'];
+  return { hairStyle: styles[h % styles.length], glasses: (h & 4) > 0, tie: isAlly ? 0x34495e : undefined };
+}
+
+// 건물
+function createHome() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(8,5,8), new THREE.MeshLambertMaterial({ color: 0x69a7d4 })); body.position.y = 2.5; body.castShadow = body.receiveShadow = true; g.add(body);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(6.5,2.5,4), new THREE.MeshLambertMaterial({ color: 0xa53030 })); roof.position.y = 6.25; roof.rotation.y = Math.PI/4; roof.castShadow = true; g.add(roof);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.5,2.5,0.2), new THREE.MeshLambertMaterial({ color: 0x6b4423 })); door.position.set(0,1.25,4.05); g.add(door);
+  const sign = createSign('🏠 집 (회복)'); sign.position.set(0,8.2,0); g.add(sign);
+  return g;
+}
+function createUjedo() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(7,4,7), new THREE.MeshLambertMaterial({ color: 0xf4a261 })); body.position.y = 2; body.castShadow = body.receiveShadow = true; g.add(body);
+  const awning = new THREE.Mesh(new THREE.BoxGeometry(8.5,0.3,2.5), new THREE.MeshLambertMaterial({ color: 0xe63946 })); awning.position.set(0,3.4,4); g.add(awning);
+  for (let i=-3.5;i<=3.5;i+=1){ const s = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.4,2.6), new THREE.MeshLambertMaterial({color:0xffffff})); s.position.set(i,3.4,4); g.add(s); }
+  const win = new THREE.Mesh(new THREE.BoxGeometry(4,1.5,0.1), new THREE.MeshLambertMaterial({ color: 0xfffacd, emissive: 0x665500 })); win.position.set(0,2.7,3.55); g.add(win);
+  const sign = createSign('💬 우제도 (수다)', 'rgba(255,220,180,0.95)', '#c0392b'); sign.position.set(0,6.5,0); g.add(sign);
+  return g;
+}
+function createChongchongBox() {
+  // 대형 냉장고(자판기) 형태의 상점
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(5, 6, 3), new THREE.MeshLambertMaterial({ color: 0xecf0f1 }));
+  body.position.y = 3; body.castShadow = body.receiveShadow = true; g.add(body);
+  // 상단 헤더(브랜드 띠)
+  const header = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1, 3.2), new THREE.MeshLambertMaterial({ color: 0x2980b9 }));
+  header.position.y = 6.2; g.add(header);
+  // 유리문 (냉장 진열)
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(4.2, 4.4, 0.15), new THREE.MeshLambertMaterial({ color: 0x9fd8ff, emissive: 0x123, transparent: true, opacity: 0.55 }));
+  glass.position.set(0, 3, 1.55); g.add(glass);
+  // 음료 캔/병 진열 (팀즈볼=보라, 콜라=검정)
+  const colors = [0x8e44ad, 0x111111, 0x8e44ad, 0x111111];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.7), new THREE.MeshLambertMaterial({ color: colors[c], emissive: c % 2 ? 0x000 : 0x2a0a3a }));
+    can.position.set(-1.5 + c * 1.0, 1.4 + r * 1.4, 1.45); g.add(can);
+  }
+  // 결제 패널
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.2), new THREE.MeshLambertMaterial({ color: 0x222, emissive: 0x0a3 })); panel.position.set(3, 3, 1.5); g.add(panel);
+  const sign = createSign('🧊 총총박스 (상점)', 'rgba(41,128,185,0.95)', '#fff'); sign.position.set(0, 8, 0); g.add(sign);
+  const sub = createSign('🥤제로팝시콜라 · 🥮호떡', 'rgba(255,255,255,0.92)', '#2980b9'); sub.scale.set(7, 1.1, 1); sub.position.set(0, 9.6, 0); g.add(sub);
+  return g;
+}
+function createFsaBuilding() {
+  // 고퀄 흰색 빌딩 + 창문이 뚫려있는(움푹 들어간 진한 창) 형태
+  const g = new THREE.Group();
+  const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x9aa3ad });
+  const winMat = new THREE.MeshLambertMaterial({ color: 0x1a2738, emissive: 0x0a1626 });
+  const W = 11, H = 18;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(W, H, W), whiteMat); body.position.y = H/2; body.castShadow = body.receiveShadow = true; g.add(body);
+  // 옥상 난간
+  const para = new THREE.Mesh(new THREE.BoxGeometry(W+0.6, 0.8, W+0.6), whiteMat); para.position.y = H + 0.2; g.add(para);
+  // 4개 면에 창문 격자(뚫린 듯 움푹)
+  const cols = 4, rows = 5;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const wy = 2.4 + r * 3.0, wx = -3.6 + c * 2.4;
+    // 앞/뒤
+    const wf = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.9, 0.4), winMat); wf.position.set(wx, wy, W/2 - 0.1); g.add(wf);
+    const wb = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.9, 0.4), winMat); wb.position.set(wx, wy, -W/2 + 0.1); g.add(wb);
+    // 좌/우
+    const wl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.9, 1.6), winMat); wl.position.set(-W/2 + 0.1, wy, wx); g.add(wl);
+    const wr = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.9, 1.6), winMat); wr.position.set(W/2 - 0.1, wy, wx); g.add(wr);
+  }
+  // 1층 유리 로비 + 입구
+  const lobby = new THREE.Mesh(new THREE.BoxGeometry(W - 1, 2.2, 0.3), new THREE.MeshLambertMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.6 })); lobby.position.set(0, 1.3, W/2 + 0.05); g.add(lobby);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 0.25), new THREE.MeshLambertMaterial({ color: 0x223 })); door.position.set(0, 1.2, W/2 + 0.12); g.add(door);
+  const sign = createSign('🏢 신사역 F사', 'rgba(245,247,250,0.96)', '#234'); sign.position.set(0, H + 2.6, 0); g.add(sign);
+  const sub = createSign('⚠ 잠입 미션', 'rgba(160,40,40,0.95)', '#fff'); sub.scale.set(5, 1.3, 1); sub.position.set(0, H + 0.9, 0); g.add(sub);
+  return g;
+}
+function createHotteok() {
+  // 신사 호떡집 (포장마차 느낌)
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(6, 3.4, 5), new THREE.MeshLambertMaterial({ color: 0xe8c39e })); body.position.y = 1.7; body.castShadow = body.receiveShadow = true; g.add(body);
+  // 천막(빨강)
+  const tent = new THREE.Mesh(new THREE.ConeGeometry(5.2, 1.8, 4), new THREE.MeshLambertMaterial({ color: 0xd64541 })); tent.position.y = 4.4; tent.rotation.y = Math.PI/4; tent.castShadow = true; g.add(tent);
+  // 철판(호떡 굽는)
+  const grill = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 1.6), new THREE.MeshLambertMaterial({ color: 0x333 })); grill.position.set(0, 1.5, 2.7); g.add(grill);
+  for (let i = 0; i < 3; i++) { const ht = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.18, 12), new THREE.MeshLambertMaterial({ color: 0xc9821f })); ht.position.set(-1.2 + i * 1.2, 1.7, 2.7); g.add(ht); }
+  const sign = createSign('🥮 신사 호떡집', 'rgba(214,69,65,0.95)', '#fff'); sign.position.set(0, 6.4, 0); g.add(sign);
+  return g;
+}
+function createGymBuilding(gym) {
+  const g = new THREE.Group();
+  const b1 = new THREE.Mesh(new THREE.BoxGeometry(9,5,9), new THREE.MeshLambertMaterial({ color: gym.color })); b1.position.y = 2.5; b1.castShadow = b1.receiveShadow = true; g.add(b1);
+  const b2 = new THREE.Mesh(new THREE.BoxGeometry(7,4,7), new THREE.MeshLambertMaterial({ color: gym.secondary })); b2.position.y = 7; b2.castShadow = true; g.add(b2);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(7.5,0.5,7.5), new THREE.MeshLambertMaterial({ color: 0x444 })); roof.position.y = 9.25; g.add(roof);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.8,3,0.2), new THREE.MeshLambertMaterial({ color: 0x2c1810 })); door.position.set(0,1.5,4.55); g.add(door);
+  const sign = createSign(gym.name, 'rgba(255,255,220,0.95)', '#aa2233'); sign.position.set(0,12,0); g.add(sign);
+  return g;
+}
+function createTower() {
+  const g = new THREE.Group();
+  const colors = [0x4a2a6a,0x5a3a7a,0x6a4a8a,0x7a5a9a];
+  for (let i=0;i<4;i++){ const sz = 8-i*1.3; const seg = new THREE.Mesh(new THREE.BoxGeometry(sz,5,sz), new THREE.MeshLambertMaterial({color:colors[i]})); seg.position.y = i*5+2.5; seg.castShadow = seg.receiveShadow = true; g.add(seg); }
+  const spike = new THREE.Mesh(new THREE.ConeGeometry(2.5,5,4), new THREE.MeshLambertMaterial({color:0xa080d0, emissive:0x6040a0})); spike.position.y = 24; g.add(spike);
+  const sign = createSign('🗼 사대천왕의 탑', 'rgba(80,30,100,0.95)', '#fff'); sign.position.set(0,29,0); g.add(sign);
+  return g;
+}
+function createTree(x, z) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,1.5), new THREE.MeshLambertMaterial({color:0x6b4423})); trunk.position.y = 0.75; trunk.castShadow = true; g.add(trunk);
+  const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.3,2.8,8), new THREE.MeshLambertMaterial({color:0x3d7c2e})); leaves.position.y = 2.7; leaves.castShadow = true; g.add(leaves);
+  g.position.set(x,0,z); return g;
+}
+
+// ===== BUILD OVERWORLD =====
+const buildings = [];
+function addBuilding(mesh, pos, data) { mesh.position.set(pos.x, 0, pos.z); mesh.userData = data; overworldRoot.add(mesh); buildings.push(mesh); }
+addBuilding(createHome(), HOME, { type: 'home', name: '집' });
+addBuilding(createUjedo(), UJEDO, { type: 'ujedo', name: '우제도' });
+addBuilding(createChongchongBox(), STORE, { type: 'store', name: '총총박스' });
+addBuilding(createFsaBuilding(), FSA, { type: 'fsa', name: '신사역 F사' });
+addBuilding(createHotteok(), HOTTEOK, { type: 'hotteok', name: '신사 호떡집' });
+GYMS.forEach(gym => addBuilding(createGymBuilding(gym), { x: gym.x, z: gym.z }, { type: 'gym', gymId: gym.id, name: gym.name }));
+addBuilding(createTower(), TOWER, { type: 'tower', name: '사대천왕의 탑' });
+
+for (let i=0;i<60;i++){
+  let x, z, valid = false;
+  for (let t=0;t<25 && !valid;t++){
+    x = (Math.random()-0.5)*180; z = (Math.random()-0.5)*180; valid = true;
+    for (const b of buildings) if (dist2D({x,z}, b.position) < 11) { valid = false; break; }
+    if (Math.abs(x)<2.5 && Math.abs(z)<65) valid = false;
+    if (Math.abs(z)<2.5 && Math.abs(x)<65) valid = false;
+    if (Math.hypot(x,z)<7) valid = false;
+  }
+  if (valid) overworldRoot.add(createTree(x,z));
+}
+
+// 주인공 공대리: 안경 + 분홍 티 + 백팩 + 오른손 휴대폰 2개 (진화 단계에 따라 외형 변화)
+const player = createHumanoid(0xff7eb3, null, { glasses: true, backpack: 0x6b4f9e, hair: 0x2a1a0a, hairStyle: 'short', pants: 0x2c3e50, badge: 0xf1c40f, shoes: 0xffffff, twophones: true });
+player.position.set(0, 0, 5);
+scene.add(player);
+
+// 진화 단계 반영하여 주인공 모델 재생성
+function rebuildPlayerModel() {
+  while (player.children.length) player.remove(player.children[0]);
+  const st = state.player ? (state.player.evoStage || 0) : 0;
+  let shirt = 0xff7eb3, glassFrame = 0x1a1a1a, aura = null;
+  if (st >= 1) { const e = EVOLUTIONS[5]; shirt = e.shirt; glassFrame = e.glassFrame; aura = e.aura; }
+  if (st >= 2) { const e = EVOLUTIONS[12]; shirt = e.shirt; glassFrame = e.glassFrame; aura = e.aura; }
+  const tmp = createHumanoid(shirt, null, { glasses: true, glassFrame, backpack: 0x6b4f9e, hair: 0x2a1a0a, hairStyle: st >= 2 ? 'side' : 'short', pants: 0x2c3e50, badge: 0xf1c40f, shoes: 0xffffff, beard: st >= 2, twophones: true });
+  while (tmp.children.length) player.add(tmp.children[0]);
+  player.userData.bodyMat = tmp.userData.bodyMat;
+  player.userData.rightArm = tmp.userData.rightArm;
+  if (aura) {
+    const a = new THREE.Mesh(new THREE.SphereGeometry(1.7, 16, 16), new THREE.MeshBasicMaterial({ color: aura, transparent: true, opacity: 0.12 }));
+    a.position.y = 1.4; player.add(a); player.userData.aura = a;
+  } else player.userData.aura = null;
+}
+
+const npcs = [];
+
+// ===== HUNT CREATURE =====
+function generateHuntCreature(isAlly) {
+  const firstName = FIRST_NAMES[rand(0, FIRST_NAMES.length-1)];
+  let baseName, sprite, color;
+  if (isAlly) { const a = ALLIES[rand(0,ALLIES.length-1)]; baseName = a.name; sprite = a.sprite; color = 0x27ae60; }
+  else { const names = Object.keys(ENEMIES); baseName = names[rand(0,names.length-1)]; const e = ENEMIES[baseName]; sprite = e.sprite; color = e.color; }
+  const displayName = `${firstName} ${baseName}`;
+  const element = ['압박','방어','기만'][rand(0,2)];
+  const pool = isAlly ? CAPTURED_ALLY_SKILLS : CAPTURED_ENEMY_SKILLS;
+  const tpl = pool[rand(0,pool.length-1)];
+  const level = rand(3,12); const hp = 30 + level*10;
+  return { isHuntCreature:true, isAlly, displayName, baseName, sprite, color, element,
+    skill: { name: tpl.name, dmg: [tpl.baseDmg[0]+Math.floor(level*1.4), tpl.baseDmg[1]+Math.floor(level*1.4)], element },
+    level, hp, maxHp: hp, xp: 25 + level*8 };
+}
+function spawnNPC() {
+  if (npcs.length >= MAX_NPCS) return;
+  let x, z, valid = false;
+  for (let t=0;t<20 && !valid;t++){
+    x = (Math.random()-0.5)*(MAP_HALF*2); z = (Math.random()-0.5)*(MAP_HALF*2); valid = true;
+    if (dist2D({x,z}, player.position) < 12) valid = false;
+    for (const b of buildings) if (dist2D({x,z}, b.position) < 9) { valid = false; break; }
+  }
+  if (!valid) return;
+  const isAlly = Math.random() < 0.35;
+  let mesh, userData, displayName;
+  if (state.huntMode) {
+    const c = generateHuntCreature(isAlly);
+    displayName = `Lv.${c.level} ${c.displayName}`;
+    mesh = createNPC(isAlly ? 'ally' : 'enemy', c.color, displayName, null, npcCfgFor(isAlly, c.baseName));
+    userData = { type: isAlly ? 'huntAlly' : 'huntEnemy', creature: c };
+  } else if (isAlly) {
+    const a = ALLIES[rand(0,ALLIES.length-1)];
+    displayName = a.name; mesh = createNPC('ally', 0x27ae60, displayName, null, npcCfgFor(true, a.name));
+    userData = { type: 'ally', ally: a };
+  } else {
+    const names = Object.keys(ENEMIES); const name = names[rand(0,names.length-1)]; const e = ENEMIES[name];
+    const mod = pickModifier();
+    displayName = name; // 등급은 이름표 색으로만 표시(이름에 등급명 중복 금지)
+    mesh = createNPC('enemy', e.color, displayName, mod, npcCfgFor(false, name));
+    userData = { type: 'enemy', enemyName: name, enemyData: e, modifier: mod };
+  }
+  const ind = mesh.userData.indicator, tag = mesh.userData.nameTag;
+  mesh.position.set(x, 0, z);
+  mesh.userData = { ...userData, timer: 0, changeAt: 2+Math.random()*3, dirX: (Math.random()-0.5)*2, dirZ: (Math.random()-0.5)*2, indicator: ind, nameTag: tag };
+  overworldRoot.add(mesh); npcs.push(mesh);
+}
+function clearAllNPCs() { npcs.forEach(n => overworldRoot.remove(n)); npcs.length = 0; }
+function initSpawn(n) { for (let i=0;i<n;i++) spawnNPC(); }
+
+// =========================================================
+// ===== F사 인테리어 (다층 잠입 미션) =====
+// =========================================================
+let fsaBuilt = false;
+const floorGroups = [];
+const drones = []; // 애니메이션용
+let oniMesh, zombieYong, normalYong, munbujang;
+const floorMeta = []; // 층별 메타
+
+function mkWalls(parent, size) {
+  size = size || 44;
+  const h = size / 2;
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x8a8a96 });
+  const defs = [ [0,-h,size,1], [0,h,size,1], [-h,0,1,size], [h,0,1,size] ];
+  defs.forEach(([x,z,w,d]) => {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w,6,d), wallMat);
+    wall.position.set(x,3,z); wall.receiveShadow = true; parent.add(wall);
+  });
+}
+function boxAt(w, h, d, color, x, y, z, parent, opts) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial(Object.assign({ color: color }, opts || {})));
+  m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
+}
+// F사 화장실
+function mkRestroom(parent, x, z) {
+  const g = new THREE.Group();
+  const WM = 0xcfd6dd;
+  boxAt(7, 3.2, 0.3, WM, 0, 1.6, -2.5, g);
+  boxAt(0.3, 3.2, 5.2, WM, -3.4, 1.6, 0, g);
+  for (let i = 0; i < 2; i++) {
+    const sx = -1.8 + i * 2.4;
+    boxAt(0.2, 2.4, 3.2, WM, sx, 1.2, -0.9, g);
+    boxAt(0.7, 0.6, 0.9, 0xffffff, sx + 1.1, 0.4, -1.7, g);
+  }
+  boxAt(2.6, 0.3, 0.8, 0xeeeeee, 0.6, 1.0, 1.9, g);
+  boxAt(2.4, 1.2, 0.08, 0x9fd0e0, 0.6, 2.0, 2.35, g, { emissive: 0x113 });
+  const sign = createSign('🚻 화장실', 'rgba(40,70,110,0.92)', '#fff'); sign.scale.set(3, 1, 1); sign.position.set(0, 4.3, 0); g.add(sign);
+  g.position.set(x, 0, z); parent.add(g);
+}
+// F사 사무 편의시설 (정수기/복합기/화분/라운지)
+function mkOfficeAmenities(parent) {
+  const cooler = new THREE.Group();
+  boxAt(0.9, 1.6, 0.9, 0xdfe6ec, 0, 0.8, 0, cooler);
+  const jug = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.9, 12), new THREE.MeshLambertMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.6 })); jug.position.set(0, 2.0, 0); cooler.add(jug);
+  cooler.position.set(-24, 0, -7); parent.add(cooler);
+  const cs = createSign('💧 정수기', 'rgba(40,70,110,0.9)', '#fff'); cs.scale.set(2.4, 0.8, 1); cs.position.set(-24, 3, -7); parent.add(cs);
+  boxAt(1.6, 1.4, 1.2, 0x555566, 24, 0.7, 12, parent);
+  const ps = createSign('🖨 복합기', 'rgba(40,70,110,0.9)', '#fff'); ps.scale.set(2.4, 0.8, 1); ps.position.set(24, 2.6, 12); parent.add(ps);
+  [[-24, 13], [24, -13]].forEach(([px, pz]) => {
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.4, 0.7, 10), new THREE.MeshLambertMaterial({ color: 0x8b5a2b })); pot.position.set(px, 0.35, pz); parent.add(pot);
+    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.9, 8), new THREE.MeshLambertMaterial({ color: 0x2e7d32 })); leaf.position.set(px, 1.55, pz); leaf.castShadow = true; parent.add(leaf);
+  });
+  boxAt(3.4, 0.9, 1.4, 0x34495e, -22, 0.45, 20, parent);
+  boxAt(3.4, 1.0, 0.4, 0x2c3e50, -22, 1.0, 19.4, parent);
+  const ls = createSign('🛋 휴게 라운지', 'rgba(40,70,110,0.9)', '#fff'); ls.scale.set(3, 0.9, 1); ls.position.set(-22, 3, 20); parent.add(ls);
+}
+function mkDesk(x, z, rot=0) {
+  const g = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.BoxGeometry(2.4,0.2,1.3), new THREE.MeshLambertMaterial({color:0x9c6b3f})); top.position.y = 1.1; top.castShadow = true; g.add(top);
+  [[-1,-0.5],[1,-0.5],[-1,0.5],[1,0.5]].forEach(([lx,lz])=>{ const leg = new THREE.Mesh(new THREE.BoxGeometry(0.15,1.1,0.15), new THREE.MeshLambertMaterial({color:0x555})); leg.position.set(lx,0.55,lz); g.add(leg); });
+  const mon = new THREE.Mesh(new THREE.BoxGeometry(1,0.7,0.1), new THREE.MeshLambertMaterial({color:0x111, emissive:0x1a3a6a})); mon.position.set(0,1.7,-0.3); g.add(mon);
+  const kb = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.05,0.35), new THREE.MeshLambertMaterial({color:0x222})); kb.position.set(0,1.22,0.2); g.add(kb);
+  g.position.set(x,0,z); g.rotation.y = rot; return g;
+}
+function chairRotationForDesk(rot) { return rot + Math.PI; }
+function chairPositionForDesk(station, offset=1.35) {
+  const rot = station.rot || 0;
+  return {
+    x: station.x + Math.sin(rot) * offset,
+    z: station.z + Math.cos(rot) * offset
+  };
+}
+function mkChair(x, z, rot=0) {
+  const g = new THREE.Group();
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.15,0.7), new THREE.MeshLambertMaterial({color:0x333})); seat.position.y = 0.7; g.add(seat);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.8,0.12), new THREE.MeshLambertMaterial({color:0x333})); back.position.set(0,1.1,-0.3); g.add(back);
+  g.position.set(x,0,z); g.rotation.y = rot; return g;
+}
+function mkDeskStation(parent, x, z, rot=0, name) {
+  const station = { x, z, rot };
+  parent.add(mkDesk(x, z, rot));
+  const chairPos = chairPositionForDesk(station);
+  const chairX = chairPos.x;
+  const chairZ = chairPos.z;
+  const chairRot = chairRotationForDesk(rot);
+  parent.add(mkChair(chairX, chairZ, chairRot));
+  if (name) {
+    const sign = createSign(`🧑‍💻 ${name}`, 'rgba(35,70,90,0.92)', '#fff');
+    sign.scale.set(2.8,0.8,1);
+    sign.position.set(x,3.25,z);
+    parent.add(sign);
+  }
+}
+function mkDeskRows(parent) {
+  for (let r=0;r<2;r++) for (let c=0;c<3;c++){
+    const x = -8 + c*8; const z = -6 + r*10; const rot = r===0 ? 0 : Math.PI;
+    mkDeskStation(parent, x, z, rot);
+  }
+  const rack = new THREE.Mesh(new THREE.BoxGeometry(2,4,1.2), new THREE.MeshLambertMaterial({color:0x222})); rack.position.set(14,2,-14);
+  for (let i=0;i<5;i++){ const led = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.1,0.05), new THREE.MeshLambertMaterial({color:0x00ff66, emissive:0x00aa44})); led.position.set(0, -1.5+i*0.8, 0.63); rack.add(led); }
+  parent.add(rack);
+}
+function mkDenseDeskRows(parent) {
+  const desks = [
+    [-16,-8,0], [-8,-8,0], [0,-8,0], [8,-8,0], [16,-8,0],
+    [-16,6,Math.PI], [-8,6,Math.PI], [0,6,Math.PI], [8,6,Math.PI], [16,6,Math.PI]
+  ];
+  desks.forEach(([x,z,rot]) => mkDeskStation(parent, x, z, rot));
+  const rack = new THREE.Mesh(new THREE.BoxGeometry(2,4,1.2), new THREE.MeshLambertMaterial({color:0x222}));
+  rack.position.set(20,2,-14);
+  for (let i=0;i<5;i++){
+    const led = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.1,0.05), new THREE.MeshLambertMaterial({color:0x00ff66, emissive:0x00aa44}));
+    led.position.set(0, -1.5+i*0.8, 0.63); rack.add(led);
+  }
+  parent.add(rack);
+}
+function mkVending(x, z) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.6,3,1.2), new THREE.MeshLambertMaterial({color:0xc0392b})); body.position.y = 1.5; body.castShadow = true; g.add(body);
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(1.1,2,0.1), new THREE.MeshLambertMaterial({color:0x223, emissive:0x112})); glass.position.set(-0.1,1.7,0.61); g.add(glass);
+  for (let r=0;r<3;r++) for (let c=0;c<2;c++){ const can = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.3), new THREE.MeshLambertMaterial({color:[0xf1c40f,0x3498db,0x2ecc71][r]})); can.position.set(-0.4+c*0.5,1.2+r*0.55,0.6); g.add(can); }
+  g.position.set(x,0,z); return g;
+}
+function mkCafe(parent) {
+  [[-14,-12],[-14,-6],[-14,0]].forEach(([x,z])=>parent.add(mkVending(x,z)));
+  // 테이블 + 의자
+  for (let i=0;i<3;i++){ const tx = 2 + i*6, tz = 6;
+    const table = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(1,1,0.15), new THREE.MeshLambertMaterial({color:0xddb88a})); top.position.y = 1.1; table.add(top);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.1), new THREE.MeshLambertMaterial({color:0x777})); leg.position.y = 0.55; table.add(leg);
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.12,0.3), new THREE.MeshLambertMaterial({color:0x6b3410})); cup.position.set(0.3,1.32,0); table.add(cup);
+    table.position.set(tx,0,tz); parent.add(table);
+    parent.add(mkChair(tx-1.6, tz)); parent.add(mkChair(tx+1.6, tz));
+  }
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(8,1.2,1.5), new THREE.MeshLambertMaterial({color:0x8b5a2b})); counter.position.set(4,0.6,-14); parent.add(counter);
+}
+function mkElevator(parent) {
+  const g = new THREE.Group();
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(3.4,5,1), new THREE.MeshLambertMaterial({color:0x666a70})); frame.position.y = 2.5; g.add(frame);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(2.6,4,0.2), new THREE.MeshLambertMaterial({color:0x3a3a3a, emissive:0x220000})); door.position.set(0,2.2,0.55); g.add(door);
+  const line = new THREE.Mesh(new THREE.BoxGeometry(0.08,4,0.25), new THREE.MeshLambertMaterial({color:0x333})); line.position.set(0,2.2,0.62); g.add(line);
+  const btn = new THREE.Mesh(new THREE.SphereGeometry(0.18,10,10), new THREE.MeshBasicMaterial({color:0xff2200})); btn.position.set(1.7,2,0.6); g.add(btn);
+  const crossA = new THREE.Mesh(new THREE.BoxGeometry(2.6,0.18,0.28), new THREE.MeshBasicMaterial({color:0xff2200})); crossA.position.set(0,2.2,0.72); crossA.rotation.z = Math.PI/4; g.add(crossA);
+  const crossB = crossA.clone(); crossB.rotation.z = -Math.PI/4; g.add(crossB);
+  const sign = createSign('🛗 고장난 엘리베이터', 'rgba(90,20,20,0.95)', '#fff'); sign.scale.set(4.6,1,1); sign.position.set(0,5.6,0); g.add(sign);
+  g.position.set(ELEV_POS.x,0,ELEV_POS.z); g.rotation.y = Math.PI/4; parent.add(g);
+}
+function mkStairs(parent, pos=UP_STAIRS_POS, dir='up') {
+  const g = new THREE.Group();
+  for (let i=0;i<5;i++){ const step = new THREE.Mesh(new THREE.BoxGeometry(3,0.4+i*0.4,1), new THREE.MeshLambertMaterial({color:0x9aa})); step.position.set(0,(0.4+i*0.4)/2, -i*1); step.castShadow = true; g.add(step); }
+  const isUp = dir === 'up';
+  const sign = createSign(isUp ? '🪜 올라가는 계단' : '🪜 내려가는 계단', 'rgba(40,60,80,0.9)', '#fff'); sign.scale.set(isUp ? 4 : 4.2,0.9,1); sign.position.set(0,4.5,0); g.add(sign);
+  g.position.set(pos.x,0,pos.z); g.rotation.y = isUp ? -Math.PI*0.75 : Math.PI*0.75; parent.add(g);
+}
+function mkLocker(x, z) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.6,3,1), new THREE.MeshLambertMaterial({color:0x4a6a8a})); body.position.y = 1.5; body.castShadow = true; g.add(body);
+  const line = new THREE.Mesh(new THREE.BoxGeometry(0.05,3,1.02), new THREE.MeshLambertMaterial({color:0x223})); line.position.y = 1.5; g.add(line);
+  const sign = createSign('🚪 숨기', 'rgba(20,40,30,0.9)', '#9f9'); sign.scale.set(2.2,0.7,1); sign.position.set(0,3.5,0); g.add(sign);
+  g.position.set(x,0,z); return g;
+}
+function mkGuardBooth(parent) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4,3,3), new THREE.MeshLambertMaterial({color:0x7f8c8d})); body.position.y = 1.5; body.castShadow = true; g.add(body);
+  const win = new THREE.Mesh(new THREE.BoxGeometry(3,1.2,0.1), new THREE.MeshLambertMaterial({color:0xaaddff, emissive:0x223344})); win.position.set(0,1.8,1.55); g.add(win);
+  const sign = createSign('🛡 경비실', 'rgba(60,60,60,0.9)', '#fff'); sign.scale.set(3,0.9,1); sign.position.set(0,3.7,0); g.add(sign);
+  g.position.set(-7,0,-16); parent.add(g);
+}
+function mkExitDoor(parent) {
+  const g = new THREE.Group();
+  const door = new THREE.Mesh(new THREE.BoxGeometry(3,4,0.3), new THREE.MeshLambertMaterial({color:0x2ecc71, emissive:0x0a5a2a})); door.position.y = 2; g.add(door);
+  const sign = createSign('🚪 EXIT 출구', 'rgba(20,120,50,0.95)', '#fff'); sign.scale.set(4.5,1.2,1); sign.position.set(0,4.8,0); g.add(sign);
+  g.position.set(EXIT_POS.x,0,EXIT_POS.z); parent.add(g);
+}
+function mkCCTVRoom(parent) {
+  // 모니터 벽
+  for (let r=0;r<2;r++) for (let c=0;c<4;c++){ const mon = new THREE.Mesh(new THREE.BoxGeometry(2,1.3,0.2), new THREE.MeshLambertMaterial({color:0x000, emissive:0x0a2a4a})); mon.position.set(-9+c*6, 2+r*1.6, -19); parent.add(mon); }
+  // CCTV 카메라
+  [[-18,-18],[18,-18],[-18,18],[18,18]].forEach(([x,z])=>{ const cam = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.6,1), new THREE.MeshLambertMaterial({color:0x222})); cam.position.set(x,4.5,z); const lens = new THREE.Mesh(new THREE.SphereGeometry(0.2,8,8), new THREE.MeshBasicMaterial({color:0xff0000})); lens.position.set(0,0,0.6); cam.add(lens); parent.add(cam); });
+  // 드론들
+  for (let i=0;i<5;i++){ const d = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.4,10,10), new THREE.MeshLambertMaterial({color:0x333, emissive:0x111})); d.add(body);
+    [[-0.5,-0.5],[0.5,-0.5],[-0.5,0.5],[0.5,0.5]].forEach(([rx,rz])=>{ const rot = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.05), new THREE.MeshLambertMaterial({color:0x555})); rot.position.set(rx,0.2,rz); d.add(rot); });
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8), new THREE.MeshBasicMaterial({color:0x00ffff})); eye.position.set(0,-0.2,0.4); d.add(eye);
+    const bx = -12 + i*6, bz = 4 + (i%2)*6;
+    d.position.set(bx, 3.5, bz); d.userData = { baseY: 3.5, phase: Math.random()*6 };
+    parent.add(d); drones.push(d);
+  }
+}
+function mkCeoAndHR(parent) {
+  // 대표이사실 (오른쪽 안쪽)
+  const partMat = new THREE.MeshLambertMaterial({ color: 0xc8a878 });
+  const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.3,4,12), partMat); p1.position.set(9,2,-13); parent.add(p1);
+  const ceoDesk = mkDesk(16,-14,Math.PI/2); ceoDesk.scale.set(1.4,1.2,1.4); parent.add(ceoDesk);
+  const ceoSign = createSign('👔 대표이사실', 'rgba(90,70,40,0.9)', '#fff'); ceoSign.scale.set(4,1,1); ceoSign.position.set(15,5,-8); parent.add(ceoSign);
+  // 인사팀 (왼쪽)
+  for (let i=0;i<3;i++){ parent.add(mkDesk(-16, 4 + i*-6)); }
+  const hrSign = createSign('📂 인사팀', 'rgba(90,70,40,0.9)', '#fff'); hrSign.scale.set(3,1,1); hrSign.position.set(-16,5,8); parent.add(hrSign);
+  // 함정 컴퓨터 (강조)
+  const trap = new THREE.Group();
+  const td = mkDesk(0,0); trap.add(td);
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(1.1,0.8,0.15), new THREE.MeshBasicMaterial({color:0xff2200})); glow.position.set(0,1.72,-0.3); trap.add(glow);
+  const ts = createSign('💻 ???', 'rgba(120,20,20,0.9)', '#fff'); ts.scale.set(2,0.8,1); ts.position.set(0,3,0); trap.add(ts);
+  trap.position.set(TRAP_POS.x,0,TRAP_POS.z); parent.add(trap);
+}
+function mkAiBusinessDivision(parent) {
+  const partMat = new THREE.MeshLambertMaterial({ color: 0x6f8798 });
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(0.3,4,22), partMat); wall.position.set(14,2,0); parent.add(wall);
+  const sign = createSign('🤖 AI 사업부', 'rgba(30,70,90,0.95)', '#fff'); sign.scale.set(4.2,1,1); sign.position.set(-10,5.2,-15); parent.add(sign);
+  AI_DIVISION_DESKS.forEach(d => mkDeskStation(parent, d.x, d.z, d.rot, d.name));
+  for (let i=0;i<3;i++) {
+    const rack = new THREE.Mesh(new THREE.BoxGeometry(1.5,3.6,1), new THREE.MeshLambertMaterial({ color: 0x1f2f3a }));
+    rack.position.set(18,1.8,-8 + i*5);
+    for (let j=0;j<4;j++) {
+      const led = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.08,0.06), new THREE.MeshLambertMaterial({ color: j%2 ? 0x00ddff : 0x39ff88, emissive: j%2 ? 0x006688 : 0x008844 }));
+      led.position.set(0,-1.25+j*0.7,0.53); rack.add(led);
+    }
+    parent.add(rack);
+  }
+  const trapGlow = new THREE.Mesh(new THREE.BoxGeometry(1.1,0.8,0.15), new THREE.MeshBasicMaterial({color:0xff2200}));
+  trapGlow.position.set(TRAP_POS.x,1.72,TRAP_POS.z + 0.3); parent.add(trapGlow);
+  const trapSign = createSign('💻 수상한 AI PC', 'rgba(120,20,20,0.9)', '#fff'); trapSign.scale.set(3,0.8,1); trapSign.position.set(TRAP_POS.x,3.3,TRAP_POS.z); parent.add(trapSign);
+}
+
+function createOni() {
+  // 공포의 이경동: 거대하고 창백한 괴물 상무
+  const g = createHumanoid(0x1a1a3a, 0x550000, { skin: 0x8aa0a0, hair: 0x111111, hairStyle: 'bald', beard: true, pants: 0x0a0a1a, shoes: 0x000000, mouth: 0x6a0000 });
+  g.scale.set(1.5,1.6,1.5);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const eyes = [];
+  [-0.15,0.15].forEach(x => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.09,10,10), eyeMat); e.position.set(x,2.37,0.34); g.add(e); eyes.push(e); });
+  g.userData.eyes = eyes;
+  const tag = createNameTag('공포의 이경동', false, 'rgba(60,0,90,0.95)'); tag.position.y = 4.4; g.add(tag);
+  return g;
+}
+function createFollower(green, name, bg) {
+  const g = green
+    ? createHumanoid(0x4a7a2a, null, { skin: 0x7fae6a, hair: 0x223311, hairStyle: 'spiky', mouth: 0x335522, pants: 0x33442a, glasses: true, glassFrame: 0x223311 }) // 좀비 용전임
+    : createHumanoid(0x2980b9, null, { glasses: true, hair: 0x2a1a0a, hairStyle: 'short', badge: 0x2ecc71, pants: 0x21618c, shoes: 0xffffff }); // 정상 용전임(개발자)
+  const tag = createNameTag(name, !green, bg); g.add(tag);
+  g.userData.tag = tag;
+  return g;
+}
+function poseAtDeskSeat(mesh, station) {
+  if (!mesh || !station) return;
+  if (!mesh.userData.deskPoseOriginal) {
+    mesh.userData.deskPoseOriginal = {
+      scale: { x: mesh.scale.x, y: mesh.scale.y, z: mesh.scale.z },
+      arm: mesh.userData.rightArm ? {
+        x: mesh.userData.rightArm.rotation.x,
+        y: mesh.userData.rightArm.rotation.y,
+        z: mesh.userData.rightArm.rotation.z
+      } : null
+    };
+  }
+  const seat = chairPositionForDesk(station);
+  mesh.position.set(seat.x, 0, seat.z);
+  mesh.rotation.y = chairRotationForDesk(station.rot || 0);
+  const base = mesh.userData.deskPoseOriginal.scale;
+  mesh.scale.set(base.x * 1.05, base.y * 0.72, base.z * 1.05);
+  if (mesh.userData.rightArm) {
+    mesh.userData.rightArm.rotation.x = -0.85;
+    mesh.userData.rightArm.rotation.z = -0.25;
+  }
+  mesh.userData.isSeatedAtDesk = true;
+}
+function resetDeskPose(mesh) {
+  if (!mesh || !mesh.userData.deskPoseOriginal) return;
+  const base = mesh.userData.deskPoseOriginal.scale;
+  mesh.scale.set(base.x, base.y, base.z);
+  if (mesh.userData.rightArm && mesh.userData.deskPoseOriginal.arm) {
+    mesh.userData.rightArm.rotation.x = mesh.userData.deskPoseOriginal.arm.x;
+    mesh.userData.rightArm.rotation.y = mesh.userData.deskPoseOriginal.arm.y;
+    mesh.userData.rightArm.rotation.z = mesh.userData.deskPoseOriginal.arm.z;
+    mesh.userData.rightArm.position.set(0.53, 2.0, 0);
+  }
+  delete mesh.userData.deskPoseOriginal;
+  mesh.userData.isSeatedAtDesk = false;
+}
+
+function buildFsa() {
+  if (fsaBuilt) return;
+  FLOORS.forEach((fl, i) => {
+    const fg = new THREE.Group(); fg.visible = false;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(56,56), new THREE.MeshLambertMaterial({ color: fl.floorColor }));
+    floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; fg.add(floor);
+    mkWalls(fg, 56);          // 사무실 공간 확장(넓게)
+    mkElevator(fg);
+    mkStairs(fg, UP_STAIRS_POS, 'up');
+    mkStairs(fg, DOWN_STAIRS_POS, 'down');
+    HIDES.forEach(h => fg.add(mkLocker(h.x, h.z)));
+    mkRestroom(fg, 24, 0);    // 화장실
+    mkOfficeAmenities(fg);    // 정수기/복합기/화분/라운지
+    const label = createSign(fl.label, 'rgba(20,10,30,0.85)', '#d8b8ff'); label.scale.set(10,1.6,1); label.position.set(0,7.5,0); fg.add(label); fg.userData.floorLabel = label;
+
+    if (i === FLOOR_B2) mkCafe(fg);
+    else if (i === FLOOR_B1 || i === FLOOR_2F) mkDenseDeskRows(fg);
+    else if (i === FLOOR_1F) { mkGuardBooth(fg); mkExitDoor(fg); const arch = createSign('🏢 1층 로비 · 입구/출구', 'rgba(60,60,40,0.85)', '#fff'); arch.scale.set(7,1.2,1); arch.position.set(0,6,18); fg.add(arch); }
+    else if (i === FLOOR_3F) {
+      mkDenseDeskRows(fg);
+      // 안쪽 사무실 파티션
+      const partMat = new THREE.MeshLambertMaterial({ color: 0x6a5a8a });
+      const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.3,4,10), partMat); p1.position.set(10,2,0); fg.add(p1);
+      const p2 = new THREE.Mesh(new THREE.BoxGeometry(8,4,0.3), partMat); p2.position.set(15,2,-5); fg.add(p2);
+      const inSign = createSign('🔒 안쪽 사무실', 'rgba(40,20,60,0.9)', '#fbf'); inSign.scale.set(3.5,1,1); inSign.position.set(16,5,5); fg.add(inSign);
+      // 재입사 시 용전임+공대리가 나란히 앉아 모니터를 보는 책상 2개
+      mkDeskStation(fg, FSA_REENTRY_DESKS.yong.x, FSA_REENTRY_DESKS.yong.z, FSA_REENTRY_DESKS.yong.rot, FSA_REENTRY_DESKS.yong.name);
+      mkDeskStation(fg, FSA_REENTRY_DESKS.gong.x, FSA_REENTRY_DESKS.gong.z, FSA_REENTRY_DESKS.gong.rot, FSA_REENTRY_DESKS.gong.name);
+      const rs = createSign('💼 재입사 자리', 'rgba(60,40,90,0.85)', '#fff'); rs.scale.set(3,0.9,1); rs.position.set(0,4,-15); fg.add(rs);
+    }
+    else if (i === FLOOR_4F) mkCCTVRoom(fg);
+    else if (i === FLOOR_5F) mkAiBusinessDivision(fg);
+
+    fsaRoot.add(fg); floorGroups.push(fg);
+    floorMeta.push({ hasExit: i === FLOOR_1F, hasVaccine: i === FLOOR_3F, hasTrap: i === FLOOR_5F });
+  });
+
+  oniMesh = createOni(); oniMesh.visible = false; fsaRoot.add(oniMesh);
+  zombieYong = createFollower(true, '좀비가 된 용전임', 'rgba(40,120,40,0.95)'); zombieYong.visible = false; fsaRoot.add(zombieYong);
+  normalYong = createFollower(false, '정상화된 용전임', 'rgba(40,120,200,0.95)'); normalYong.visible = false; fsaRoot.add(normalYong);
+  munbujang = createNPC('enemy', 0x7a1a1a, '빌런 문부장', { tagColor: 'rgba(120,20,20,0.95)', indicator: null }, { beard: true, hairStyle: 'bald', tie: 0x000000, glasses: true, glassFrame: 0x000000, mouth: 0xc0392b, pants: 0x2c1810 });
+  munbujang.visible = false; fsaRoot.add(munbujang);
+
+  fsaBuilt = true;
+}
+
+// ===== INPUT =====
+const keys = { up: false, down: false, left: false, right: false };
+function clearMoveKeys() { keys.up = keys.down = keys.left = keys.right = false; }
+
+function clickPrimary() {
+  const sel = '#modalContent button[data-primary]:not(:disabled), #modalContent .start-btn:not(:disabled), #modalContent button[data-action="close-dialog"]:not(:disabled), #modalContent button[data-action="fsa-finish"]:not(:disabled), #modalContent button[data-action="fsa-close"]:not(:disabled)';
+  const btn = document.querySelector(sel);
+  if (btn) { btn.click(); return true; }
+  return false;
+}
+
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  const isConfirm = (k === ' ' || k === 'enter' || k === 'spacebar');
+
+  // 엔딩 시네마틱: Space/Enter로 다음 컷 / 마지막엔 재시작
+  if (state.mode === 'ending') {
+    if (isConfirm) { e.preventDefault(); if (state.endingDone) { const r = document.getElementById('endRestart'); if (r) r.click(); } else if (state.endingNext) state.endingNext(); }
+    return;
+  }
+
+  // 모달이 열려 있으면: 전부 키보드로 조작 (마우스 없이도 가능)
+  if (modalIsOpen()) {
+    if (state.mode === 'battle') {
+      // 전투 키: 공격=Space, 가방=B, 도망=R / 서브메뉴 ↑↓+Space
+      if (isConfirm || ['b','r','w','s','arrowup','arrowdown','escape'].includes(k)) e.preventDefault();
+      battleKey(k, isConfirm);
+    } else if (state.phoneOpen && k === 'n') {
+      // 휴대폰 열린 상태: N → 다른 휴대폰으로 전환(슬라이드 모션)
+      e.preventDefault(); switchPhone();
+    } else {
+      // 일반 팝업: ↑↓(또는 W/S/←→)로 버튼 선택, Space/Enter로 클릭
+      if (k === 'arrowup' || k === 'w' || k === 'arrowleft' || k === 'a') { e.preventDefault(); modalMenuMove(-1); }
+      else if (k === 'arrowdown' || k === 's' || k === 'arrowright' || k === 'd') { e.preventDefault(); modalMenuMove(1); }
+      else if (isConfirm) { e.preventDefault(); modalMenuActivate(); }
+    }
+    return;
+  }
+
+  // 진화 연출: Space/Enter로 건너뛰기
+  if (state.mode === 'evolving') { if (isConfirm) { e.preventDefault(); finalizeEvolution(); } return; }
+
+  // 1인칭 자유이동 중 마우스 잠금이 풀려있으면(모달 종료 후 등) 재잠금 → 마우스는 시점 전용
+  if ((state.mode === 'roaming' || state.mode === 'fsa' || state.mode === 'building') && camCtrl.mode === 'first' && !document.pointerLockElement) requestPointerLockSafe();
+
+  // 공통 카메라 단축키 (게임 진행 중)
+  if (state.mode === 'roaming' || state.mode === 'fsa' || state.mode === 'building') {
+    if (k === '1') { setCamPreset('default'); e.preventDefault(); }
+    if (k === '2') { setCamPreset('high'); e.preventDefault(); }
+    if (k === '3') { setCamPreset('cinema'); e.preventDefault(); }
+    if (k === 'r') { resetCamera(); e.preventDefault(); }
+    if (k === 'c') { toggleCamera(); e.preventDefault(); }
+  }
+
+  if (state.mode === 'roaming') {
+    if (k === 'w' || k === 'arrowup') { keys.up = true; e.preventDefault(); }
+    if (k === 's' || k === 'arrowdown') { keys.down = true; e.preventDefault(); }
+    if (k === 'a' || k === 'arrowleft') { keys.left = true; e.preventDefault(); }
+    if (k === 'd' || k === 'arrowright') { keys.right = true; e.preventDefault(); }
+    if ((k === 'e' || isConfirm) && state.currentBuilding) { e.preventDefault(); enterBuilding(state.currentBuilding); }
+    if (k === 'q') { e.preventDefault(); showSkillsModal(); }
+    if (k === 'b') { e.preventDefault(); startPhoneCheck('bag'); }      // B: 가방 휴대폰
+    if (k === 'n') { e.preventDefault(); startPhoneCheck('progress'); } // N: 진행 현황 휴대폰
+  } else if (state.mode === 'fsa') {
+    if (k === 'w' || k === 'arrowup') { keys.up = true; e.preventDefault(); }
+    if (k === 's' || k === 'arrowdown') { keys.down = true; e.preventDefault(); }
+    if (k === 'a' || k === 'arrowleft') { keys.left = true; e.preventDefault(); }
+    if (k === 'd' || k === 'arrowright') { keys.right = true; e.preventDefault(); }
+    if (k === 'e' || isConfirm) { e.preventDefault(); fsaInteract(); }
+    if (k === 'b') { e.preventDefault(); fsaUseBakkas(); }
+  } else if (state.mode === 'building') {
+    if (k === 'w' || k === 'arrowup') { keys.up = true; e.preventDefault(); }
+    if (k === 's' || k === 'arrowdown') { keys.down = true; e.preventDefault(); }
+    if (k === 'a' || k === 'arrowleft') { keys.left = true; e.preventDefault(); }
+    if (k === 'd' || k === 'arrowright') { keys.right = true; e.preventDefault(); }
+    if (k === 'e' || isConfirm) { e.preventDefault(); bldInteract(); }
+    if (k === 'q') { e.preventDefault(); showSkillsModal(); }
+  }
+});
+addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  if (k === 'w' || k === 'arrowup') keys.up = false;
+  if (k === 's' || k === 'arrowdown') keys.down = false;
+  if (k === 'a' || k === 'arrowleft') keys.left = false;
+  if (k === 'd' || k === 'arrowright') keys.right = false;
+});
+
+function setCamPreset(name) { camCtrl.preset = name; camCtrl.mode = 'third'; updateModeHUD(); }
+function resetCamera() { camCtrl.preset = 'default'; camCtrl.mode = 'third'; updateModeHUD(); }
+function toggleCamera() {
+  camCtrl.mode = camCtrl.mode === 'third' ? 'first' : 'third';
+  if (camCtrl.mode === 'first') {
+    // 진입 시 현재 캐릭터 위치/방향으로 초기화
+    camCtrl.yaw = player.rotation.y; camCtrl.pitch = 0;
+    camCtrl.eye.x = player.position.x; camCtrl.eye.y = 2.5; camCtrl.eye.z = player.position.z;
+    requestPointerLockSafe();
+  } else {
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+  updateModeHUD();
+}
+function requestPointerLockSafe() {
+  // 게임플레이 중 + 모달 없을 때만 마우스 잠금
+  if (camCtrl.mode !== 'first') return;
+  if (modalIsOpen()) return;
+  if (!['roaming','fsa','building'].includes(state.mode)) return;
+  try { canvas.requestPointerLock(); } catch (e) {}
+}
+// 마우스 이동 → 1인칭 시점 회전(자유 시점)
+addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== canvas || camCtrl.mode !== 'first') return;
+  camCtrl.yaw   += (e.movementX || 0) * 0.0022; // 좌우 반전 수정: 마우스 오른쪽 → 시점 오른쪽
+  camCtrl.pitch -= (e.movementY || 0) * 0.0022;
+  const lim = 1.3; if (camCtrl.pitch > lim) camCtrl.pitch = lim; if (camCtrl.pitch < -lim) camCtrl.pitch = -lim;
+});
+// 캔버스 클릭 시 1인칭 마우스 잠금 재요청
+canvas.addEventListener('click', () => requestPointerLockSafe());
+
+// 입력 방향 → 이동 벡터 (1인칭은 시점 기준, 3인칭은 월드 기준)
+function moveVector(speed) {
+  const ix = (keys.left ? -1 : 0) + (keys.right ? 1 : 0);
+  const iz = (keys.up ? -1 : 0) + (keys.down ? 1 : 0); // W=-Z(앞)
+  if (camCtrl.mode === 'first') {
+    const fwd = -iz, strafe = ix; // W=앞, S=뒤, A=좌, D=우 (시점 기준)
+    const Fx = Math.sin(camCtrl.yaw), Fz = -Math.cos(camCtrl.yaw);
+    const Rx = Math.cos(camCtrl.yaw), Rz = Math.sin(camCtrl.yaw);
+    let dx = Fx * fwd + Rx * strafe, dz = Fz * fwd + Rz * strafe;
+    const l = Math.hypot(dx, dz); if (l > 0) { dx = dx / l * speed; dz = dz / l * speed; }
+    return { dx, dz, len: l };
+  }
+  let dx = ix, dz = iz; const l = Math.hypot(dx, dz); if (l > 0) { dx = dx / l * speed; dz = dz / l * speed; }
+  return { dx, dz, len: l };
+}
+function easeOutCubic(t) { return 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3); }
+function animatePhoneHandToFace(progress) {
+  const arm = player.userData.rightArm;
+  if (!arm) return;
+  if (!arm.userData.phoneRaiseStart) {
+    arm.userData.phoneRaiseStart = {
+      pos: { x: arm.position.x, y: arm.position.y, z: arm.position.z },
+      rot: { x: arm.rotation.x, y: arm.rotation.y, z: arm.rotation.z }
+    };
+  }
+  const start = arm.userData.phoneRaiseStart;
+  const t = easeOutCubic(progress);
+  arm.position.x = start.pos.x - 0.05 * t;
+  arm.position.y = start.pos.y + 0.26 * t;
+  arm.position.z = start.pos.z + 0.42 * t;
+  arm.rotation.x = start.rot.x - 1.25 * t;
+  arm.rotation.y = start.rot.y + 0.18 * t;
+  arm.rotation.z = start.rot.z - 0.35 * t;
+}
+function resetPhoneArmPose() {
+  const arm = player.userData.rightArm;
+  if (!arm) return;
+  const start = arm.userData.phoneRaiseStart;
+  if (start) {
+    arm.position.set(start.pos.x, start.pos.y, start.pos.z);
+    arm.rotation.set(start.rot.x, start.rot.y, start.rot.z);
+  } else {
+    arm.position.set(0.53, 2.0, 0);
+    arm.rotation.set(0, 0, 0);
+  }
+  delete arm.userData.phoneRaiseStart;
+}
+
+// ===== UPDATE: OVERWORLD =====
+let frameTime = 0, lastSpawn = 0;
+function updateRoaming(delta) {
+  frameTime += delta;
+  // 휴대폰 보는 모션 (B/N키) → 0.7초 후 휴대폰 UI 오픈
+  if (state.phoneAnim != null) {
+    state.phoneAnim += delta;
+    animatePhoneHandToFace(state.phoneAnim / 0.45);
+    player.position.y *= 0.85;
+    if (state.phoneAnim >= 0.7) { state.phoneAnim = null; openPhone(state.phoneNext || 'bag'); }
+    return;
+  }
+  const mv = moveVector(0.22); const dx = mv.dx, dz = mv.dz;
+  if (mv.len > 0) {
+    const nx = player.position.x + dx, nz = player.position.z + dz;
+    let blocked = false;
+    for (const b of buildings) { const md = b.userData.type === 'tower' ? 6 : 5.5; if (dist2D({x:nx,z:nz}, b.position) < md) { blocked = true; break; } }
+    if (Math.abs(nx) > MAP_HALF || Math.abs(nz) > MAP_HALF) blocked = true;
+    if (!blocked) { player.position.x = nx; player.position.z = nz; player.rotation.y = camCtrl.mode === 'first' ? camCtrl.yaw : Math.atan2(dx, dz); }
+    player.position.y = Math.abs(Math.sin(frameTime*12))*0.08;
+  } else player.position.y *= 0.85;
+
+  npcs.forEach(npc => {
+    const u = npc.userData;
+    u.timer += delta;
+    if (u.timer > u.changeAt) { u.dirX = (Math.random()-0.5)*2; u.dirZ = (Math.random()-0.5)*2; u.timer = 0; u.changeAt = 2+Math.random()*3; }
+    let nx = npc.position.x + u.dirX*0.045, nz = npc.position.z + u.dirZ*0.045;
+    if (Math.abs(nx) > MAP_HALF-2) { u.dirX *= -1; nx = Math.sign(nx)*(MAP_HALF-2); }
+    if (Math.abs(nz) > MAP_HALF-2) { u.dirZ *= -1; nz = Math.sign(nz)*(MAP_HALF-2); }
+    let blk = false; for (const b of buildings) if (dist2D({x:nx,z:nz}, b.position) < 6) { blk = true; break; }
+    if (!blk) { npc.position.x = nx; npc.position.z = nz; } else { u.dirX *= -1; u.dirZ *= -1; }
+    if (Math.hypot(u.dirX,u.dirZ) > 0.1) npc.rotation.y = Math.atan2(u.dirX, u.dirZ);
+    if (u.indicator) { const s = 1+Math.sin(frameTime*5)*0.25; u.indicator.scale.set(s,s,s); u.indicator.position.y = 3.3+Math.sin(frameTime*3)*0.1; }
+  });
+
+  lastSpawn += delta;
+  if (lastSpawn > SPAWN_INTERVAL) { spawnNPC(); lastSpawn = 0; }
+
+  let near = null, minD = Infinity;
+  for (const b of buildings) {
+    const d = dist2D(player.position, b.position);
+    const trig = b.userData.type === 'tower' ? 8 : 7.5;
+    if (d < trig && d < minD) {
+      const t = b.userData.type;
+      if (t === 'tower' && !state.bossesCleared && state.gymsCleared.length < 3) continue;
+      if (state.huntMode && (t === 'tower' || t === 'gym')) continue;
+      if (t === 'gym') { const idx = GYMS.findIndex(g => g.id === b.userData.gymId); if (idx > 0 && !state.gymsCleared.includes(GYMS[idx-1].id)) continue; }
+      near = b; minD = d;
+    }
+  }
+  if (near !== state.currentBuilding) { state.currentBuilding = near; updateHint(); }
+
+  for (let i = npcs.length-1; i>=0; i--) {
+    const npc = npcs[i];
+    if (dist2D(player.position, npc.position) < 1.6) {
+      const d = npc.userData; overworldRoot.remove(npc); npcs.splice(i,1);
+      if (d.type === 'ally') triggerAllyEncounter(d.ally);
+      else if (d.type === 'enemy') triggerWildBattle(d);
+      else if (d.type === 'huntEnemy' || d.type === 'huntAlly') triggerHuntBattle(d);
+      return;
+    }
+  }
+}
+
+// =========================================================
+// ===== 일반 건물(도장) 다층 인테리어 =====
+// =========================================================
+const KABANG_POS = { x: -9.5, z: 11 };   // 영강 2F 나쁜말김대리 자리(아이템) — 가운데
+const BLD_LEADER_POS = { x: 0, z: -8 };
+const BLD_COLA_PRICE = Math.floor(PRICE_COLA / 2); // 건물 내 콜라 반값
+// 영강빌딩 층별 이름
+const YEONGGANG_FLOORS = {
+  1: '1층 · 로비/경비실',
+  2: '2층 · M지니어·M영업',
+  3: '3층 · 3층 사무실',
+  4: '4층 · 4층 사무실',
+  5: '5층 · 기타M 사무실',
+  6: '6층 · 6층 사무실',
+  7: '7층 · M돌 사무실'
+};
+const YEONGGANG_GUIDE = [
+  '1층 — 로비/경비실',
+  '2층 — M지니어 · M영업',
+  '3층 — 3층 사무실',
+  '4층 — 4층 사무실',
+  '5층 — 기타M 사무실',
+  '6층 — 6층 사무실',
+  '7층 — M돌 사무실 (관장)'
+];
+
+function mkRoomSign(parent, text, x, z, color) {
+  const s = createSign(text, color || 'rgba(40,60,90,0.92)', '#fff'); s.scale.set(4.2, 1.1, 1); s.position.set(x, 5.2, z); parent.add(s);
+}
+function mkDeskCluster(parent, cx, cz) {
+  for (let i = 0; i < 3; i++) {
+    const x = cx + (i - 1) * 2.6;
+    mkDeskStation(parent, x, cz, 0);
+  }
+}
+function mkMeetingRoom(parent, cx, cz, label) {
+  const pm = new THREE.MeshLambertMaterial({ color: 0xbfcad6 });
+  const w1 = new THREE.Mesh(new THREE.BoxGeometry(8.5, 3, 0.2), pm); w1.position.set(cx, 1.5, cz - 3.6); parent.add(w1);
+  const w2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3, 7.2), pm); w2.position.set(cx - 4.2, 1.5, cz); parent.add(w2);
+  // 회의 테이블 + 의자
+  const t = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.2, 1.6), new THREE.MeshLambertMaterial({ color: 0x9c6b3f })); t.position.set(cx, 1.05, cz); t.castShadow = true; parent.add(t);
+  for (let i = 0; i < 2; i++) { parent.add(mkChair(cx - 1 + i * 2, cz + 1.4)); parent.add(mkChair(cx - 1 + i * 2, cz - 1.4)); }
+  mkRoomSign(parent, '🗣 ' + label, cx, cz - 3.7, 'rgba(60,40,90,0.92)');
+}
+function mkExitMarker(parent) {
+  const g = new THREE.Group();
+  const door = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 0.3), new THREE.MeshLambertMaterial({ color: 0x2ecc71, emissive: 0x0a5a2a })); door.position.y = 2; g.add(door);
+  const sign = createSign('🚪 나가기 (밖으로)', 'rgba(20,120,50,0.95)', '#fff'); sign.scale.set(4.5, 1.2, 1); sign.position.set(0, 4.8, 0); g.add(sign);
+  g.position.set(EXIT_POS.x, 0, EXIT_POS.z); parent.add(g);
+}
+function mkBldShop(parent) {
+  const box = createChongchongBox(); box.scale.set(0.7, 0.7, 0.7); box.position.set(14, 0, -14); parent.add(box);
+}
+// 한 층 빌드
+function buildBldFloor(gym, n) {
+  const g = new THREE.Group();
+  const floorColor = (n === 2) ? 0x4a5a6a : (n === gym.leaderFloor ? 0x5a4a6a : 0x3f4a57);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(44, 44), new THREE.MeshLambertMaterial({ color: floorColor }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; g.add(floor);
+  mkWalls(g);
+  mkElevator(g); mkStairs(g, UP_STAIRS_POS, 'up'); mkStairs(g, DOWN_STAIRS_POS, 'down');
+  // 층 라벨 (영강빌딩 층별 이름)
+  let label = `${gym.name} ${n}층`;
+  if (gym.id === 'yeonggang') label = YEONGGANG_FLOORS[n] || `${n}층 · 사무실`;
+  else if (n === gym.leaderFloor) label = `${n}층 · 임원실`;
+  const lab = createSign(label, 'rgba(20,30,45,0.9)', '#cfe'); lab.scale.set(11, 1.6, 1); lab.position.set(0, 7.4, 0); g.add(lab);
+
+  if (n === 1) {
+    mkExitMarker(g);
+    const booth = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 3), new THREE.MeshLambertMaterial({ color: 0x7f8c8d })); booth.position.set(-7, 1.5, -15); g.add(booth);
+    mkRoomSign(g, '🛡 경비실', -7, -15, 'rgba(60,60,60,0.9)');
+  } else if (gym.id === 'yeonggang' && n === 2) {
+    // M지니어 데스크 행 (왼→오: JH 선임 · 나쁜말김대리 · 팀장님), z=11
+    mkDeskStation(g, -15, 11, Math.PI); const jh = createSign('🧑‍💻 JH 선임', 'rgba(40,90,60,0.9)', '#fff'); jh.scale.set(2.4, 0.8, 1); jh.position.set(-15, 3.1, 11); g.add(jh);
+    mkDeskStation(g, -9.5, 11, Math.PI); // 나쁜말김대리 자리(아이템) — 가운데, 이름표 금색
+    const km = createSign('🎁 나쁜말김대리 (아이템!)', 'rgba(255,196,0,0.96)', '#3a2a00'); km.scale.set(3.6, 0.85, 1); km.position.set(-9.5, 3.3, 11); g.add(km);
+    const glow = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 0.16), new THREE.MeshBasicMaterial({ color: 0xffcc00 })); glow.position.set(-9.5, 1.75, 10.7); g.add(glow);
+    g.userData.kabangGlow = glow;
+    mkDeskStation(g, -4, 11, Math.PI); const tlSign = createSign('👔 팀장님', 'rgba(40,60,90,0.9)', '#fff'); tlSign.scale.set(2.4, 0.8, 1); tlSign.position.set(-4, 3.1, 11); g.add(tlSign);
+    // M지니어 팀 이름표: 행보다 더 앞쪽(z=4), 높게 — M영업과 겹치지 않음
+    mkRoomSign(g, '🛠 M지니어팀', -9.5, 4, 'rgba(90,60,30,0.92)');
+    // M영업: M지니어 앞쪽(z=-7)에 배치 → 상점(총총박스)과 겹치지 않음
+    mkRoomSign(g, '💼 M영업', -9.5, -11, 'rgba(40,60,90,0.92)');
+    mkDeskCluster(g, -9.5, -7);
+  } else {
+    // 일반 사무실 (3층 이상도 책상이 있는 사무실 느낌)
+    mkDeskCluster(g, -10, -8); mkDeskCluster(g, 8, -8); mkDeskCluster(g, -10, 6); mkDeskCluster(g, 8, 6);
+    if (gym.id === 'yeonggang' && n >= 3) { mkDeskCluster(g, -1, -8); mkDeskCluster(g, -1, 6); }
+  }
+  if (gym.shopFloors && gym.shopFloors.includes(n)) mkBldShop(g);
+  return g;
+}
+
+let bldCurFloorGroup = null;
+const bldNpcs = [];
+const bldGuards = [];
+
+function clearBldNpcs() { bldNpcs.forEach(n => bldRoot.remove(n)); bldNpcs.length = 0; }
+function clearBldGuards() { bldGuards.forEach(n => bldRoot.remove(n)); bldGuards.length = 0; }
+
+function spawnBldNpc(floorNum) {
+  const b = state.bld;
+  // 빌런 비중 높게(중간 빌런 등장)
+  const isAlly = Math.random() < 0.4;
+  let mesh, ud, name;
+  if (isAlly) {
+    const a = ALLIES[rand(0, ALLIES.length - 1)];
+    name = a.name; mesh = createNPC('ally', 0x27ae60, name, null, npcCfgFor(true, a.name));
+    ud = { type: 'ally', ally: a };
+  } else {
+    const names = Object.keys(ENEMIES); const en = names[rand(0, names.length - 1)]; const e = ENEMIES[en];
+    const mod = pickModifier();
+    name = mod.name ? `${mod.name} ${en}` : en;
+    mesh = createNPC('enemy', e.color, name, mod, npcCfgFor(false, en));
+    ud = { type: 'enemy', enemyName: en, enemyData: e, modifier: mod };
+  }
+  let x, z, ok = false;
+  for (let t = 0; t < 12 && !ok; t++) {
+    x = (Math.random() - 0.5) * 32; z = (Math.random() - 0.5) * 32;
+    ok = dist2D({ x, z }, player.position) > 8
+      && dist2D({ x, z }, ELEV_POS) > 4
+      && dist2D({ x, z }, UP_STAIRS_POS) > 4
+      && dist2D({ x, z }, DOWN_STAIRS_POS) > 4;
+  }
+  mesh.position.set(x, 0, z);
+  mesh.userData = Object.assign(ud, { timer: 0, changeAt: 2 + Math.random() * 3, dirX: (Math.random() - 0.5) * 2, dirZ: (Math.random() - 0.5) * 2, indicator: mesh.userData.indicator });
+  bldRoot.add(mesh); bldNpcs.push(mesh);
+}
+
+function setBldFloor(n, pos) {
+  const b = state.bld;
+  if (bldCurFloorGroup) { bldRoot.remove(bldCurFloorGroup); }
+  bldCurFloorGroup = buildBldFloor(b.gym, n);
+  bldRoot.add(bldCurFloorGroup);
+  b.floor = n;
+  player.position.set(pos.x, 0, pos.z); player.rotation.y = Math.PI;
+  clearBldNpcs(); clearBldGuards();
+  // 층별 랜덤 동료/빌런
+  const count = 2 + (Math.random() < 0.5 ? 1 : 0);
+  for (let i = 0; i < count; i++) spawnBldNpc(n);
+  // 1층 경비원 3명 순찰(고정) — 동료색 아님, "NPC" 표기, 회색 표시구
+  if (n === 1) {
+    for (let i = 0; i < 3; i++) {
+      const gd = createNPC('npc', 0x394b59, '경비원 아저씨 [NPC]', { indicator: 0x9aa0a8, tagColor: 'rgba(70,80,95,0.95)' }, { hat: 0x1a2a4a, glasses: true, tie: 0x000000, shirt: 0x394b59 });
+      const ang = i * 2.1; gd.position.set(Math.sin(ang) * 12, 0, Math.cos(ang) * 12 + 4);
+      gd.userData = { guard: true, ang, r: 11 + i * 1.5, spd: 0.4 + i * 0.1, indicator: gd.userData.indicator };
+      bldRoot.add(gd); bldGuards.push(gd);
+    }
+  }
+  // 리더층: 격파 전이면 관장 배치
+  if (n === b.leaderFloor && !b.leaderDefeated) {
+    const ld = createNPC('enemy', 0x8e44ad, '🏢 ' + b.gym.leader.name, { tagColor: 'rgba(120,30,160,0.95)', indicator: 0xff2233 }, { tie: 0x111111, glasses: true, badge: true, hairStyle: 'side' });
+    ld.position.set(BLD_LEADER_POS.x, 0, BLD_LEADER_POS.z); ld.userData = { leader: true, indicator: ld.userData.indicator };
+    bldRoot.add(ld); bldNpcs.push(ld); b.leaderMesh = ld;
+  } else b.leaderMesh = null;
+}
+
+function startBuilding(gym) {
+  state.bld = { active: true, gymId: gym.id, gym, floor: 1, leaderFloor: gym.leaderFloor, shopFloors: gym.shopFloors || [], leaderDefeated: state.gymsCleared.includes(gym.id), kabangTaken: false, leaderMesh: null };
+  state.mode = 'building';
+  overworldRoot.visible = false; fsaRoot.visible = false; bldRoot.visible = true;
+  clearAllNPCs();
+  setBldFloor(1, { x: 4, z: -12 });
+  setBldVisuals();
+  camCtrl.preset = 'default'; camCtrl.mode = 'third'; camCtrl.cur = { x: 4, y: 12, z: 2 };
+  ['hudInfo'].forEach(id => document.getElementById(id).style.display = 'none');
+  document.getElementById('hudStats').style.display = 'block';
+  document.getElementById('hudControls').style.display = 'block';
+  hideModal();
+  fsaToast(`🏢 ${gym.name} 입장! (엘리베이터 고장 · 위/아래 계단으로 층 이동, E 조사)`);
+  updateStatsHUD(); updateModeHUD();
+}
+function resumeBuilding() {
+  if (!state.bld) { state.mode = 'roaming'; return; }
+  state.mode = 'building';
+  bldRoot.visible = true; overworldRoot.visible = false;
+  setBldVisuals();
+  // 관장 격파 시 관장 메시 제거 + 클리어 처리
+  if (state.bld.leaderDefeated && state.bld.leaderMesh) {
+    bldRoot.remove(state.bld.leaderMesh);
+    const i = bldNpcs.indexOf(state.bld.leaderMesh); if (i >= 0) bldNpcs.splice(i, 1);
+    state.bld.leaderMesh = null;
+  }
+  document.getElementById('hudStats').style.display = 'block';
+  updateStatsHUD(); updateModeHUD();
+}
+function finishBuilding() {
+  state.bld = null; bldCurFloorGroup = null;
+  clearBldNpcs(); clearBldGuards();
+  bldRoot.visible = false; overworldRoot.visible = true;
+  setOverworldVisuals();
+  state.mode = 'roaming'; state.currentBuilding = null;
+  const gym = GYMS.find(g => g.id === (state.lastGymId || 'yeonggang'));
+  player.position.set((gym ? gym.x : 0) + 8, 0, (gym ? gym.z : -45) + 8); player.rotation.y = 0;
+  camCtrl.cur = { x: player.position.x, y: 12, z: player.position.z + 14 };
+  clearAllNPCs(); initSpawn(7);
+  document.getElementById('hudInfo').style.display = 'block';
+  updateStatsHUD(); updateInfoHUD(); updateModeHUD();
+}
+function setBldVisuals() {
+  scene.background = new THREE.Color(0x223040);
+  scene.fog = new THREE.Fog(0x223040, 22, 70);
+  sun.color.setHex(0xffffff); sun.intensity = 0.75; ambient.color.setHex(0xbfd0e0); ambient.intensity = 0.6;
+}
+
+function bldNearest() {
+  const b = state.bld; const cands = [];
+  cands.push({ type: 'broken-elevator', label: '🛗 엘리베이터 고장', pos: ELEV_POS, r: 3 });
+  if (b.floor < b.gym.floors) cands.push({ type: 'stairs-up', label: `🪜 올라가는 계단 (${b.floor + 1}층)`, pos: UP_STAIRS_POS, r: 3 });
+  if (b.floor > 1) cands.push({ type: 'stairs-down', label: `🪜 내려가는 계단 (${b.floor - 1}층)`, pos: DOWN_STAIRS_POS, r: 3 });
+  if (b.floor === 1) cands.push({ type: 'exit', label: '🚪 건물 나가기', pos: EXIT_POS, r: 3 });
+  if (b.shopFloors.includes(b.floor)) cands.push({ type: 'shop', label: `🧊 총총박스 (콜라 ${BLD_COLA_PRICE}원·반값)`, pos: { x: 14, z: -14 }, r: 3.2 });
+  if (b.gym.id === 'yeonggang' && b.floor === 2 && !b.kabangTaken) cands.push({ type: 'kabang', label: '🚫 나쁜말 금지 까방권 획득 (E)', pos: KABANG_POS, r: 2.6 });
+  let best = null, bd = Infinity;
+  for (const c of cands) { const d = dist2D(player.position, c.pos); if (d < c.r && d < bd) { best = c; bd = d; } }
+  return best;
+}
+function nearestGuard() {
+  let best = null, bd = 3.0;
+  bldGuards.forEach(gd => { const d = dist2D(player.position, gd.position); if (d < bd) { best = gd; bd = d; } });
+  return best;
+}
+function showGuardGuide() {
+  state.mode = 'dialog';
+  const rows = YEONGGANG_GUIDE.map(l => `▸ ${l}`).join('<br>');
+  showModal(`<div class="modal-title">🛡 경비원 아저씨 [NPC]</div><div class="modal-body">
+    <div style="text-align:center;font-size:48px;margin:4px 0;">🛡️</div>
+    <div class="message-box">"어이 신입, 영강빌딩 구조 알려줄게."<br><br>${rows}</div>
+    <button class="btn full-width" data-action="close-dialog" data-primary>확인</button></div>`);
+}
+function bldInteract() {
+  const b = state.bld;
+  if (b.leaderMesh && !b.leaderDefeated && dist2D(player.position, b.leaderMesh.position) < 2.7) { startLeaderBattle(b.gym); return; }
+  if (b.floor === 1 && nearestGuard()) { showGuardGuide(); return; }
+  const it = bldNearest(); if (!it) return;
+  if (it.type === 'broken-elevator') showBldBrokenElevator();
+  else if (it.type === 'stairs-up') bldStairsGo('up');
+  else if (it.type === 'stairs-down') bldStairsGo('down');
+  else if (it.type === 'exit') finishBuilding();
+  else if (it.type === 'shop') openBldShop();
+  else if (it.type === 'kabang') {
+    state.bld.kabangTaken = true;
+    state.player.items['까방권'] = (state.player.items['까방권'] || 0) + 1;
+    if (bldCurFloorGroup && bldCurFloorGroup.userData.kabangGlow) bldCurFloorGroup.userData.kabangGlow.visible = false;
+    fsaToast('🚫 「나쁜말 금지 까방권」 획득! (전투 중 가방에서 사용 → 빌런 스킬 2턴 봉인)');
+    updateStatsHUD();
+  }
+}
+function openBldShop() {
+  state.mode = 'dialog';
+  const p = state.player; const can = p.money >= BLD_COLA_PRICE;
+  showModal(`<div class="modal-title">🧊 총총박스 (사내점)</div><div class="modal-body">
+    <div style="text-align:center;font-size:48px;margin:4px 0;">🧊</div>
+    <div style="text-align:center;background:#fff;border:2px solid #2c1810;border-radius:4px;padding:8px;margin-bottom:10px;">보유 금액: <b style="color:#b8860b;font-size:16px;">💰 ${p.money||0}원</b></div>
+    <div class="skill-row"><div class="skill-head"><span class="skill-name-text">🥤 제로 팝시 콜라</span><span style="font-weight:bold;color:#b8860b;">${BLD_COLA_PRICE}원 <s style="color:#999;">${PRICE_COLA}원</s></span></div>
+    <div class="skill-desc">사내 자판기 <b>반값</b>! HP 최대 회복(다음 스킬 1턴 데미지 20%). (보유: ${p.items['제로 팝시 콜라']||0}개)</div>
+    <button class="btn ${can?'skill':''} full-width" data-action="buy-bld-cola" ${can?'':'disabled'}>${can?`구매 (${BLD_COLA_PRICE}원)`:'💸 돈 부족'}</button></div>
+    <button class="btn full-width" data-action="close-dialog" data-primary style="margin-top:6px;">← 나가기</button></div>`);
+}
+function buyBldCola() {
+  const p = state.player; if (p.money < BLD_COLA_PRICE) return;
+  p.money -= BLD_COLA_PRICE; p.items['제로 팝시 콜라'] = (p.items['제로 팝시 콜라'] || 0) + 1;
+  updateStatsHUD(); openBldShop();
+}
+function showBldBrokenElevator() {
+  state.mode = 'dialog';
+  showModal(`<div class="modal-title fsa">🛗 엘리베이터 고장</div><div class="modal-body">
+    <div class="message-box">▸ 이 건물의 엘리베이터는 고장입니다.<br>▸ 반대편의 올라가는 계단/내려가는 계단을 이용하세요.</div>
+    <button class="btn full-width" data-action="bld-close" data-primary>확인</button></div>`);
+}
+function showBldElevator() {
+  state.mode = 'dialog'; const b = state.bld; let btns = '';
+  for (let i = 1; i <= b.gym.floors; i++) { const cur = b.floor === i; btns += `<button class="btn ${cur?'':'fsa'}" data-action="bld-elev" data-arg="${i}" ${cur?'disabled':''}>${i}층${cur?' [현재]':''}</button>`; }
+  showModal(`<div class="modal-title fsa">🛗 엘리베이터</div><div class="modal-body"><div style="text-align:center;font-size:12px;color:#555;margin-bottom:8px;">이동할 층 선택</div><div class="elev-grid">${btns}</div><button class="btn full-width" data-action="bld-close" style="margin-top:8px;">← 닫기</button></div>`);
+}
+function showBldStairs() {
+  state.mode = 'dialog'; const b = state.bld;
+  const up = b.floor < b.gym.floors, down = b.floor > 1;
+  showModal(`<div class="modal-title fsa">🪜 계단</div><div class="modal-body"><div style="text-align:center;font-size:12px;color:#555;margin-bottom:8px;">현재 ${b.floor}층</div><div class="action-grid">
+    <button class="btn fsa" data-action="bld-stairs" data-arg="up" ${up?'data-primary':'disabled'}>▲ 위층 (${up?(b.floor+1)+'층':'없음'})</button>
+    <button class="btn fsa" data-action="bld-stairs" data-arg="down" ${down?'':'disabled'}>▼ 아래층 (${down?(b.floor-1)+'층':'없음'})</button>
+    <button class="btn full-width" data-action="bld-close">← 닫기</button></div></div>`);
+}
+function bldElevGo(n) { showBldBrokenElevator(); }
+function bldStairsGo(dir) { const b = state.bld; const ni = dir === 'up' ? b.floor + 1 : b.floor - 1; if (ni < 1 || ni > b.gym.floors) return; hideModal(); state.mode = 'building'; setBldFloor(ni, landingPosForStairs(dir)); fsaToast(`🪜 ${ni}층 이동`); }
+function bldClose() { hideModal(); state.mode = 'building'; }
+
+function startLeaderBattle(gym) {
+  state.lastGymId = gym.id;
+  state.battle = { enemy: { name: gym.leader.name, sprite: gym.leader.sprite, hp: gym.leader.hp, maxHp: gym.leader.hp, skills: gym.leader.skills, element: gym.leader.element }, type: 'gym', gymId: gym.id, canFlee: false, phase: 'choose' };
+  state.mode = 'battle'; state.activeIndex = 0; state.messages = [];
+  log(`${gym.leader.sprite} ${gym.leader.name} 등장!`); log(gym.intro);
+  applyKnowledgeAdvantage(gym.leader.knowledge);
+  renderBattle();
+}
+function bldAllyEncounter(ally) {
+  state.mode = 'dialog'; state.messages = [];
+  log(`${ally.sprite} ${ally.name}을(를) 만났다!`);
+  state.player.items['제로 팝시 콜라'] = (state.player.items['제로 팝시 콜라'] || 0) + 1;
+  log('🥤 제로 팝시 콜라를 받았다! (+1)');
+  updateStatsHUD();
+  showModal(`<div class="modal-title">동료 조우</div><div class="modal-body"><div style="text-align:center;font-size:64px;margin:12px 0;">${ally.sprite}</div><div class="message-box">${state.messages.map(m=>'▸ '+m).join('<br>')}</div><button class="btn full-width" data-action="close-dialog" data-primary>확인</button></div>`);
+}
+
+function updateBuilding(delta) {
+  if (modalIsOpen()) return;
+  const b = state.bld; if (!b) return;
+  frameTime += delta;
+  // 이동
+  const mv = moveVector(0.22); const dx = mv.dx, dz = mv.dz;
+  if (mv.len > 0) {
+    let nx = player.position.x + dx, nz = player.position.z + dz;
+    nx = Math.max(-ROOM, Math.min(ROOM, nx)); nz = Math.max(-ROOM, Math.min(ROOM, nz));
+    if (dist2D({x:nx,z:nz}, ELEV_POS) > 2 && dist2D({x:nx,z:nz}, UP_STAIRS_POS) > 2 && dist2D({x:nx,z:nz}, DOWN_STAIRS_POS) > 2) { player.position.x = nx; player.position.z = nz; }
+    player.rotation.y = camCtrl.mode === 'first' ? camCtrl.yaw : Math.atan2(dx, dz);
+    player.position.y = Math.abs(Math.sin(frameTime*12))*0.08;
+  } else player.position.y *= 0.85;
+  // 까방권 글로우 펄스
+  if (bldCurFloorGroup && bldCurFloorGroup.userData.kabangGlow && !b.kabangTaken) { const gl = bldCurFloorGroup.userData.kabangGlow; gl.material.opacity = 1; gl.position.y = 1.72 + Math.sin(frameTime*4)*0.05; }
+  // 경비원 순찰(원형 경로)
+  bldGuards.forEach(gd => { const u = gd.userData; u.ang += delta * u.spd * 0.4; gd.position.set(Math.sin(u.ang) * u.r, 0, Math.cos(u.ang) * u.r + 4); gd.rotation.y = u.ang + Math.PI/2; if (u.indicator) u.indicator.position.y = 3.3 + Math.sin(frameTime*3)*0.1; });
+  // 일반 NPC 배회
+  bldNpcs.forEach(npc => {
+    const u = npc.userData; if (u.leader) { if (u.indicator) { const s=1+Math.sin(frameTime*5)*0.25; u.indicator.scale.set(s,s,s); } return; }
+    u.timer += delta;
+    if (u.timer > u.changeAt) { u.dirX = (Math.random()-0.5)*2; u.dirZ = (Math.random()-0.5)*2; u.timer = 0; u.changeAt = 2+Math.random()*3; }
+    let nx = npc.position.x + u.dirX*0.05, nz = npc.position.z + u.dirZ*0.05;
+    if (Math.abs(nx) > ROOM-2) { u.dirX *= -1; nx = Math.sign(nx)*(ROOM-2); }
+    if (Math.abs(nz) > ROOM-2) { u.dirZ *= -1; nz = Math.sign(nz)*(ROOM-2); }
+    npc.position.x = nx; npc.position.z = nz;
+    if (Math.hypot(u.dirX,u.dirZ) > 0.1) npc.rotation.y = Math.atan2(u.dirX, u.dirZ);
+    if (u.indicator) { const s=1+Math.sin(frameTime*5)*0.25; u.indicator.scale.set(s,s,s); u.indicator.position.y = 3.3+Math.sin(frameTime*3)*0.1; }
+  });
+  // 힌트
+  const hint = document.getElementById('hudHint');
+  const it = bldNearest();
+  // 관장 근접
+  let nearLeader = b.leaderMesh && dist2D(player.position, b.leaderMesh.position) < 2.6 && !b.leaderDefeated;
+  if (nearLeader) { hint.style.display='block'; hint.innerHTML = `⚔ ${b.gym.leader.name} 도전 <span class="key-cap" style="background:#fc6;">E</span>`; }
+  else if (b.floor === 1 && nearestGuard()) { hint.style.display='block'; hint.innerHTML = `🛡 경비원에게 층 안내 듣기 <span class="key-cap" style="background:#fc6;">E</span>`; }
+  else if (it) { hint.style.display='block'; hint.innerHTML = `${it.label} <span class="key-cap" style="background:#fc6;">E</span>`; }
+  else hint.style.display='none';
+  // NPC 충돌
+  for (let i = bldNpcs.length-1; i>=0; i--) {
+    const npc = bldNpcs[i]; const u = npc.userData;
+    if (u.leader) continue;
+    if (dist2D(player.position, npc.position) < 1.5) {
+      bldRoot.remove(npc); bldNpcs.splice(i,1);
+      if (u.type === 'ally') bldAllyEncounter(u.ally);
+      else triggerWildBattle(u);
+      return;
+    }
+  }
+}
+
+// ===== UPDATE: F사 잠입 =====
+function updateFsa(delta) {
+  if (modalIsOpen()) return; // 모달 중 일시정지(타이머 포함)
+  const f = state.fsa;
+  frameTime += delta;
+
+  // 게임 시작(카운트다운) 전: 정지 + HUD만
+  if (!f.huntStarted) { updateFsaHud(f); return; }
+
+  // 타이머
+  f.timeLeft -= delta;
+  if (f.timeLeft <= 0) { f.timeLeft = 0; return failFsa('⏰ 시간 초과! 3분 안에 탈출하지 못했다...'); }
+
+  // 이동 (숨는 중엔 정지)
+  if (!f.hidden) {
+    const mv = moveVector(0.22); const dx = mv.dx, dz = mv.dz;
+    if (mv.len > 0) {
+      let nx = player.position.x + dx, nz = player.position.z + dz;
+      nx = Math.max(-FSA_ROOM, Math.min(FSA_ROOM, nx)); nz = Math.max(-FSA_ROOM, Math.min(FSA_ROOM, nz));
+      // 고장 엘리베이터/계단 약한 충돌
+      if (dist2D({x:nx,z:nz}, ELEV_POS) > 2 && dist2D({x:nx,z:nz}, UP_STAIRS_POS) > 2 && dist2D({x:nx,z:nz}, DOWN_STAIRS_POS) > 2) { player.position.x = nx; player.position.z = nz; }
+      player.rotation.y = camCtrl.mode === 'first' ? camCtrl.yaw : Math.atan2(dx, dz);
+      player.position.y = Math.abs(Math.sin(frameTime*12))*0.08;
+    } else player.position.y *= 0.85;
+  }
+
+  // 공포의 이경동 — 랜덤 층에서 주인공을 찾아 층을 이동(아오오니)
+  f.oniMoveTimer += delta;
+  if (f.oniMoveTimer > 5) {
+    f.oniMoveTimer = 0;
+    if (f.oniFloor !== f.floor) {
+      f.oniFloor += (f.floor > f.oniFloor) ? 1 : -1;     // 주인공 층으로 한 칸 추적
+      oniMesh.position.set(ONI_SPAWN.x, 0, ONI_SPAWN.z);
+      // 같은 층일 때만 팝업으로 위치 알림 / 다른 층이면 알림 없음
+      if (f.oniFloor === f.floor) { f.onSameFloorGrace = 1.8; fsaToast(`😱 공포의 이경동이 ${FLOORS[f.oniFloor].tag}(당신과 같은 층)에 나타났다!`); }
+    }
+  }
+  if (f.oniFloor === f.floor && f.onSameFloorGrace <= 0) {
+    oniMesh.visible = true;
+    const u = oniMesh.userData;
+    if (f.hidden) {
+      u.wt = (u.wt||0) + delta;
+      if (u.wt > 1.5) { u.wdx = (Math.random()-0.5)*2; u.wdz = (Math.random()-0.5)*2; u.wt = 0; }
+      let nx = oniMesh.position.x + (u.wdx||0)*0.12, nz = oniMesh.position.z + (u.wdz||0)*0.12;
+      nx = Math.max(-FSA_ROOM,Math.min(FSA_ROOM,nx)); nz = Math.max(-FSA_ROOM,Math.min(FSA_ROOM,nz));
+      oniMesh.position.x = nx; oniMesh.position.z = nz;
+    } else {
+      const dx = player.position.x - oniMesh.position.x, dz = player.position.z - oniMesh.position.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 0.01) { const sp = 0.155; oniMesh.position.x += (dx/d)*sp; oniMesh.position.z += (dz/d)*sp; oniMesh.rotation.y = Math.atan2(dx, dz); }
+      oniMesh.position.y = Math.abs(Math.sin(frameTime*10))*0.15;
+      if (d < 1.8) {
+        // 1회라도 부딪히면 즉시 게임 종료 → 재입사 시퀀스
+        return fsaReentry();
+      }
+    }
+    const blink = (Math.sin(frameTime*8) > -0.3);
+    if (oniMesh.userData.eyes) oniMesh.userData.eyes.forEach(e => e.visible = blink);
+  } else {
+    if (f.onSameFloorGrace > 0) f.onSameFloorGrace -= delta;
+    oniMesh.visible = false;
+  }
+  if (f.caughtCD > 0) f.caughtCD -= delta;
+
+  // 드론 애니메이션 (4층일 때만 보임)
+  if (f.floor === FLOOR_4F) drones.forEach(d => { d.position.y = d.userData.baseY + Math.sin(frameTime*2 + d.userData.phase)*0.4; d.rotation.y += delta*2; });
+
+  // 정상화된 용전임 따라오기
+  if (f.vaccinated && normalYong.visible) {
+    const dx = player.position.x - normalYong.position.x, dz = player.position.z - normalYong.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 2.3) { const sp = 0.2; normalYong.position.x += (dx/d)*sp; normalYong.position.z += (dz/d)*sp; normalYong.rotation.y = Math.atan2(dx, dz); }
+    normalYong.position.y = d > 2.3 ? Math.abs(Math.sin(frameTime*11))*0.07 : 0;
+  }
+
+  // 문부장 함정 (5층)
+  if (f.floor === FLOOR_5F && !f.trapTriggered && dist2D(player.position, TRAP_POS) < 2.6) {
+    f.trapTriggered = true;
+    munbujang.position.set(TRAP_POS.x, 0, TRAP_POS.z + 1.5); munbujang.visible = true;
+    state.player.hp = Math.max(0, state.player.hp - FSA_MUNBU_DMG);
+    fsaToast(`💀 빌런 문부장 등장! "왜 남의 인사기록을 봐?" HP -${FSA_MUNBU_DMG}`);
+    if (state.player.hp <= 0) return failFsa('문부장의 분노에 쓰러졌다... (인사팀 컴퓨터를 건드리지 말 것!)');
+  }
+
+  // 인터랙션 힌트
+  updateFsaHint(f);
+
+  // 성공 체크 (출구 도달은 E로 처리 → 여기선 자동 안내만)
+  updateFsaHud(f);
+}
+
+function fsaNearest() {
+  const f = state.fsa;
+  const cands = [];
+  cands.push({ type: 'broken-elevator', label: '🛗 엘리베이터 고장', pos: ELEV_POS, r: 3 });
+  if (f.floor < FLOORS.length - 1) cands.push({ type: 'stairs-up', label: `🪜 올라가는 계단 (${FLOORS[f.floor + 1].tag})`, pos: UP_STAIRS_POS, r: 3 });
+  if (f.floor > 0) cands.push({ type: 'stairs-down', label: `🪜 내려가는 계단 (${FLOORS[f.floor - 1].tag})`, pos: DOWN_STAIRS_POS, r: 3 });
+  HIDES.forEach(h => cands.push({ type: 'hide', label: '🚪 사물함에 숨기', pos: h, r: 2.4 }));
+  if (f.floor === FLOOR_3F && !f.vaccinated) cands.push({ type: 'vaccine', label: '💉 백신 주입 (좀비가 된 용전임)', pos: VACCINE_POS, r: 3 });
+  if (f.floor === FLOOR_1F) cands.push({ type: 'exit', label: '🚪 1층 출구로 탈출', pos: EXIT_POS, r: 3 });
+  let best = null, bd = Infinity;
+  for (const c of cands) { const d = dist2D(player.position, c.pos); if (d < c.r && d < bd) { best = c; bd = d; } }
+  return best;
+}
+function updateFsaHint(f) {
+  const hint = document.getElementById('hudHint');
+  if (f.hidden) { hint.style.display = 'block'; hint.innerHTML = `🙈 숨는 중... 나오기 <span class="key-cap" style="background:#fc6;">E</span>`; return; }
+  const it = fsaNearest();
+  if (it) { hint.style.display = 'block'; hint.innerHTML = `${it.label} <span class="key-cap" style="background:#fc6;">E</span>`; }
+  else hint.style.display = 'none';
+}
+function fsaInteract() {
+  const f = state.fsa;
+  if (!f.huntStarted) return; // 카운트다운 전엔 조작 잠금
+  if (f.hidden) { f.hidden = false; fsaToast('👀 사물함에서 나왔다.'); return; }
+  const it = fsaNearest();
+  if (!it) return;
+  if (it.type === 'broken-elevator') showBrokenElevatorModal();
+  else if (it.type === 'stairs-up') stairsGo('up');
+  else if (it.type === 'stairs-down') stairsGo('down');
+  else if (it.type === 'hide') { f.hidden = true; fsaToast('🙈 사물함에 숨었다. 이경동을 피하자!'); }
+  else if (it.type === 'vaccine') doVaccinate();
+  else if (it.type === 'exit') tryExit();
+}
+function doVaccinate() {
+  const f = state.fsa;
+  f.vaccinated = true; f.yongAttached = true;
+  zombieYong.visible = false;
+  normalYong.position.set(player.position.x, 0, player.position.z + 2);
+  normalYong.visible = true;
+  fsaToast('💉 백신 주입! "좀비가 된 용전임" → "정상화된 용전임"! 이제 따라옵니다.');
+}
+function tryExit() {
+  const f = state.fsa;
+  if (!f.vaccinated) { fsaToast('🔒 먼저 3층에서 용전임을 구출해야 합니다!'); return; }
+  successFsa();
+}
+function fsaUseBakkas() {
+  if (state.fsa && !state.fsa.huntStarted) return;
+  if ((state.player.items['박카스'] || 0) <= 0) { fsaToast('🥤 박카스가 없다!'); return; }
+  state.player.items['박카스']--;
+  state.player.hp = Math.min(state.player.maxHp, state.player.hp + BAKKAS_HEAL);
+  fsaToast(`🥤 박카스! HP +${BAKKAS_HEAL} (${state.player.hp}/${state.player.maxHp})`);
+}
+
+let toastTimer = null;
+function fsaToast(msg) {
+  const t = document.getElementById('fsaToast');
+  t.style.display = 'block'; t.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, 2600);
+}
+
+function setFloor(i, pos) {
+  const f = state.fsa;
+  floorGroups.forEach((fg, idx) => fg.visible = (idx === i));
+  f.floor = i;
+  // 층 이름 라벨은 항상 보이도록 복구(재입사 등에서 숨겼을 수 있음)
+  if (floorGroups[i] && floorGroups[i].userData.floorLabel) floorGroups[i].userData.floorLabel.visible = true;
+  player.position.set(pos.x, 0, pos.z); player.rotation.y = Math.PI;
+  // 이경동: 층을 옮기면 잠시 따돌림(도착 층에 이경동이 있으면 약간의 유예 + 같은 층 팝업)
+  oniMesh.position.set(ONI_SPAWN.x, 0, ONI_SPAWN.z); oniMesh.visible = false;
+  if (f.huntStarted && i === f.oniFloor) { f.onSameFloorGrace = 1.8; fsaToast(`😱 공포의 이경동이 ${FLOORS[i].tag}(이 층)에 있다!`); } else f.onSameFloorGrace = 0;
+  // 좀비/정상 용전임 표시 관리
+  zombieYong.visible = (i === FLOOR_3F && !f.vaccinated);
+  if (i === FLOOR_3F && !f.vaccinated) zombieYong.position.set(VACCINE_POS.x, 0, VACCINE_POS.z);
+  if (f.vaccinated) { normalYong.visible = true; normalYong.position.set(player.position.x, 0, player.position.z + 2); }
+  else normalYong.visible = false;
+  munbujang.visible = (i === FLOOR_5F && f.trapTriggered);
+}
+
+function showBrokenElevatorModal() {
+  showModal(`
+    <div class="modal-title fsa">🛗 엘리베이터 고장</div>
+    <div class="modal-body">
+      <div class="message-box">▸ F사 건물 엘리베이터는 고장입니다.<br>▸ 위층은 오른쪽 위 계단, 아래층은 반대편 아래 계단으로만 이동할 수 있습니다.</div>
+      <button class="btn full-width" data-action="fsa-close" data-primary>확인</button>
+    </div>
+  `);
+}
+function showElevatorModal() {
+  let btns = '';
+  FLOORS.forEach((fl, i) => {
+    const cur = state.fsa.floor === i;
+    btns += `<button class="btn ${cur ? '' : 'fsa'}" data-action="elev-go" data-arg="${i}" ${cur ? 'disabled' : ''}>${fl.tag}<br><span style="font-size:9px;">${fl.label.split('·')[1] || ''}</span>${cur ? ' [현재]' : ''}</button>`;
+  });
+  showModal(`
+    <div class="modal-title fsa">🛗 엘리베이터</div>
+    <div class="modal-body">
+      <div style="text-align:center; font-size:12px; color:#555; margin-bottom:8px;">이동할 층을 선택하세요. (이동 중 이경동이 잠시 사라집니다)</div>
+      <div class="elev-grid">${btns}</div>
+      <button class="btn full-width" data-action="fsa-close" style="margin-top:8px;">← 닫기</button>
+    </div>
+  `);
+}
+function showStairsModal() {
+  const f = state.fsa;
+  const canUp = f.floor < FLOORS.length - 1;
+  const canDown = f.floor > 0;
+  showModal(`
+    <div class="modal-title fsa">🪜 계단</div>
+    <div class="modal-body">
+      <div style="text-align:center; font-size:12px; color:#555; margin-bottom:8px;">현재: <b>${FLOORS[f.floor].label}</b></div>
+      <div class="action-grid">
+        <button class="btn fsa" data-action="stairs-go" data-arg="up" ${canUp ? 'data-primary' : 'disabled'}>▲ 위층 (${canUp ? FLOORS[f.floor+1].tag : '없음'})</button>
+        <button class="btn fsa" data-action="stairs-go" data-arg="down" ${canDown ? '' : 'disabled'}>▼ 아래층 (${canDown ? FLOORS[f.floor-1].tag : '없음'})</button>
+        <button class="btn full-width" data-action="fsa-close">← 닫기</button>
+      </div>
+    </div>
+  `);
+}
+
+function landingPosForStairs(dir) {
+  const pos = dir === 'up' ? DOWN_STAIRS_POS : UP_STAIRS_POS;
+  const inwardX = pos.x > 0 ? -3 : 3;
+  const inwardZ = pos.z > 0 ? -3 : 3;
+  return { x: pos.x + inwardX, z: pos.z + inwardZ };
+}
+
+// ===== CAMERA =====
+function updateCamera() {
+  // 진화 연출: 캐릭터 클로즈업 회전 카메라
+  if (state.mode === 'evolving') {
+    player.visible = true;
+    const ang = (state.evolve ? state.evolve.t : 0) * 1.1;
+    const r = 6;
+    camera.position.set(player.position.x + Math.sin(ang) * r, 3.5, player.position.z + Math.cos(ang) * r);
+    camera.lookAt(player.position.x, 1.6 + player.position.y, player.position.z);
+    return;
+  }
+  if (camCtrl.mode === 'first') {
+    player.visible = false;
+    // 1인칭 자유 시점: 마우스로 yaw/pitch 회전, W앞·A좌·S뒤·D우(시점 기준)
+    camCtrl.eye.x += (player.position.x - camCtrl.eye.x) * 0.35;
+    camCtrl.eye.z += (player.position.z - camCtrl.eye.z) * 0.35;
+    camCtrl.eye.y += (2.45 - camCtrl.eye.y) * 0.3;
+    const cy = Math.cos(camCtrl.pitch);
+    const lx = Math.sin(camCtrl.yaw) * cy, ly = Math.sin(camCtrl.pitch), lz = -Math.cos(camCtrl.yaw) * cy;
+    camera.position.set(camCtrl.eye.x, camCtrl.eye.y, camCtrl.eye.z);
+    camera.lookAt(camCtrl.eye.x + lx * 12, camCtrl.eye.y + ly * 12, camCtrl.eye.z + lz * 12);
+  } else {
+    const p = CAM_PRESETS[camCtrl.preset];
+    const tx = player.position.x, ty = p.height, tz = player.position.z + p.distance;
+    camCtrl.cur.x += (tx - camCtrl.cur.x)*0.12;
+    camCtrl.cur.y += (ty - camCtrl.cur.y)*0.12;
+    camCtrl.cur.z += (tz - camCtrl.cur.z)*0.12;
+    camera.position.set(camCtrl.cur.x, camCtrl.cur.y, camCtrl.cur.z);
+    camera.lookAt(player.position.x, p.look, player.position.z - 2);
+    player.visible = true;
+  }
+  if (state.mode === 'fsa' && state.fsa && state.fsa.hidden) player.visible = false;
+}
+
+function setOverworldVisuals() {
+  scene.background = new THREE.Color(state.huntMode ? 0x6f4f8a : 0x87ceeb);
+  scene.fog = new THREE.Fog(state.huntMode ? 0x6f4f8a : 0x87ceeb, state.huntMode ? 35 : 50, state.huntMode ? 110 : 150);
+  sun.color.setHex(state.huntMode ? 0xffa080 : 0xffffff); sun.intensity = state.huntMode ? 0.7 : 0.85;
+  ambient.color.setHex(state.huntMode ? 0x9080a0 : 0xffffff); ambient.intensity = state.huntMode ? 0.45 : 0.55;
+}
+function setFsaVisuals() {
+  scene.background = new THREE.Color(0x140a1e);
+  scene.fog = new THREE.Fog(0x140a1e, 18, 55);
+  sun.color.setHex(0x8060a0); sun.intensity = 0.5;
+  ambient.color.setHex(0x4a3a6a); ambient.intensity = 0.5;
+}
+
+// ===== UI =====
+function elemBadge(elem) { if (!elem || !ELEMENTS[elem]) return ''; const e = ELEMENTS[elem]; return `<span class="elem-badge" style="background:${e.color};">${e.icon} ${elem}</span>`; }
+function modBadge(modKey) { const m = MODIFIERS.find(x => x.key === modKey); if (!m || !m.name) return ''; return `<span class="mod-badge" style="background:${m.badgeColor};">${m.name}</span>`; }
+
+function updateStatsHUD() {
+  if (!state.player) return;
+  const p = state.player;
+  const pct = (p.hp/p.maxHp)*100, xpPct = (p.xp/p.xpToNext)*100;
+  const cls = pct < 25 ? 'low' : (pct < 50 ? 'mid' : '');
+  const hud = document.getElementById('hudStats'); hud.style.display = 'block';
+  const skillSummary = Object.entries(p.skills).map(([s,l]) => { const el = ELEMENTS[SKILLS[s].element]; const hy = l >= MAX_SKILL_LEVEL ? '<span style="color:#c0392b;">험한</span>' : ''; return `<span style="white-space:nowrap;">${el.icon}${hy}${s}·<b>Lv${l}</b></span>`; }).join(' ');
+  hud.innerHTML = `
+    <div class="stat-row"><b>👨‍💼 ${p.name} <span style="background:#fc6;color:#2c1810;padding:1px 6px;border-radius:3px;font-size:11px;">Lv.${p.level}/${PLAYER_MAX_LEVEL}</span></b><span style="font-size:11px;">HP ${p.hp}/${p.maxHp}</span></div>
+    <div class="stat-row" style="margin-top:1px;"><span></span><span class="hp-bar"><span class="hp-fill ${cls}" style="width:${pct}%"></span></span></div>
+    <div class="stat-row" style="margin-top:3px;"><span style="font-size:10px;color:#666;">XP ${p.xp}/${p.xpToNext}</span><span class="xp-bar"><span class="xp-fill" style="width:${xpPct}%"></span></span></div>
+    <div class="stat-row"><span style="font-weight:bold;color:#555;">📚 업무지식력</span><span style="font-size:11px;font-weight:bold;color:#2980b9;">${p.knowledge||0}</span></div>
+    <div class="stat-row" style="margin-top:2px;"><span style="font-weight:bold;color:#555;">스킬</span><span style="font-size:10px;max-width:180px;text-align:right;line-height:1.4;">${skillSummary}</span></div>
+    <div class="stat-row"><span style="font-weight:bold;color:#555;">소지품 <span class="key-cap">B</span></span><span style="font-size:10px;text-align:right;">🥤${p.items['박카스']||0} 콜라${p.items['제로 팝시 콜라']||0} 🥮${p.items['호떡']||0} 🚫${p.items['까방권']||0}</span></div>
+    <div class="stat-row"><span style="font-weight:bold;color:#555;">💰 돈</span><span style="font-size:11px;font-weight:bold;color:#b8860b;">${p.money||0}원</span></div>
+    ${p.skillPoints > 0 ? `<div class="sp-notice">💡 <span class="key-cap">Q</span> 키: 스킬 강화 (SP ${p.skillPoints}개)</div>` : ''}
+  `;
+}
+function updateInfoHUD() {
+  const hud = document.getElementById('hudInfo'); hud.style.display = 'block';
+  let text = '';
+  if (state.gymsCleared.length < 3) {
+    text = '<b>🎯 도장 진행</b><br>';
+    GYMS.forEach((g,i) => { const cl = state.gymsCleared.includes(g.id); const lk = i>0 && !state.gymsCleared.includes(GYMS[i-1].id); text += `${cl?'✅':(lk?'🔒':'⚔')} ${g.name}<br>`; });
+    text += '<br>🏢 F사 = 잠입 · 🧊 총총박스 = 상점<br>3개 클리어 시 🗼 탑 개방!';
+  } else { text = '<b>🎯 최종 목표</b><br>🗼 사대천왕의 탑에서<br>사대천왕 4명 격파!<br>🏢 F사 잠입 · 🧊 총총박스 상점'; }
+  text += '<div class="elem-table"><b>속성 상성</b><br>🔥압박 → 🎭기만<br>🎭기만 → 🛡️방어<br>🛡️방어 → 🔥압박</div>';
+  hud.innerHTML = text;
+}
+function updateModeHUD() {
+  const m = document.getElementById('hudMode'); m.style.display = 'block';
+  const presetName = { default: '기본', high: '하이앵글', cinema: '시네마틱' }[camCtrl.preset];
+  let txt = `📷 ${camCtrl.mode === 'first' ? '1인칭' : '3인칭·' + presetName}`;
+  m.innerHTML = txt;
+}
+function updateHint() {
+  const hint = document.getElementById('hudHint');
+  if (state.currentBuilding) {
+    hint.style.display = 'block';
+    const t = state.currentBuilding.userData.type, name = state.currentBuilding.userData.name;
+    let action = '';
+    if (t === 'home') action = '🏠 집 — HP 회복';
+    else if (t === 'ujedo') action = '💬 우제도 — 수다로 체력 채우기';
+    else if (t === 'store') action = '🧊 총총박스 — 상점';
+    else if (t === 'hotteok') action = '🥮 신사 호떡집 — 호떡 구매';
+    else if (t === 'fsa') action = '🏢 신사역 F사 — 잠입 미션';
+    else if (t === 'gym') action = `${name} 입장 (층별 탐험)`;
+    else if (t === 'tower') action = '🗼 사대천왕 도전';
+    hint.innerHTML = `${action} <span class="key-cap" style="background:#fc6;">E</span>`;
+  } else hint.style.display = 'none';
+}
+function updateFsaHud(f) {
+  const hud = document.getElementById('fsaHud'); hud.style.display = 'block';
+  const m = Math.floor(f.timeLeft/60), s = Math.floor(f.timeLeft%60);
+  const timeStr = `${m}:${String(s).padStart(2,'0')}`;
+  const danger = f.timeLeft <= 30 ? 'danger' : '';
+  const p = state.player; const pct = (p.hp/p.maxHp)*100; const cls = pct<25?'low':(pct<50?'mid':'');
+  hud.innerHTML = `
+    <div class="fsa-timer ${danger}">⏱ ${timeStr}</div>
+    <div class="fsa-sub">
+      🏢 ${FLOORS[f.floor].label} &nbsp;|&nbsp; ❤ ${p.hp}/${p.maxHp}
+      <span class="hp-bar" style="width:90px;"><span class="hp-fill ${cls}" style="width:${pct}%"></span></span>
+      &nbsp;|&nbsp; 🥤x${p.items['박카스']||0} <span class="key-cap">B</span><br>
+      🧟 용전임: <b>${f.vaccinated ? '✅ 정상화 (동행 중)' : '❌ 미구출 (3층)'}</b>
+      &nbsp;|&nbsp; 🎯 ${f.vaccinated ? '1층 출구로 탈출!' : '3층에서 백신 주입'}<br>
+      ⚠ 공포의 이경동을 피하세요! (숨기: <span class="key-cap">E</span> · 층 이동 시 따돌림)
+    </div>
+  `;
+}
+
+function showModal(html) {
+  const modal = document.getElementById('modal');
+  document.getElementById('modalContent').innerHTML = html;
+  modal.classList.add('active');
+  clearMoveKeys();
+  if (document.pointerLockElement) document.exitPointerLock(); // 모달 중엔 커서 사용
+  document.querySelectorAll('#modalContent [data-action]').forEach(el => { el.onclick = () => handleAction(el.dataset.action, el.dataset.arg); });
+  // 전투 외 일반 팝업: 키보드 선택 하이라이트 초기화(기본=확인 버튼)
+  if (state.mode !== 'battle') {
+    const btns = [...document.querySelectorAll('#modalContent button:not([disabled])')];
+    let pi = btns.findIndex(b => b.hasAttribute('data-primary'));
+    if (pi < 0) pi = 0;
+    state.modalSel = pi;
+    btns.forEach((b, i) => b.classList.toggle('sel', i === pi));
+  }
+}
+function hideModal() { const m = document.getElementById('modal'); m.classList.remove('active'); m.classList.remove('phone-mode'); state.phoneOpen = false; }
+// 일반 팝업 키보드 네비게이션
+function modalMenuMove(dir) {
+  const btns = [...document.querySelectorAll('#modalContent button:not([disabled])')];
+  if (!btns.length) return;
+  let i = state.modalSel; if (i == null || i < 0 || i >= btns.length) i = 0;
+  i = (i + dir + btns.length) % btns.length;
+  state.modalSel = i;
+  btns.forEach((b, j) => b.classList.toggle('sel', j === i));
+  try { btns[i].scrollIntoView({ block: 'nearest' }); } catch (e) {}
+}
+function modalMenuActivate() {
+  const btns = [...document.querySelectorAll('#modalContent button:not([disabled])')];
+  if (!btns.length) return;
+  let i = state.modalSel;
+  if (i == null || i < 0 || i >= btns.length) {
+    const prim = document.querySelector('#modalContent button[data-primary]:not(:disabled)') || btns[0];
+    prim.click(); return;
+  }
+  btns[i].click();
+}
+
+// ===== GAME FLOW =====
+function newGame() {
+  stopTitleMusic(); // 게임 시작 시 타이틀 음악 종료
+  if (typeof stopFsaMusic === 'function') stopFsaMusic();
+  document.getElementById('endingScreen').classList.remove('active');
+  { const fc = document.getElementById('fsaCount'); if (fc) fc.classList.remove('active'); }
+  state.player = { name: '공대리', baseName: '공대리', sprite: '👨‍💼', level: 1, xp: 0, xpToNext: xpForLevel(1), hp: STARTER_HP, maxHp: STARTER_HP, skillPoints: 0, money: 0, knowledge: 0, evoBonus: 0, evoStage: 0, skills: { '야근 버티기': 1 }, items: { '박카스': 2, '제로 팝시 콜라': 0, '호떡': 0, '까방권': 0 } };
+  state.mode = 'roaming'; state.battle = null; state.gymsCleared = []; state.bossIndex = 0; state.bossesCleared = false;
+  state.huntMode = false; state.team = []; state.activeIndex = 0; state.currentBuilding = null; state.messages = []; state.fsa = null; state.bld = null; state.pendingEvolution = null;
+  state.fieldVillainsDefeated = 0;
+  resetDeskPose(player);
+  resetDeskPose(zombieYong);
+  rebuildPlayerModel(); // 진화 상태 초기화 반영
+  setOverworldVisuals();
+  overworldRoot.visible = true; fsaRoot.visible = false; if (typeof bldRoot !== 'undefined') bldRoot.visible = false;
+  player.position.set(0,0,5); player.rotation.y = 0;
+  camCtrl.preset = 'default'; camCtrl.mode = 'third'; camCtrl.cur = { x:0, y:12, z:19 };
+  clearAllNPCs(); initSpawn(7);
+  hideModal();
+  document.getElementById('fsaHud').style.display = 'none';
+  document.getElementById('hudControls').style.display = 'block';
+  updateStatsHUD(); updateInfoHUD(); updateModeHUD();
+}
+function showTitle() {
+  state.mode = 'title';
+  ['hudStats','hudInfo','hudControls','hudMode','hudHint','fsaHud'].forEach(id => document.getElementById(id).style.display = 'none');
+  showModal(`
+    <div class="modal-title">⚔ 공대리의 모험 3D ⚔</div>
+    <div class="title-screen">
+      <h1>공대리의 모험 3D</h1>
+      <div class="tagline">~ 회사인 RPG · 키보드 어드벤처 ~</div>
+      <div class="big-emoji">👨‍💼</div>
+      <div class="lore">
+        🎮 <b>조작</b> <span class="key-cap">WASD</span>/방향키 이동 · <span class="key-cap">E</span> 입장 · <span class="key-cap">Space</span>/<span class="key-cap">Enter</span> 확인<br>
+        📷 <b>카메라</b> <span class="key-cap">1</span>기본 <span class="key-cap">2</span>하이앵글 <span class="key-cap">3</span>시네마틱 · <span class="key-cap">R</span>초기화 · <span class="key-cap">C</span>1/3인칭<br><br>
+        🌍 <b>세계</b><br>
+        🏠 집 / 💬 우제도 — 회복 · 🧊 총총박스 — 상점<br>
+        🏢 영강·K사·C사 — 스킬 / 🗼 탑 — 최종전<br>
+        🏢 <b>신사역 F사</b> — 3분 잠입 미션 (아오오니!)<br><br>
+        💰 빌런을 잡으면 돈 획득 → 🧊총총박스/🥮호떡집에서 회복템 구매<br>
+        📱 <span class="key-cap">B</span> 가방(휴대폰) · ⚙️ 레벨업 · 진화 · 속성 상성 · 랜덤 난이도
+      </div>
+      <button class="start-btn" data-action="newgame" data-primary>▶ 게임 시작</button>
+    </div>
+  `);
+}
+
+function enterBuilding(b) {
+  const t = b.userData.type;
+  if (t === 'home') enterHome();
+  else if (t === 'ujedo') enterUjedo();
+  else if (t === 'store') openStore();
+  else if (t === 'hotteok') openHotteokShop();
+  else if (t === 'fsa') showFsaBriefing();
+  else if (t === 'gym') enterGym(b.userData.gymId);
+  else if (t === 'tower') enterTower();
+}
+function openHotteokShop() {
+  state.mode = 'dialog';
+  const p = state.player; const can = p.money >= PRICE_HOTTEOK;
+  showModal(`<div class="modal-title">🥮 신사 호떡집</div><div class="modal-body">
+    <div style="text-align:center;font-size:54px;margin:4px 0;">🥮</div>
+    <div style="text-align:center;background:#fff;border:2px solid #2c1810;border-radius:4px;padding:8px;margin-bottom:10px;">보유 금액: <b style="color:#b8860b;font-size:16px;">💰 ${p.money||0}원</b></div>
+    <div class="skill-row"><div class="skill-head"><span class="skill-name-text">🥮 호떡</span><span style="font-weight:bold;color:#b8860b;">${PRICE_HOTTEOK}원</span></div>
+    <div class="skill-desc">갓 구운 호떡! 전투 중 먹으면 <b>최대 체력의 20% 회복</b>. (보유: ${p.items['호떡']||0}개)</div>
+    <button class="btn ${can?'heal':''} full-width" data-action="buy-hotteok" ${can?'':'disabled'}>${can?`구매 (${PRICE_HOTTEOK}원)`:'💸 돈 부족'}</button></div>
+    <button class="btn full-width" data-action="close-dialog" data-primary style="margin-top:6px;">← 나가기</button></div>`);
+}
+function buyHotteok() {
+  const p = state.player; if (p.money < PRICE_HOTTEOK) return;
+  p.money -= PRICE_HOTTEOK; p.items['호떡'] = (p.items['호떡'] || 0) + 1;
+  updateStatsHUD(); openHotteokShop();
+}
+// 필드 B키: 휴대폰 보는 모션 → 가방(소지품) 열기
+// 필드 B/N키: 휴대폰 보는 모션 → 휴대폰 UI 오픈 (which: 'bag' | 'progress')
+function startPhoneCheck(which) {
+  if (state.phoneAnim != null || modalIsOpen()) return;
+  clearMoveKeys();
+  resetPhoneArmPose();
+  state.phoneNext = which || 'bag';
+  state.phoneAnim = 0; // updateRoaming에서 모션 진행 후 휴대폰 오픈
+}
+function clockStr() { const d = new Date(); return `${d.getHours() < 12 ? '오전' : '오후'} ${((d.getHours()+11)%12)+1}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function phoneShell(app, inner, slide) {
+  return `<div class="phone ${slide ? 'slide-in' : ''}">
+    <div class="phone-notch"></div>
+    <div class="phone-screen">
+      <div class="phone-status"><span>📶 LTE</span><span>${clockStr()}</span><span>🔋 17%</span></div>
+      <div class="phone-app-title">${app}</div>
+      <div class="phone-body">${inner}</div>
+      <div class="phone-switch">📲 <span class="key-cap">N</span> 다른 휴대폰</div>
+    </div>
+    <div class="phone-home"></div>
+  </div>`;
+}
+function openPhone(which, slide) {
+  state.mode = 'dialog'; state.phoneOpen = true; state.phoneApp = which;
+  document.getElementById('modal').classList.add('phone-mode');
+  const p = state.player;
+  let inner;
+  if (which === 'progress') {
+    // 진행 현황 앱: 남은 관장 수 + 관장 레벨
+    const remaining = GYMS.filter(g => !state.gymsCleared.includes(g.id));
+    let rows = GYMS.map((g, i) => {
+      const cl = state.gymsCleared.includes(g.id);
+      const lk = i > 0 && !state.gymsCleared.includes(GYMS[i-1].id);
+      const lv = Math.round(g.leader.hp / 10);
+      return `<div class="phone-row ${cl ? 'done' : ''}"><span>${cl ? '✅' : (lk ? '🔒' : '⚔')} ${g.name}</span><span class="phone-row-r">${g.leader.name} <b>Lv.${lv}</b></span></div>`;
+    }).join('');
+    const tower = state.gymsCleared.length >= 3 ? '🗼 사대천왕의 탑: <b style="color:#a6f;">개방!</b>' : `🗼 사대천왕의 탑: 🔒 (관장 ${3 - state.gymsCleared.length}명 남음)`;
+    inner = `<div class="phone-banner">📋 남은 관장 <b>${remaining.length}</b>명</div>${rows}<div class="phone-note">${tower}</div>`;
+  } else {
+    // 가방 앱: 소지품
+    const bak = p.items['박카스']||0, cola = p.items['제로 팝시 콜라']||0, hot = p.items['호떡']||0, kab = p.items['까방권']||0;
+    inner = `<div class="phone-note">회복 아이템은 필드에서 바로 사용</div>
+      <button class="phone-app heal" data-action="field-use-bakkas" ${bak<=0?'disabled':''}><span class="ic">🥤</span><span class="nm">박카스 x${bak}</span><span class="sub">HP +${BAKKAS_HEAL}</span></button>
+      <button class="phone-app skill" data-action="field-use-cola" ${cola<=0?'disabled':''}><span class="ic">🥤</span><span class="nm">제로 팝시 콜라 x${cola}</span><span class="sub">HP 풀회복</span></button>
+      <button class="phone-app heal" data-action="field-use-hotteok" ${hot<=0?'disabled':''}><span class="ic">🥮</span><span class="nm">호떡 x${hot}</span><span class="sub">HP +20%</span></button>
+      <div class="phone-row dim"><span>🚫 나쁜말 금지 까방권 x${kab}</span><span class="phone-row-r">전투용</span></div>`;
+  }
+  const title = which === 'progress' ? '🎯 진행 현황' : '🎒 가방';
+  inner += `<button class="phone-close-btn" data-action="close-dialog" data-primary>닫기</button>`;
+  showModal(phoneShell(title, inner, slide));
+}
+function switchPhone() {
+  if (!state.phoneOpen) return;
+  openPhone(state.phoneApp === 'bag' ? 'progress' : 'bag', true);
+}
+function fieldUseBakkas() { const p = state.player; if ((p.items['박카스']||0) <= 0) return; p.items['박카스']--; p.hp = Math.min(p.maxHp, p.hp + BAKKAS_HEAL); fsaToast(`🥤 박카스! HP +${BAKKAS_HEAL}`); updateStatsHUD(); openPhone('bag'); }
+function fieldUseCola() { const p = state.player; if ((p.items['제로 팝시 콜라']||0) <= 0) return; p.items['제로 팝시 콜라']--; p.hp = p.maxHp; fsaToast('🥤 제로 팝시 콜라! HP 풀회복'); updateStatsHUD(); openPhone('bag'); }
+function fieldUseHotteok() { const p = state.player; if ((p.items['호떡']||0) <= 0) return; p.items['호떡']--; const h = Math.floor(p.maxHp * HOTTEOK_HEAL_PCT); p.hp = Math.min(p.maxHp, p.hp + h); fsaToast(`🥮 호떡! HP +${h}`); updateStatsHUD(); openPhone('bag'); }
+function enterHome() {
+  state.mode = 'dialog';
+  state.player.hp = state.player.maxHp; state.team.forEach(t => t.hp = t.maxHp);
+  state.messages = []; log('🏠 집에서 푹 쉬었다.'); log(`HP 풀회복! (${state.player.hp}/${state.player.maxHp})`); if (state.team.length) log(`팀원 ${state.team.length}명 회복!`);
+  updateStatsHUD();
+  showModal(`<div class="modal-title">🏠 집</div><div class="modal-body"><div style="text-align:center;font-size:64px;margin:12px 0;">🏠</div><div class="message-box">${state.messages.map(m=>'▸ '+m).join('<br>')}</div><button class="btn full-width" data-action="close-dialog" data-primary>확인</button></div>`);
+}
+function enterUjedo() {
+  state.mode = 'dialog';
+  state.messages = []; log('💬 우제도 사장님과 수다를 떨었다.'); log('「수다로 체력 채우기」 발동! ✨');
+  state.player.hp = state.player.maxHp; state.team.forEach(t => t.hp = t.maxHp);
+  log(`HP 풀회복! (${state.player.hp}/${state.player.maxHp})`); if (state.team.length) log(`팀원 ${state.team.length}명 회복!`);
+  updateStatsHUD();
+  showModal(`<div class="modal-title">💬 우제도</div><div class="modal-body"><div style="text-align:center;font-size:64px;margin:12px 0;">💬</div><div class="message-box">${state.messages.map(m=>'▸ '+m).join('<br>')}</div><button class="btn full-width" data-action="close-dialog" data-primary>확인</button></div>`);
+}
+function openStore() {
+  state.mode = 'dialog';
+  const p = state.player;
+  const canCola = p.money >= PRICE_COLA;
+  const canHot = p.money >= PRICE_HOTTEOK;
+  showModal(`
+    <div class="modal-title">🧊 총총박스</div>
+    <div class="modal-body">
+      <div style="text-align:center;font-size:54px;margin:4px 0;">🧊</div>
+      <div style="text-align:center;background:#fff;border:2px solid #2c1810;border-radius:4px;padding:8px;margin-bottom:10px;">
+        보유 금액: <b style="color:#b8860b;font-size:16px;">💰 ${p.money||0}원</b><br>
+        <span style="font-size:11px;color:#666;">빌런/관장을 쓰러뜨리면 돈을 얻습니다 (레벨에 따라 10~1000원)</span>
+      </div>
+      <div class="skill-row">
+        <div class="skill-head"><span class="skill-name-text">🥤 제로 팝시 콜라</span><span style="font-weight:bold;color:#b8860b;">${PRICE_COLA}원</span></div>
+        <div class="skill-desc">체력을 <b>최대치로 회복</b>! 단, 탄산 때문에 마신 직후 <b>1턴간 스킬 데미지가 20%로 급감</b>. (보유: ${p.items['제로 팝시 콜라']||0}개)</div>
+        <button class="btn ${canCola?'skill':''} full-width" data-action="buy-item" data-arg="cola" ${canCola?'':'disabled'}>${canCola?`구매 (${PRICE_COLA}원)`:'💸 돈 부족'}</button>
+      </div>
+      <div class="skill-row">
+        <div class="skill-head"><span class="skill-name-text">🥮 호떡</span><span style="font-weight:bold;color:#b8860b;">${PRICE_HOTTEOK}원</span></div>
+        <div class="skill-desc">전투 중 먹으면 <b>최대 체력의 20% 회복</b>. (보유: ${p.items['호떡']||0}개)</div>
+        <button class="btn ${canHot?'heal':''} full-width" data-action="buy-item" data-arg="hotteok" ${canHot?'':'disabled'}>${canHot?`구매 (${PRICE_HOTTEOK}원)`:'💸 돈 부족'}</button>
+      </div>
+      <button class="btn full-width" data-action="close-dialog" data-primary style="margin-top:6px;">← 나가기</button>
+    </div>
+  `);
+}
+function buyItem(kind) {
+  const p = state.player;
+  if (kind === 'cola') {
+    if (p.money < PRICE_COLA) return;
+    p.money -= PRICE_COLA; p.items['제로 팝시 콜라'] = (p.items['제로 팝시 콜라']||0) + 1;
+  } else if (kind === 'hotteok') {
+    if (p.money < PRICE_HOTTEOK) return;
+    p.money -= PRICE_HOTTEOK; p.items['호떡'] = (p.items['호떡']||0) + 1;
+  }
+  updateStatsHUD();
+  openStore(); // 갱신
+}
+function enterGym(gymId) {
+  if (state.huntMode) return;
+  const gym = GYMS.find(g => g.id === gymId);
+  state.lastGymId = gymId;
+  // 건물 내부(다층)로 진입 — F사처럼 층별 이동, 관장은 최상층
+  startBuilding(gym);
+}
+function enterTower() {
+  if (state.huntMode) return;
+  state.bossIndex = 0; const boss = BOSSES[0];
+  state.battle = { enemy: { name: boss.name, sprite: boss.sprite, hp: boss.hp, maxHp: boss.hp, skills: boss.skills, element: boss.element }, type: 'boss', canFlee: false, phase: 'choose' };
+  state.mode = 'battle'; state.activeIndex = 0; state.messages = [];
+  log('🗼 사대천왕의 탑에 들어왔다.'); log('순차 전투! (회복 없음)'); log(`사대천왕 1번 ${boss.name} 등장!`); log(boss.intro);
+  applyKnowledgeAdvantage(boss.knowledge);
+  renderBattle();
+}
+
+// ===== F사 잠입 시작/종료 =====
+function showFsaBriefing() {
+  state.mode = 'dialog';
+  showModal(`
+    <div class="modal-title fsa">🏢 신사역 F사 — 잠입 미션</div>
+    <div class="modal-body">
+      <div style="text-align:center;font-size:54px;margin:6px 0;">🏢</div>
+      <div class="message-box" style="font-size:12px;">
+        ▸ 입장 후 <b>게임 시작</b> 버튼 → 5초 뒤 미션 시작!<br>
+        ▸ <b>공포의 이경동</b>이 랜덤한 층에서 당신을 찾아 돌아다닙니다 (아오오니).<br>
+        ▸ 🛗 엘리베이터는 고장입니다. 🪜 올라가는 계단/내려가는 계단으로 한 층씩 이동하세요.<br>
+        ▸ <b>3층</b>에서 「좀비가 된 용전임」에게 💉 백신을 주입 → 「정상화된 용전임」이 동행.<br>
+        ▸ 정상화된 용전임을 데리고 <b>1층 출구</b>로 탈출하면 미션 성공!<br>
+        ▸ ⚠ <b>5층 인사팀</b>의 수상한 컴퓨터엔 절대 접근 금지 (문부장 함정, HP -160).<br>
+        ▸ 위급할 땐 🚪 사물함에 <b>숨기(E)</b>, 🥤 박카스(B)로 회복.
+      </div>
+      <div class="action-grid">
+        <button class="btn fsa" data-action="start-fsa" data-primary>🚪 잠입 시작</button>
+        <button class="btn" data-action="close-dialog">← 취소</button>
+      </div>
+    </div>
+  `);
+}
+function startFsa() {
+  buildFsa();
+  resetDeskPose(player);
+  resetDeskPose(zombieYong);
+  state.fsa = { floor: FLOOR_1F, timeLeft: FSA_TIME, vaccinated: false, yongAttached: false, trapTriggered: false, hidden: false, caughtCD: 0, finished: false, huntStarted: false, oniFloor: FLOOR_1F, oniMoveTimer: 0, onSameFloorGrace: 0 };
+  state.mode = 'fsa';
+  state.player.hp = state.player.maxHp; // 잠입 전 풀회복
+  if ((state.player.items['박카스'] || 0) < 3) state.player.items['박카스'] = 3;
+  clearAllNPCs();
+  overworldRoot.visible = false; fsaRoot.visible = true;
+  setFsaVisuals();
+  munbujang.visible = false; normalYong.visible = false; zombieYong.visible = false;
+  setFloor(FLOOR_1F, { x: 5, z: -12 });
+  oniMesh.visible = false;
+  camCtrl.preset = 'default'; camCtrl.mode = 'third'; camCtrl.cur = { x:5, y:12, z:2 };
+  ['hudInfo','hudControls'].forEach(id => document.getElementById(id).style.display = 'none');
+  document.getElementById('hudStats').style.display = 'none';
+  updateModeHUD();
+  startFsaMusic();     // 입장 BGM (1초 텀 후 반복)
+  showFsaGameStart();  // 게임 시작 팝업
+}
+// ===== F사 입장 BGM =====
+let fsaMusicWanted = false;
+function startFsaMusic() {
+  const a = document.getElementById('fsaMusic'); if (!a) return;
+  fsaMusicWanted = true; a.volume = 0.55; try { a.currentTime = 0; } catch (e) {}
+  setTimeout(() => {
+    if (!fsaMusicWanted) return;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => { const once = () => { if (fsaMusicWanted) a.play().catch(() => {}); window.removeEventListener('keydown', once); window.removeEventListener('pointerdown', once); }; window.addEventListener('keydown', once, { once: true }); window.addEventListener('pointerdown', once, { once: true }); });
+  }, 1000);
+}
+function stopFsaMusic() { fsaMusicWanted = false; const a = document.getElementById('fsaMusic'); if (!a) return; try { a.pause(); a.currentTime = 0; } catch (e) {} }
+function showFsaGameStart() {
+  state.mode = 'fsa';
+  showModal(`
+    <div class="modal-title fsa">🏢 신사역 F사 — 잠입</div>
+    <div class="modal-body">
+      <div style="text-align:center;font-size:54px;margin:6px 0;">🏢</div>
+      <div class="message-box" style="font-size:12px;">
+        ▸ <b>게임 시작</b>을 누르면 5초 뒤 미션이 시작됩니다.<br>
+        ▸ <b>공포의 이경동</b>이 <b>랜덤한 층</b>에서 당신을 찾아 돌아다닙니다.<br>
+        ▸ 🛗엘리베이터는 고장입니다. 🪜위/아래 계단으로 한 층씩 이동하며 따돌리세요.<br>
+        ▸ <b>3층</b>에서 「좀비가 된 용전임」 💉백신 주입 → 동행.<br>
+        ▸ 정상화된 용전임과 <b>1층 출구</b>로 탈출 시 성공!<br>
+        ▸ ⚠ 5층 인사팀 수상한 컴퓨터 금지(문부장 함정, HP -160).
+      </div>
+      <button class="btn fsa full-width" data-action="fsa-game-start" data-primary>▶ 게임 시작</button>
+    </div>
+  `);
+}
+function fsaGameStart() {
+  stopFsaMusic();   // 게임 시작 시 BGM 종료
+  hideModal();
+  state.mode = 'fsa';
+  fsaCountdown(5);
+}
+function fsaCountdown(n) {
+  const el = document.getElementById('fsaCount');
+  el.classList.add('active');
+  el.innerHTML = `<div class="msg">📨 "공전임~~~ 어디있나?? 메일 야간 작업 가야지??"</div><div class="num">${n}</div>`;
+  if (n <= 0) { el.classList.remove('active'); el.innerHTML = ''; beginFsaHunt(); return; }
+  setTimeout(() => fsaCountdown(n - 1), 1000);
+}
+function beginFsaHunt() {
+  const f = state.fsa; if (!f) return;
+  f.huntStarted = true; f.timeLeft = FSA_TIME;
+  f.oniFloor = rand(0, FLOORS.length - 1);
+  f.oniMoveTimer = 0; f.onSameFloorGrace = (f.oniFloor === f.floor) ? 3 : 0;
+  oniMesh.position.set(ONI_SPAWN.x, 0, ONI_SPAWN.z);
+  fsaToast(`😱 공포의 이경동이 ${FLOORS[f.oniFloor].tag}에서 당신을 찾기 시작했다!`);
+}
+function successFsa() {
+  if (state.fsa.finished) return;
+  state.fsa.finished = true;
+  const gotSkill = !state.player.skills['F사 전용 사직서 제출'];
+  if (gotSkill) state.player.skills['F사 전용 사직서 제출'] = 1;
+  state.mode = 'fsa'; // 결과 모달 동안 일시정지
+  showModal(`
+    <div class="modal-title fsa">🎉 미션 성공! 🎉</div>
+    <div class="title-screen">
+      <h1 style="color:#8e44ad;">탈출 성공</h1>
+      <div class="big-emoji">🏃‍♂️🚪</div>
+      <div class="lore">
+        정상화된 <b>용전임</b>과 함께<br>
+        공포의 이경동을 따돌리고<br>
+        <b>1층 출구로 무사히 탈출</b>했습니다!<br><br>
+        ${gotSkill ? '🏆 궁극 스킬 획득!<br><b>「F사 전용 사직서 제출」</b><br>(🔥압박 · 데미지 70~110)<br><span style="font-size:11px;color:#777;">모든 것을 끝내는 궁극의 한 방</span>' : '이미 「F사 전용 사직서 제출」을 보유 중입니다.'}
+      </div>
+      <button class="start-btn fsa" data-action="fsa-finish" data-primary>밖으로 나가기</button>
+    </div>
+  `);
+}
+function failFsa(reason) {
+  if (state.fsa.finished) return;
+  state.fsa.finished = true;
+  state.mode = 'fsa';
+  document.getElementById('hudHint').style.display = 'none';
+  showModal(`
+    <div class="modal-title">💀 미션 실패 💀</div>
+    <div class="title-screen">
+      <h1 style="color:#666;">탈출 실패</h1>
+      <div class="big-emoji">😱</div>
+      <div class="lore">
+        ${reason}<br><br>
+        F사 잠입에 실패했습니다...<br>
+        <span style="font-size:11px;color:#999;">밖으로 나가 재정비 후 다시 도전하세요.</span>
+      </div>
+      <button class="start-btn" data-action="fsa-finish" data-primary>밖으로 나가기</button>
+    </div>
+  `);
+}
+// 이경동에게 잡힘 → 재입사 시퀀스 (1회 충돌 = 게임 종료)
+function fsaReentry() {
+  const f = state.fsa; if (!f || f.finished) return;
+  f.finished = true; f.huntStarted = false; f.hidden = false;
+  stopFsaMusic(); oniMesh.visible = false;
+  state.mode = 'fsa';
+  document.getElementById('hudHint').style.display = 'none';
+  showModal(`
+    <div class="modal-title">💀 재입사 💀</div>
+    <div class="title-screen">
+      <h1 style="color:#8e44ad;">재입사</h1>
+      <div class="big-emoji">📝😱</div>
+      <div class="lore">공포의 이경동에 잡혀<br><b>재입사 서류에 사인하였다...</b><br><br><span style="font-size:11px;color:#999;">5초 뒤 3층 자리로 끌려갑니다...</span></div>
+    </div>
+  `);
+  setTimeout(() => {
+    if (!state.fsa) return;
+    hideModal();
+    f.vaccinated = false;             // 좀비 용전임 표시
+    setFloor(FLOOR_3F, chairPositionForDesk(FSA_REENTRY_DESKS.gong)); // 공대리 책상 자리
+    // 재입사 화면에서는 큰 "3층" 라벨이 시야를 가리므로 숨김
+    if (floorGroups[FLOOR_3F] && floorGroups[FLOOR_3F].userData.floorLabel) floorGroups[FLOOR_3F].userData.floorLabel.visible = false;
+    poseAtDeskSeat(player, FSA_REENTRY_DESKS.gong);
+    zombieYong.visible = true;
+    poseAtDeskSeat(zombieYong, FSA_REENTRY_DESKS.yong);
+    oniMesh.visible = false;
+    fsaToast('💼 재입사 후 용전임과 나란히 앉아 모니터를 보며 야근 중...');
+    setTimeout(() => {
+      if (!state.fsa) return;
+      state.mode = 'fsa';
+      showModal(`
+        <div class="modal-title">🏠 퇴근?</div>
+        <div class="modal-body">
+          <div style="text-align:center;font-size:54px;margin:8px 0;">🖥️😵</div>
+          <div class="message-box">▸ 재입사 후 끝없는 야근...<br>▸ 이제 그만 집에 가자.</div>
+          <button class="btn full-width" data-action="fsa-reentry-home" data-primary>🏠 집으로 이동</button>
+        </div>
+      `);
+    }, 10000);
+  }, 5000);
+}
+function fsaReentryHome() {
+  state.player.hp = 1;          // 체력 1
+  finishFsa();                  // 오버월드 복귀
+  player.position.set(HOME.x, 0, HOME.z + 8); player.rotation.y = 0; // 집 앞
+  camCtrl.cur = { x: HOME.x, y: 12, z: HOME.z + 8 + 14 };
+  state.currentBuilding = null; updateHint(); updateStatsHUD();
+  fsaToast('🏠 체력 1로 간신히 집 앞에 도착했다...');
+}
+function finishFsa() {
+  stopFsaMusic();
+  resetDeskPose(player);
+  resetDeskPose(zombieYong);
+  document.getElementById('fsaCount').classList.remove('active');
+  overworldRoot.visible = true; fsaRoot.visible = false;
+  oniMesh.visible = false; munbujang.visible = false; zombieYong.visible = false; normalYong.visible = false;
+  setOverworldVisuals();
+  state.mode = 'roaming'; state.fsa = null; state.currentBuilding = null;
+  player.position.set(FSA.x + 8, 0, FSA.z + 8); player.rotation.y = 0;
+  camCtrl.cur = { x: player.position.x, y: 12, z: player.position.z + 14 };
+  clearAllNPCs(); initSpawn(7);
+  hideModal();
+  document.getElementById('fsaHud').style.display = 'none';
+  document.getElementById('hudHint').style.display = 'none';
+  document.getElementById('hudStats').style.display = 'block';
+  document.getElementById('hudInfo').style.display = 'block';
+  document.getElementById('hudControls').style.display = 'block';
+  updateStatsHUD(); updateInfoHUD(); updateModeHUD();
+}
+
+// 업무 지식력 우위 → 빌런 전투 시작 시 체력 10% 하락
+function applyKnowledgeAdvantage(enemyKnowledge) {
+  const pk = state.player.knowledge || 0;
+  if (pk > (enemyKnowledge || 0) && state.battle && state.battle.enemy) {
+    const e = state.battle.enemy;
+    const drop = Math.max(1, Math.floor(e.maxHp * 0.1));
+    e.hp = Math.max(1, e.hp - drop);
+    log(`📚 업무 지식력이 빌런보다 높아 빌런의 체력이 ${drop} 하락하였습니다!`);
+  }
+}
+// ===== 전투 (오버월드) =====
+function triggerWildBattle(npcData) {
+  const e = npcData.enemyData, mod = npcData.modifier;
+  const baseHp = rand(e.hp[0], e.hp[1]); const hp = Math.floor(baseHp*mod.hpMult);
+  const dmg = [Math.floor(e.dmg[0]*mod.dmgMult), Math.floor(e.dmg[1]*mod.dmgMult)];
+  const xp = Math.floor(e.xp*mod.xpMult);
+  const displayName = npcData.enemyName; // 등급은 색 배지로만 표시(이름 중복 금지)
+  const gradeTxt = mod.name ? `[${mod.name}] ` : '';
+  state.battle = { enemy: { name: displayName, sprite: e.sprite, hp, maxHp: hp, skills: [{ name: e.skill, dmg }], element: e.element, xpReward: xp, modifier: mod.key, baseName: npcData.enemyName }, type: 'wild', canFlee: true, phase: 'choose' };
+  state.mode = 'battle'; state.activeIndex = 0; state.messages = [];
+  log(`${e.sprite} 야생의 ${gradeTxt}${displayName} 등장!`);
+  if (e.intro) log(e.intro); // 빌런별 전투 시작 멘트
+  if (mod.key === 'impossible') log('⚠ 압도적으로 강하다. 도망쳐!');
+  else if (mod.key === 'brutal') log('⚠ 만만치 않다. 조심!');
+  applyKnowledgeAdvantage(e.knowledge);
+  renderBattle();
+}
+function triggerHuntBattle(npcData) {
+  const c = npcData.creature;
+  state.battle = { enemy: { name: `Lv.${c.level} ${c.displayName}`, sprite: c.sprite, hp: c.hp, maxHp: c.maxHp, skills: [c.skill], element: c.element, xpReward: c.xp, isHuntCreature: true, isAlly: c.isAlly, baseName: c.baseName, level: c.level, origSkill: c.skill }, type: 'huntWild', canFlee: true, phase: 'choose' };
+  state.mode = 'battle'; state.activeIndex = 0; state.messages = [];
+  log(`${c.sprite} 야생의 ${c.displayName} (Lv.${c.level}) 등장!`);
+  log(c.isAlly ? '🟢 친화적 — 팀즈볼로 잡으면 합류!' : '🔴 적대적 — 공격 또는 포획!');
+  if (!c.isAlly) applyKnowledgeAdvantage(c.level * 4);
+  renderBattle();
+}
+function triggerAllyEncounter(ally) {
+  state.mode = 'dialog'; state.messages = [];
+  log(`${ally.sprite} ${ally.name} 만났다!`); log(ally.text);
+  if (ally.effect === 'heal') { state.player.hp = Math.min(state.player.maxHp, state.player.hp + ally.amount); log(`HP +${ally.amount}! (${state.player.hp}/${state.player.maxHp})`); }
+  else if (ally.effect === 'full') { state.player.hp = state.player.maxHp; log('HP 완전 회복!'); }
+  else if (ally.effect === 'item') { state.player.items['박카스'] = (state.player.items['박카스']||0)+1; log(`🥤 박카스 획득! (총 ${state.player.items['박카스']}개)`); }
+  updateStatsHUD();
+  showModal(`<div class="modal-title">동료 조우</div><div class="modal-body"><div style="text-align:center;font-size:64px;margin:12px 0;">${ally.sprite}</div><div class="message-box">${state.messages.map(m=>'▸ '+m).join('<br>')}</div><button class="btn full-width" data-action="close-dialog" data-primary>확인</button></div>`);
+}
+
+function showSkillsModal() {
+  state.mode = 'dialog'; const p = state.player;
+  let rows = '';
+  Object.entries(p.skills).forEach(([name, lvl]) => {
+    const sk = SKILLS[name], el = ELEMENTS[sk.element];
+    const mult = calcLevelMult(lvl), minD = Math.floor(sk.dmg[0]*mult), maxD = Math.floor(sk.dmg[1]*mult);
+    const nMult = calcLevelMult(lvl+1), nMin = Math.floor(sk.dmg[0]*nMult), nMax = Math.floor(sk.dmg[1]*nMult);
+    const can = lvl < MAX_SKILL_LEVEL && p.skillPoints > 0, isMax = lvl >= MAX_SKILL_LEVEL;
+    let pips = ''; for (let i=0;i<MAX_SKILL_LEVEL;i++) pips += `<span class="lv-pip ${i<lvl?'filled':''}"></span>`;
+    const dispName = isMax ? `험한 ${name}` : name;
+    const hyperInfo = isMax && sk.hyper ? `<div style="font-size:11px;color:#c0392b;font-weight:bold;margin-bottom:4px;">⚡ 하이퍼: ${sk.hyper.desc}</div>` : (lvl === MAX_SKILL_LEVEL-1 && sk.hyper ? `<div style="font-size:10px;color:#999;margin-bottom:4px;">7레벨 시 하이퍼 「험한 ${name}」 각성: ${sk.hyper.desc}</div>` : '');
+    rows += `<div class="skill-row ${sk.ultimate?'ultimate':''} ${isMax?'':''}" ${isMax?'style="border-color:#c0392b;background:linear-gradient(180deg,#fff,#ffe0e0);"':''}><div class="skill-head"><span class="skill-name-text">${el.icon} ${dispName}${sk.ultimate?' 👑':''}${isMax?' 🔥':''}</span><span class="elem-badge" style="background:${el.color};">${sk.element}</span><span>${pips} <b>Lv.${lvl}/${MAX_SKILL_LEVEL}</b></span></div><div class="skill-desc">${sk.desc}</div>${hyperInfo}<div class="skill-dmg">현재: <b>${minD}~${maxD}</b>${!isMax?` → 강화: <b style="color:#c63;">${nMin}~${nMax}</b>`:''}</div><button class="btn ${can?'skill':''} full-width" data-action="upgrade-skill" data-arg="${name}" ${!can?'disabled':''}>${isMax?'⭐ 만렙(하이퍼)':(p.skillPoints>0?'▲ 레벨업 (SP 1)':'SP 부족')}</button></div>`;
+  });
+  showModal(`<div class="modal-title">📚 스킬 강화 (Q)</div><div class="modal-body"><div style="background:#fff;border:2px solid #2c1810;border-radius:4px;padding:8px 12px;margin-bottom:10px;text-align:center;"><b>Lv.${p.level} ${p.name}</b> · <span style="background:#fc6;padding:2px 8px;border-radius:3px;">💡 SP: ${p.skillPoints}</span></div><div style="font-size:11px;color:#555;margin-bottom:8px;">🔥압박 → 🎭기만 → 🛡️방어 → 🔥압박 · 동일0.75배/우위1.5배/열세0.7배</div>${rows}<button class="btn full-width" data-action="close-dialog" data-primary style="margin-top:8px;">← 닫기</button></div>`);
+}
+function upgradeSkill(name) {
+  const p = state.player;
+  if (p.skillPoints <= 0 || !p.skills[name] || p.skills[name] >= MAX_SKILL_LEVEL) return;
+  p.skillPoints--; p.skills[name]++; updateStatsHUD(); showSkillsModal();
+}
+function showTeamModal() {
+  state.mode = 'dialog'; let rows = '';
+  const p = state.player; const pPct = (p.hp/p.maxHp)*100; const pCls = pPct<25?'low':(pPct<50?'mid':'');
+  rows += `<div class="team-row"><span class="team-sprite">${p.sprite}</span><div class="team-info"><b>${p.name} Lv.${p.level}</b> (주인공)<br><span class="hp-bar" style="width:120px;"><span class="hp-fill ${pCls}" style="width:${pPct}%"></span></span> ${p.hp}/${p.maxHp}</div></div>`;
+  state.team.forEach(c => { const pct = (c.hp/c.maxHp)*100; const cls = pct<25?'low':(pct<50?'mid':''); const el = ELEMENTS[c.element];
+    rows += `<div class="team-row ${c.hp<=0?'fainted':''}"><span class="team-sprite">${c.sprite}</span><div class="team-info"><b>${c.name} Lv.${c.level}</b> <span class="elem-badge" style="background:${el.color};">${el.icon}${c.element}</span><br><span class="hp-bar" style="width:120px;"><span class="hp-fill ${cls}" style="width:${pct}%"></span></span> ${c.hp}/${c.maxHp}<br><span style="font-size:10px;">스킬: ${c.skill.name} (${c.skill.dmg[0]}~${c.skill.dmg[1]})</span></div></div>`; });
+  if (!state.team.length) rows += '<div style="text-align:center;padding:20px;color:#666;">아직 잡은 동료/빌런이 없다.<br>🟣 팀즈볼로 잡아보자!</div>';
+  showModal(`<div class="modal-title">🎯 내 팀 (T)</div><div class="modal-body">${rows}<button class="btn full-width" data-action="close-dialog" data-primary style="margin-top:8px;">← 닫기</button></div>`);
+}
+
+function renderBattle() {
+  const b = state.battle; if (!b) return;
+  const active = getActiveFighter();
+  const eP = (b.enemy.hp/b.enemy.maxHp)*100, aP = (active.hp/active.maxHp)*100;
+  const eC = eP<25?'low':(eP<50?'mid':''), aC = aP<25?'low':(aP<50?'mid':'');
+  let actions = '';
+  if (b.phase === 'choose') {
+    const showCap = state.huntMode && b.type === 'huntWild', showSw = state.team.length > 0;
+    actions = `<button class="btn attack" data-action="show-skills">⚔ 공격</button><button class="btn" data-action="show-bag">🎒 가방</button>${showCap?`<button class="btn capture full-width" data-action="show-capture">🟣 팀즈볼 (x${state.player.items['팀즈볼']||0})</button>`:''}${showSw?`<button class="btn team full-width" data-action="show-switch">🔄 교체 (팀 ${state.team.length})</button>`:''}${b.canFlee?`<button class="btn full-width" data-action="flee">🏃 도망</button>`:''}`;
+  } else if (b.phase === 'skills') {
+    if (active.isCaptured) {
+      const el = ELEMENTS[active.skill.element]; let eh = '';
+      if (b.enemy.element) { if (active.skill.element === b.enemy.element) eh = ' 😐'; else if (ELEMENTS[active.skill.element].counters === b.enemy.element) eh = ' ⭐'; else if (ELEMENTS[b.enemy.element]?.counters === active.skill.element) eh = ' 😣'; }
+      actions = `<button class="btn attack full-width" data-action="use-captured-skill">${el.icon} ${active.skill.name} Lv.${active.level}${eh}<br><span class="skill-info">${active.skill.element}속성 · ${active.skill.dmg[0]}~${active.skill.dmg[1]}</span></button><button class="btn full-width" data-action="back-to-choose">← 취소</button>`;
+    } else {
+      actions = Object.entries(state.player.skills).map(([s,lvl]) => { const sk = SKILLS[s], el = ELEMENTS[sk.element]; const mult = calcLevelMult(lvl); const minD = Math.floor(sk.dmg[0]*mult), maxD = Math.floor(sk.dmg[1]*mult); let eh = '';
+        if (b.enemy.element) { if (sk.element === b.enemy.element) eh = ' 😐'; else if (ELEMENTS[sk.element].counters === b.enemy.element) eh = ' ⭐'; else if (ELEMENTS[b.enemy.element]?.counters === sk.element) eh = ' 😣'; }
+        const hyN = lvl >= MAX_SKILL_LEVEL ? '🔥험한 ' : ''; const hyHint = (lvl >= MAX_SKILL_LEVEL && sk.hyper) ? ` · ⚡${sk.hyper.desc}` : '';
+        return `<button class="btn attack full-width" data-action="use-skill" data-arg="${s}">${el.icon} ${hyN}${s} <span style="opacity:0.85;">Lv.${lvl}</span>${sk.ultimate?' 👑':''}${eh}<br><span class="skill-info">${sk.element}속성 · ${minD}~${maxD}${hyHint}</span></button>`; }).join('') + `<button class="btn full-width" data-action="back-to-choose">← 취소</button>`;
+    }
+  } else if (b.phase === 'bag') {
+    const cnt = state.player.items['박카스']||0;
+    const cola = state.player.items['제로 팝시 콜라']||0;
+    const hot = state.player.items['호떡']||0;
+    const kab = state.player.items['까방권']||0;
+    actions = `<button class="btn heal full-width" data-action="use-bakkas" ${cnt<=0?'disabled':''}>🥤 박카스 x${cnt} (HP +${BAKKAS_HEAL})</button>`
+      + `<button class="btn skill full-width" data-action="use-cola" ${cola<=0?'disabled':''}>🥤 제로 팝시 콜라 x${cola} (HP 풀회복 / ⚠1턴 데미지 20%)</button>`
+      + `<button class="btn heal full-width" data-action="use-hotteok" ${hot<=0?'disabled':''}>🥮 호떡 x${hot} (HP +20%)</button>`
+      + `<button class="btn full-width" data-action="use-kabang" ${kab<=0?'disabled':''} style="background:linear-gradient(180deg,#ffd24a,#c89000);color:#2c1810;">🚫 나쁜말 금지 까방권 x${kab} (스킬 2턴 봉인)</button>`
+      + `<button class="btn full-width" data-action="back-to-choose">← 취소</button>`;
+  } else if (b.phase === 'capture') {
+    const balls = state.player.items['팀즈볼']||0; const hpR = b.enemy.hp/b.enemy.maxHp;
+    let rate = 0.4*(1-hpR)+0.15; if (b.enemy.modifier === 'impossible') rate *= 0.15; else if (b.enemy.modifier === 'brutal') rate *= 0.4; else if (b.enemy.modifier === 'hard') rate *= 0.7;
+    actions = `<div style="grid-column:1/-1;text-align:center;background:#fff;border:2px solid #2c1810;padding:8px;border-radius:4px;margin-bottom:6px;">🟣 보유: <b>${balls}개</b><br>포획 확률: <b style="color:#83c;">${Math.round(rate*100)}%</b><br><span style="font-size:11px;color:#555;">HP 낮을수록 잘 잡힘</span></div><button class="btn capture full-width" data-action="throw-ball" ${balls<=0?'disabled':''}>🟣 던진다!</button><button class="btn full-width" data-action="back-to-choose">← 취소</button>`;
+  } else if (b.phase === 'switch') {
+    let tr = `<button class="btn ${state.player.hp>0&&state.activeIndex!==0?'team':''} full-width" data-action="switch-fighter" data-arg="0" ${(state.player.hp<=0||state.activeIndex===0)?'disabled':''}>${state.player.sprite} ${state.player.name} Lv.${state.player.level} (${state.player.hp}/${state.player.maxHp})${state.activeIndex===0?' [현재]':''}</button>`;
+    state.team.forEach((c,i) => { const al = c.hp>0, ac = state.activeIndex===i+1; tr += `<button class="btn ${al&&!ac?'team':''} full-width" data-action="switch-fighter" data-arg="${i+1}" ${(!al||ac)?'disabled':''}>${c.sprite} ${c.name} Lv.${c.level} (${c.hp}/${c.maxHp})${ac?' [현재]':''}${!al?' 💫':''}</button>`; });
+    actions = tr + `<button class="btn full-width" data-action="back-to-choose">← 취소</button>`;
+  }
+  let header = b.type === 'gym' ? '⚔ 도장 관장 전' : b.type === 'boss' ? `🗼 사대천왕 ${state.bossIndex+1}번` : b.type === 'huntWild' ? '🎯 야생 조우 (포획 가능)' : '⚠ 야생 조우';
+  const isP = state.activeIndex === 0;
+  const aName = active.name + (isP ? ` Lv.${state.player.level}` : '');
+  const keyHint = b.phase === 'choose'
+    ? `<div style="font-size:10px;color:#777;text-align:center;margin-top:6px;"><span class="key-cap">Space</span> 공격 · <span class="key-cap">B</span> 가방 · <span class="key-cap">R</span> 도망</div>`
+    : `<div style="font-size:10px;color:#777;text-align:center;margin-top:6px;"><span class="key-cap">↑</span><span class="key-cap">↓</span> 선택 · <span class="key-cap">Space</span> 확정 · <span class="key-cap">R</span>/<span class="key-cap">Esc</span> 뒤로</div>`;
+  showModal(`<div class="modal-title">${header}</div><div class="modal-body"><div class="battle-arena"><div class="enemy-side"><div class="name-card">${modBadge(b.enemy.modifier)}${b.enemy.name} ❤ ${b.enemy.hp}/${b.enemy.maxHp} ${elemBadge(b.enemy.element)}</div><div><span class="hp-bar"><span class="hp-fill ${eC}" style="width:${eP}%"></span></span></div><div class="sprite-emoji" id="enemySprite">${b.enemy.sprite}</div></div><div class="player-side"><div class="sprite-emoji" id="playerSprite">${active.sprite||state.player.sprite}</div><div><span class="hp-bar"><span class="hp-fill ${aC}" style="width:${aP}%"></span></span></div><div class="name-card">${aName} ❤ ${active.hp}/${active.maxHp} ${isP?'':elemBadge(active.element)}</div></div></div><div class="message-box">${state.messages.slice(-4).map(m=>'▸ '+m).join('<br>')}</div><div class="action-grid">${actions}</div>${keyHint}</div>`);
+  decorateBattleMenu();
+  updateStatsHUD();
+}
+// 전투 서브메뉴(스킬/가방/포획/교체)에 방향키 선택 하이라이트 부여
+function decorateBattleMenu() {
+  const b = state.battle; if (!b) return;
+  // 모든 단계(공격/가방/도망 선택 = choose 포함)에 키보드 커서 부여
+  const btns = [...document.querySelectorAll('#modalContent .action-grid button:not([disabled])')];
+  if (!btns.length) return;
+  if (b.lastPhase !== b.phase) { b.menuIndex = 0; b.lastPhase = b.phase; } // 단계 바뀌면 커서 초기화
+  if (b.menuIndex == null || b.menuIndex >= btns.length) b.menuIndex = 0;
+  btns.forEach((el, i) => { el.setAttribute('data-mi', i); el.classList.toggle('sel', i === b.menuIndex); });
+}
+// 전투 키 입력: 공격/가방/도망 및 서브메뉴 모두 ↑↓(또는 ←→)로 커서 이동 + Space 선택. B=가방, R=도망 단축키.
+function battleKey(k, isConfirm) {
+  const b = state.battle; if (!b || b.over) return; // 전투 종료 직후 입력 잠금(승리 반복 방지)
+  // choose 단계 단축키
+  if (b.phase === 'choose') {
+    if (k === 'b') { handleAction('show-bag'); return; }
+    if (k === 'r') { if (b.canFlee) handleAction('flee'); return; }
+  }
+  const items = [...document.querySelectorAll('#modalContent [data-mi]')];
+  if (!items.length) { if (isConfirm || k === 'escape' || k === 'r') handleAction('back-to-choose'); return; }
+  if (k === 'arrowup' || k === 'w' || k === 'arrowleft' || k === 'a') { b.menuIndex = (b.menuIndex - 1 + items.length) % items.length; renderBattle(); }
+  else if (k === 'arrowdown' || k === 's' || k === 'arrowright' || k === 'd') { b.menuIndex = (b.menuIndex + 1) % items.length; renderBattle(); }
+  else if (isConfirm) { const el = items.find(x => +x.getAttribute('data-mi') === b.menuIndex) || items[0]; if (el) el.click(); }
+  else if (k === 'escape' && b.phase !== 'choose') handleAction('back-to-choose');
+}
+
+function handleAction(action, arg) {
+  switch (action) {
+    case 'newgame': return newGame();
+    case 'close-dialog': return closeDialog();
+    case 'show-skills': state.battle.phase = 'skills'; state.battle.menuIndex = 0; return renderBattle();
+    case 'show-bag': state.battle.phase = 'bag'; state.battle.menuIndex = 0; return renderBattle();
+    case 'show-capture': state.battle.phase = 'capture'; state.battle.menuIndex = 0; return renderBattle();
+    case 'show-switch': state.battle.phase = 'switch'; state.battle.menuIndex = 0; return renderBattle();
+    case 'back-to-choose': state.battle.phase = 'choose'; return renderBattle();
+    case 'use-skill': return useSkill(arg);
+    case 'use-captured-skill': return useCapturedSkill();
+    case 'use-bakkas': return useBakkas();
+    case 'use-cola': return useZeroCola();
+    case 'use-hotteok': return useHotteok();
+    case 'use-kabang': return useKabang();
+    case 'buy-hotteok': return buyHotteok();
+    case 'field-use-bakkas': return fieldUseBakkas();
+    case 'field-use-cola': return fieldUseCola();
+    case 'field-use-hotteok': return fieldUseHotteok();
+    case 'buy-bld-cola': return buyBldCola();
+    case 'bld-elev': return bldElevGo(parseInt(arg));
+    case 'bld-stairs': return bldStairsGo(arg);
+    case 'bld-close': return bldClose();
+    case 'buy-item': return buyItem(arg);
+    case 'flee': return flee();
+    case 'upgrade-skill': return upgradeSkill(arg);
+    case 'throw-ball': return throwBall();
+    case 'switch-fighter': return switchFighter(parseInt(arg));
+    case 'enter-hunt': return enterHuntMode();
+    case 'start-fsa': return startFsa();
+    case 'fsa-game-start': return fsaGameStart();
+    case 'fsa-reentry-home': return fsaReentryHome();
+    case 'fsa-finish': return finishFsa();
+    case 'elev-go': return elevGo(parseInt(arg));
+    case 'stairs-go': return stairsGo(arg);
+    case 'fsa-close': return hideModal();
+  }
+}
+function closeDialog() {
+  hideModal();
+  state.phoneOpen = false; document.getElementById('modal').classList.remove('phone-mode');
+  resetPhoneArmPose();
+  if (state.pendingEvolution) { const lv = state.pendingEvolution; state.pendingEvolution = null; playEvolution(lv); return; }
+  if (state.bld && state.bld.active) { resumeBuilding(); return; }
+  state.mode = 'roaming'; state.currentBuilding = null; updateHint(); updateStatsHUD(); updateInfoHUD();
+}
+// ===== 진화 연출 (30초 3D) =====
+function playEvolution(level) {
+  const e = EVOLUTIONS[level]; if (!e) { state.mode = 'roaming'; return; }
+  state.mode = 'evolving';
+  state.evolve = { level, t: 0, dur: 30, fromName: state.player.baseName, toName: e.name };
+  const scr = document.getElementById('evolveScreen');
+  scr.classList.add('active');
+  scr.innerHTML = `
+    <div class="evolve-top">
+      <div class="evolve-banner">✨ 진화 중...! ✨</div>
+      <div class="evolve-names"><b>${state.evolve.fromName}</b> → <b>${e.name}</b></div>
+    </div>
+    <div class="evolve-bottom">
+      <div class="evolve-count" id="evolveCount">30</div>
+      <button class="evolve-skip" id="evolveSkip">⏭ 진화 건너뛰기</button>
+    </div>`;
+  document.getElementById('evolveSkip').onclick = () => finalizeEvolution();
+  player.userData._evo = { baseScale: 1 };
+}
+function updateEvolving(delta) {
+  const ev = state.evolve; if (!ev) return;
+  ev.t += delta;
+  // 3D 진화 모션: 회전 + 스케일 펄스 + 위아래 부유
+  player.rotation.y += delta * (3 + ev.t * 0.2);
+  const s = 1 + Math.sin(ev.t * 6) * 0.12 + ev.t * 0.004;
+  player.scale.set(s, s, s);
+  player.position.y = Math.abs(Math.sin(ev.t * 4)) * 0.4;
+  // 점멸(셔츠 emissive 깜빡)
+  if (player.userData.bodyMat) { const f = (Math.sin(ev.t * 12) * 0.5 + 0.5); player.userData.bodyMat.emissive = new THREE.Color(f * 0.6, f * 0.6, f * 0.9); }
+  const cd = document.getElementById('evolveCount'); if (cd) cd.textContent = Math.max(0, Math.ceil(ev.dur - ev.t));
+  if (ev.t >= ev.dur) finalizeEvolution();
+}
+function finalizeEvolution() {
+  const ev = state.evolve; if (!ev) return;
+  const e = EVOLUTIONS[ev.level];
+  const p = state.player;
+  p.evoStage = ev.level === 5 ? 1 : 2;
+  p.baseName = e.name; p.name = e.name;
+  p.evoBonus = (p.evoBonus || 0) + e.dmgBonus;
+  p.knowledge = (p.knowledge || 0) + e.knowledge;
+  // 모델 복구/갱신
+  player.scale.set(1, 1, 1); player.position.y = 0; player.rotation.y = 0;
+  rebuildPlayerModel();
+  state.evolve = null;
+  document.getElementById('evolveScreen').classList.remove('active');
+  document.getElementById('evolveScreen').innerHTML = '';
+  fsaToast(`✨ ${e.name}(으)로 진화! 스킬 데미지↑, 업무 지식력 ${p.knowledge}`);
+  // 진화 후 모드 복귀
+  if (state.bld && state.bld.active) { resumeBuilding(); }
+  else { state.mode = 'roaming'; updateStatsHUD(); updateInfoHUD(); }
+}
+function elevGo(i) { showBrokenElevatorModal(); }
+function stairsGo(dir) {
+  const f = state.fsa; const ni = dir === 'up' ? f.floor + 1 : f.floor - 1;
+  if (ni < 0 || ni >= FLOORS.length) return;
+  hideModal(); setFloor(ni, landingPosForStairs(dir)); fsaToast(`🪜 ${FLOORS[ni].tag} 이동`);
+}
+
+function shakeElement(id) { setTimeout(() => { const el = document.getElementById(id); if (el) { el.classList.add('shake'); setTimeout(() => el.classList.remove('shake'), 400); } }, 30); }
+function applyColaDebuff(r) {
+  if (state.battle.colaTurns > 0) {
+    r.dmg = Math.max(1, Math.floor(r.dmg * 0.2));
+    r.colaWeak = true;
+    state.battle.colaTurns--;
+  }
+  return r;
+}
+function useSkill(skillName) {
+  const r = applyColaDebuff(calculateDamage(skillName, state.battle.enemy.element));
+  // 7레벨 하이퍼 "험한 OO" 고유 효과
+  const lvl = state.player.skills[skillName]; const sk = SKILLS[skillName];
+  let openName = skillName;
+  if (lvl >= MAX_SKILL_LEVEL && sk.hyper) {
+    openName = '험한 ' + skillName;
+    r.hyper = sk.hyper;
+  }
+  applyDamageAndContinue(r, `공대리의 「${openName}」!`);
+}
+function useCapturedSkill() { const a = getActiveFighter(); const r = applyColaDebuff(calculateCapturedDamage(a, state.battle.enemy.element)); applyDamageAndContinue(r, `${a.name}의 「${a.skill.name}」!`); }
+function applyDamageAndContinue(result, openLine) {
+  const e = state.battle.enemy;
+  e.hp = Math.max(0, e.hp - result.dmg);
+  state.messages = []; log(openLine);
+  let dmgMsg = `${e.name}에게 ${result.dmg} 데미지!`; if (result.crit) dmgMsg = '💥 크리티컬! ' + dmgMsg;
+  log(dmgMsg); if (result.colaWeak) log('🫧 탄산 때문에 트림이... 데미지 20%로 급감!'); if (result.effectMsg) log(result.effectMsg);
+  // 하이퍼 효과
+  if (result.hyper && e.hp > 0) {
+    const hy = result.hyper;
+    if (hy.mode === 'double') { const d2 = Math.max(1, Math.floor(result.dmg * 0.7)); e.hp = Math.max(0, e.hp - d2); log(`⚡ 험한 2연타! 추가 ${d2} 데미지!`); }
+    else if (hy.mode === 'dot') { e.dot = { dmg: hy.dot, turns: hy.turns }; log(`🩸 도트 부여! (${hy.dot[0]}~${hy.dot[1]} x${hy.turns}턴)`); }
+    else if (hy.mode === 'silence') { e.silenceTurns = (e.silenceTurns || 0) + hy.turns; log(`🤐 빌런 스킬 ${hy.turns}턴 봉인!`); }
+  }
+  if (e.hp <= 0) { state.battle.over = true; state.battle.phase = 'choose'; renderBattle(); shakeElement('enemySprite'); setTimeout(() => handleWin(), 900); return; }
+  enemyTurn(); state.battle.phase = 'choose'; renderBattle(); shakeElement('enemySprite'); setTimeout(() => shakeElement('playerSprite'), 300);
+}
+function enemyTurn() {
+  const e = state.battle.enemy;
+  // 도트 데미지(빌런)
+  if (e.dot && e.dot.turns > 0) {
+    const dd = rand(e.dot.dmg[0], e.dot.dmg[1]); e.hp = Math.max(0, e.hp - dd); e.dot.turns--;
+    log(`🩸 도트 데미지! ${e.name} ${dd} 피해 (남은 ${e.dot.turns}턴)`);
+    if (e.hp <= 0) { state.battle.over = true; renderBattle(); shakeElement('enemySprite'); setTimeout(() => handleWin(), 900); return; }
+  }
+  // 스킬 봉인(까방권/하이퍼 침묵)
+  if (e.silenceTurns && e.silenceTurns > 0) {
+    e.silenceTurns--;
+    log(`🤐 ${e.name}은(는) 스킬이 봉인되어 우물쭈물한다! (남은 ${e.silenceTurns}턴)`);
+    return;
+  }
+  const sk = e.skills[rand(0, e.skills.length-1)]; const dmg = rand(sk.dmg[0], sk.dmg[1]);
+  const active = getActiveFighter(); active.hp = Math.max(0, active.hp - dmg);
+  log(`${e.name}의 「${sk.name}」!`); log(`${active.name}는(은) ${dmg} 데미지!`);
+  if (active.hp <= 0) {
+    log(`💫 ${active.name} 기절!`);
+    if (state.activeIndex === 0) { setTimeout(() => gameOver(e.name), 800); return; }
+    if (state.player.hp > 0) { state.activeIndex = 0; log(`${state.player.name} 출동!`); }
+    else { const alive = state.team.findIndex(t => t.hp > 0); if (alive >= 0) { state.activeIndex = alive+1; log(`${state.team[alive].name} 출동!`); } else setTimeout(() => gameOver(e.name), 800); }
+  }
+}
+function useBakkas() {
+  if ((state.player.items['박카스']||0) <= 0) return;
+  state.player.items['박카스']--; const a = getActiveFighter(); a.hp = Math.min(a.maxHp, a.hp + BAKKAS_HEAL);
+  state.messages = []; log(`🥤 박카스! HP +${BAKKAS_HEAL}`); log(`(남은 ${state.player.items['박카스']}개)`);
+  enemyTurn(); state.battle.phase = 'choose'; renderBattle(); setTimeout(() => shakeElement('playerSprite'), 200);
+}
+function useZeroCola() {
+  if ((state.player.items['제로 팝시 콜라']||0) <= 0) return;
+  state.player.items['제로 팝시 콜라']--;
+  const a = getActiveFighter(); a.hp = a.maxHp;
+  state.battle.colaTurns = 1; // 다음 스킬 1회 데미지 20%
+  state.messages = []; log(`🥤 제로 팝시 콜라! HP 최대 회복 (${a.hp}/${a.maxHp})`);
+  log('🫧 탄산이 차오른다... 다음 스킬 데미지가 20%로 급감!');
+  enemyTurn(); state.battle.phase = 'choose'; renderBattle(); setTimeout(() => shakeElement('playerSprite'), 200);
+}
+function useHotteok() {
+  if ((state.player.items['호떡']||0) <= 0) return;
+  state.player.items['호떡']--;
+  const a = getActiveFighter(); const heal = Math.floor(a.maxHp * HOTTEOK_HEAL_PCT);
+  a.hp = Math.min(a.maxHp, a.hp + heal);
+  state.messages = []; log(`🥮 호떡을 먹었다! HP +${heal} (최대체력 20%)`); log(`(남은 호떡 ${state.player.items['호떡']}개)`);
+  enemyTurn(); state.battle.phase = 'choose'; renderBattle(); setTimeout(() => shakeElement('playerSprite'), 200);
+}
+function useKabang() {
+  if ((state.player.items['까방권']||0) <= 0) return;
+  state.player.items['까방권']--;
+  const e = state.battle.enemy; e.silenceTurns = (e.silenceTurns || 0) + 2;
+  state.messages = []; log('🚫 「나쁜말 금지 까방권」 사용!');
+  log(`${e.name}은(는) 2턴간 나쁜말(스킬)을 할 수 없게 되었다!`);
+  enemyTurn(); state.battle.phase = 'choose'; renderBattle(); setTimeout(() => shakeElement('playerSprite'), 200);
+}
+function flee() {
+  if (!state.battle.canFlee) return;
+  state.messages = []; const e = state.battle.enemy;
+  let fr = 0.7; if (e.modifier === 'impossible') fr = 0.95; else if (e.modifier === 'brutal') fr = 0.85;
+  if (Math.random() < fr) { log('🏃 무사히 도망쳤다!'); renderBattle(); setTimeout(() => { hideModal(); state.battle = null; if (state.bld && state.bld.active) resumeBuilding(); else state.mode = 'roaming'; }, 900); }
+  else { log('도망 실패!'); enemyTurn(); state.battle.phase = 'choose'; renderBattle(); setTimeout(() => shakeElement('playerSprite'), 200); }
+}
+function throwBall() {
+  if ((state.player.items['팀즈볼']||0) <= 0 || state.battle.type !== 'huntWild') return;
+  state.player.items['팀즈볼']--; const enemy = state.battle.enemy; const hpR = enemy.hp/enemy.maxHp; const rate = 0.4*(1-hpR)+0.15;
+  state.messages = []; log('🟣 팀즈볼을 던졌다!'); log('흔들흔들...');
+  if (Math.random() < rate) {
+    const cap = { isCaptured: true, isAlly: enemy.isAlly, name: enemy.name.replace(/^Lv\.\d+\s+/, ''), sprite: enemy.sprite, level: enemy.level, hp: enemy.maxHp, maxHp: enemy.maxHp, element: enemy.element, skill: { ...enemy.origSkill } };
+    state.team.push(cap); log(`⭐ ${cap.name}(Lv.${cap.level}) 포획 성공!`); log(`팀 합류! (총 ${state.team.length}마리)`);
+    renderBattle(); setTimeout(() => { hideModal(); state.battle = null; state.mode = 'roaming'; updateStatsHUD(); }, 1800);
+  } else { log('아쉬워... 잡지 못했다!'); enemyTurn(); state.battle.phase = 'choose'; renderBattle(); }
+}
+function switchFighter(index) {
+  const f = index === 0 ? state.player : state.team[index-1];
+  if (!f || f.hp <= 0 || state.activeIndex === index) return;
+  state.activeIndex = index; state.messages = []; log(`🔄 교체! ${f.name} 출동!`); state.battle.phase = 'choose'; renderBattle();
+}
+function moneyForBattle(b) {
+  // 빌런 레벨/등급에 따라 10원 ~ 1000원
+  if (b.type === 'wild') {
+    const m = b.enemy.modifier;
+    if (m === 'impossible') return rand(700, 1000);
+    if (m === 'brutal') return rand(250, 600);
+    if (m === 'hard') return rand(60, 180);
+    return rand(10, 50);
+  }
+  if (b.type === 'huntWild') return Math.min(1000, Math.max(10, rand((b.enemy.level||3) * 8, (b.enemy.level||3) * 22)));
+  if (b.type === 'gym') { const idx = GYMS.findIndex(g => g.id === b.gymId); return [200, 400, 650][idx] || 300; }
+  if (b.type === 'boss') return [400, 600, 800, 1000][state.bossIndex] || 500;
+  return 0;
+}
+function handleWin() {
+  const b = state.battle; state.messages = []; log(`${b.enemy.name} 격파!`);
+  let xpReward = 0;
+  if (b.type === 'wild') xpReward = b.enemy.xpReward || 15;
+  else if (b.type === 'huntWild') xpReward = b.enemy.xpReward || 30;
+  else if (b.type === 'gym') xpReward = GYMS.find(g => g.id === b.gymId).xp;
+  else if (b.type === 'boss') xpReward = BOSSES[state.bossIndex].xp;
+  if (xpReward > 0) gainXP(xpReward);
+  const money = moneyForBattle(b);
+  if (money > 0) { state.player.money = (state.player.money || 0) + money; log(`💰 ${money}원 획득! (총 ${state.player.money}원)`); }
+  // 필드 빌런 처치 카운트 (야생 빌런만, 동료 제외)
+  if (b.type === 'wild' || (b.type === 'huntWild' && !b.enemy.isAlly)) {
+    state.fieldVillainsDefeated = (state.fieldVillainsDefeated || 0) + 1;
+    if (state.fieldVillainsDefeated <= 3) log(`👊 필드 빌런 처치 ${state.fieldVillainsDefeated}/3 (해피엔딩 조건)`);
+  }
+  if (b.type === 'gym') {
+    const gym = GYMS.find(g => g.id === b.gymId);
+    if (!state.gymsCleared.includes(gym.id)) state.gymsCleared.push(gym.id);
+    if (!state.player.skills[gym.reward]) state.player.skills[gym.reward] = 1;
+    state.player.maxHp += HP_PER_GYM; state.player.hp = state.player.maxHp;
+    if (state.bld) state.bld.leaderDefeated = true; // 건물 내 관장 격파 표시
+    log(`🎉 「${gym.reward}」 획득! (Lv.1)`); log(`최대 HP +${HP_PER_GYM}! (${state.player.maxHp})`);
+    showVictoryDialog(`${gym.name} 클리어!`);
+  } else if (b.type === 'boss') {
+    state.bossIndex++;
+    if (state.bossIndex >= BOSSES.length) {
+      state.bossesCleared = true; log('🏆 사대천왕 모두 격파!');
+      const fv = state.fieldVillainsDefeated || 0;
+      setTimeout(() => playEnding(fv >= 3 ? 'happy' : 'normal'), 1000); // 빌런 3+ → 해피 / 미만 → 노멀
+    }
+    else { const next = BOSSES[state.bossIndex]; log(`다음: 사대천왕 ${state.bossIndex+1}번!`);
+      setTimeout(() => { state.battle = { enemy: { name: next.name, sprite: next.sprite, hp: next.hp, maxHp: next.hp, skills: next.skills, element: next.element }, type: 'boss', canFlee: false, phase: 'choose' }; state.messages = []; log(`사대천왕 ${state.bossIndex+1}번 ${next.name} 등장!`); log(next.intro); applyKnowledgeAdvantage(next.knowledge); renderBattle(); }, 1500);
+    }
+  } else {
+    if (Math.random() < 0.4) { state.player.items['박카스'] = (state.player.items['박카스']||0)+1; log('🥤 박카스 획득!'); }
+    showVictoryDialog('전투 승리!');
+  }
+}
+function showVictoryDialog(title) {
+  state.mode = 'dialog'; state.battle = null; // 승리 후엔 일반 대화 모드 → Space=확인(전투 반복 방지)
+  showModal(`<div class="modal-title">🎉 ${title}</div><div class="modal-body"><div style="text-align:center;font-size:48px;margin:12px 0;">🏆</div><div class="message-box">${state.messages.slice(-5).map(m=>'▸ '+m).join('<br>')}</div><button class="btn full-width" data-action="close-dialog" data-primary>확인</button></div>`);
+  updateStatsHUD(); updateInfoHUD();
+}
+function showFinalVictory() {
+  state.mode = 'victory';
+  showModal(`<div class="modal-title">🎉 사대천왕 격파! 🎉</div><div class="title-screen"><h1 style="color:#c83;">엔딩</h1><div class="big-emoji">🏆</div><div class="lore">공대리는 사대천왕을 모두 물리치고<br><b>회사인의 정점</b>에 올랐습니다!<br><br>🎊 → <b>전설의 공대리 Lv.${state.player.level}</b> 🎊</div><button class="start-btn" data-action="newgame" data-primary style="margin-top:8px;">↻ 처음부터</button></div>`);
+}
+function enterHuntMode() {
+  state.huntMode = true; state.player.items['팀즈볼'] = (state.player.items['팀즈볼']||0) + TEAMS_BALL_START;
+  state.player.hp = state.player.maxHp; state.team = []; state.activeIndex = 0; state.mode = 'roaming';
+  setOverworldVisuals(); clearAllNPCs(); initSpawn(8); hideModal();
+  document.getElementById('hudStats').style.display = 'block';
+  document.getElementById('hudInfo').style.display = 'block';
+  document.getElementById('hudControls').style.display = 'block';
+  fsaToast(`🎯 포획 모드! 🟣 팀즈볼 x${TEAMS_BALL_START} 획득!`);
+  updateStatsHUD(); updateInfoHUD(); updateModeHUD();
+}
+function gameOver(byWhom) {
+  // 사대천왕(보스) 전에서 패배 → 베드엔딩
+  if (state.battle && state.battle.type === 'boss') {
+    state.mode = 'ending';
+    setTimeout(() => playEnding('bad'), 400);
+    return;
+  }
+  state.mode = 'gameover';
+  showModal(`<div class="modal-title">💀 GAME OVER 💀</div><div class="title-screen"><h1 style="color:#666;">병가</h1><div class="big-emoji">😵</div><div class="lore">공대리는 HP가 다 떨어져<br>병가를 내고 말았습니다...<br><br><b>${byWhom}에게 패배.</b><br>도달 레벨: <b>Lv.${state.player.level}</b><br>${state.team.length?`포획 팀원: <b>${state.team.length}마리</b><br>`:''}<br>그래도 다음달 월급은 들어오겠지?</div><button class="start-btn" data-action="newgame" data-primary>▶ 다시 시작</button></div>`);
+}
+
+// ===== 타이틀 BGM =====
+let titleMusicWanted = false;
+function startTitleMusic() {
+  const a = document.getElementById('titleMusic');
+  if (!a) return;
+  titleMusicWanted = true; a.volume = 0.6;
+  try { a.currentTime = 0; } catch (e) {}
+  // 화면 전환 직후 바로 나오지 않고 1초 텀을 두고 재생
+  setTimeout(() => {
+    if (!titleMusicWanted) return;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {
+      const once = () => { if (titleMusicWanted) a.play().catch(() => {}); window.removeEventListener('keydown', once); window.removeEventListener('pointerdown', once); };
+      window.addEventListener('keydown', once, { once: true });
+      window.addEventListener('pointerdown', once, { once: true });
+    });
+  }, 1000);
+}
+function stopTitleMusic() {
+  titleMusicWanted = false;
+  const a = document.getElementById('titleMusic');
+  if (!a) return;
+  try { a.pause(); a.currentTime = 0; } catch (e) {}
+}
+
+// ===== 엔딩 시네마틱 =====
+const ENDINGS = {
+  normal: {
+    banner: '🚇 NORMAL ENDING', color: '#9fb3c8',
+    narr: '항상 나는 지하철에 몸을 맡기고 영강빌딩으로 출근한다..<br>공대리는 회사 생활이 재미없다..',
+    cuts: [
+      { bg: 'linear-gradient(180deg,#3a4a5a,#1c2530)', art: '🚇<div class="sub">💺🧑‍💼😑</div>', cap: '지하철에 몸을 맡기고 출근하는 공대리' },
+      { bg: 'linear-gradient(180deg,#7f93a8,#48576a)', art: '🏢<div class="sub">🚶‍♂️💨</div>', cap: '영강빌딩을 바라보며 터벅터벅 걸어간다' },
+      { bg: 'linear-gradient(180deg,#2b2f3a,#15181f)', art: '🖥️😴<div class="sub">💤 zzz</div>', cap: '자리에 엎드려 잠든 공대리' }
+    ],
+    finalArt: '😪', finalText: '<b>NORMAL ENDING</b><br>평범한 회사원의 하루는 오늘도 반복된다...<br><span style="font-size:12px;opacity:0.8;">(필드 빌런을 3명 이상 잡고 사대천왕을 깨면 해피엔딩!)</span>'
+  },
+  happy: {
+    banner: '🎉 HAPPY ENDING', color: '#ffd24a',
+    narr: '필드의 빌런들을 충분히 정리한 공대리.<br>이제 당당하게 자신의 권리를 행사한다!',
+    cuts: [
+      { bg: 'linear-gradient(180deg,#ffe9a8,#f6b73c)', art: '😄🤓<div class="sub">👔✨</div>', cap: '환하게 웃는 안경 쓴 공대리' },
+      { bg: 'linear-gradient(180deg,#cfe8ff,#7fb2e6)', art: '📑⚖️✉️<div class="sub">→ 말많은정대리 · 이다송대리 · 나쁜말김대리</div>', cap: '세 빌런에게 내용증명 서류를 발송!' },
+      { bg: 'linear-gradient(180deg,#ffb37a,#c0392b)', art: '🏢🌆<div class="sub">🚶‍♂️👜 퇴근!</div>', cap: '영강빌딩에서 당당히 퇴근하는 뒷모습' }
+    ],
+    finalArt: '🎉', finalText: '<b>HAPPY ENDING</b><br>공대리, 마침내 워라밸을 되찾다!<br>전설의 공대리로 회사에 길이 남았다. 🏆'
+  },
+  bad: {
+    banner: '💀 BAD ENDING', color: '#e74c3c',
+    narr: '사대천왕의 벽은 너무나 높았다...',
+    cuts: [
+      { bg: 'linear-gradient(180deg,#5a2a2a,#1c0f0f)', art: '🤕<div class="sub">💼📉😵 과로</div>', cap: '과로로 쓰러진 공대리' },
+      { bg: 'linear-gradient(180deg,#2b3a4a,#10161d)', art: '📱💬<div class="sub">"팀장님.. 병가 쓰겠습니다.."</div>', cap: '병가를 요청하는 메신저' },
+      { bg: 'linear-gradient(180deg,#3a1f1f,#160a0a)', art: '💬❌<div class="sub">"내일까지 일짱 작업계획서 써와"</div>', cap: '병가를 거절하는 팀장님' },
+      { bg: 'linear-gradient(180deg,#1c2733,#070a0e)', art: '🛏️😭<div class="sub">💧💧</div>', cap: '병원 침대에서 눈물 흘리는 공대리' }
+    ],
+    finalArt: '😭', finalText: '<b>BAD ENDING</b><br>회사는 당신을 놓아주지 않는다...<br>다시 도전하여 사대천왕을 격파하자!'
+  }
+};
+function playEnding(type) {
+  const data = ENDINGS[type]; if (!data) return;
+  state.mode = 'ending'; state.endingDone = false;
+  stopTitleMusic(); hideModal();
+  ['hudStats','hudInfo','hudControls','hudMode','hudHint','fsaHud'].forEach(id => document.getElementById(id).style.display = 'none');
+  const scr = document.getElementById('endingScreen');
+  scr.classList.add('active');
+  let i = 0, timer = null;
+  function renderCut() {
+    const cut = data.cuts[i];
+    scr.innerHTML = `
+      <div class="ending-banner" style="color:${data.color};">${data.banner}</div>
+      <div class="ending-cut" id="endCut" style="background:${cut.bg};">
+        <div class="ending-cutno">${i+1} / ${data.cuts.length}</div>
+        <div class="ending-art">${cut.art}</div>
+        <div class="ending-caption">${cut.cap}</div>
+      </div>
+      <div class="ending-narr">${data.narr}</div>
+      <button class="ending-skip" id="endSkip">▶ 다음 컷 (Space)</button>`;
+    const sk = document.getElementById('endSkip'); if (sk) sk.onclick = next;
+  }
+  function next() {
+    clearTimeout(timer); i++;
+    if (i >= data.cuts.length) { finalCard(); return; }
+    const c = document.getElementById('endCut'); if (c) c.classList.add('fade');
+    setTimeout(() => { renderCut(); schedule(); }, 350);
+  }
+  function schedule() { clearTimeout(timer); timer = setTimeout(next, 5000); }
+  function finalCard() {
+    clearTimeout(timer); state.endingDone = true;
+    scr.innerHTML = `
+      <div class="ending-final">
+        <div class="ending-banner" style="color:${data.color};">${data.banner}</div>
+        <div style="font-size:88px;margin:8px 0;">${data.finalArt}</div>
+        <div class="ending-narr">${data.finalText}</div>
+        <div><button class="start-btn" id="endRestart" style="margin-top:16px;">↻ 처음부터</button></div>
+      </div>`;
+    document.getElementById('endRestart').onclick = () => { scr.classList.remove('active'); newGame(); };
+  }
+  state.endingNext = next;
+  renderCut(); schedule();
+}
+
+// ===== LOADING (인트로 영상) =====
+function startLoading() {
+  const screen = document.getElementById('loadingScreen');
+  const video = document.getElementById('loadVideo');
+  const bar = document.getElementById('loadingBar');
+  const skipBtn = document.getElementById('skipBtn');
+  const unmuteBtn = document.getElementById('unmuteBtn');
+  let finished = false;
+
+  function finishLoading() {
+    if (finished) return; finished = true;
+    try { video.pause(); } catch (e) {}
+    screen.classList.add('hidden');
+    setTimeout(() => { screen.style.display = 'none'; }, 700);
+    // 로딩이 끝나면 타이틀 화면 BGM 무한 재생 시작
+    startTitleMusic();
+  }
+
+  // 진행 바 = 영상 재생 진행률
+  video.addEventListener('timeupdate', () => {
+    if (video.duration) bar.style.width = Math.min(100, (video.currentTime / video.duration) * 100) + '%';
+  });
+  video.addEventListener('ended', finishLoading);
+  // 영상 로드 실패 시에도 게임이 멈추지 않도록 안전장치
+  video.addEventListener('error', () => { bar.style.width = '100%'; setTimeout(finishLoading, 800); });
+
+  skipBtn.addEventListener('click', finishLoading);
+  unmuteBtn.addEventListener('click', () => {
+    video.muted = false; video.volume = 1.0;
+    video.play().catch(() => {});
+    unmuteBtn.textContent = '🔇 음소거';
+    unmuteBtn.onclick = () => { video.muted = true; unmuteBtn.textContent = '🔊 소리 켜기'; unmuteBtn.onclick = null; };
+  });
+
+  // 영상 길이를 알면 그 직후 자동 종료(ended 미발생 대비 보호장치)
+  video.addEventListener('loadedmetadata', () => {
+    if (isFinite(video.duration) && video.duration > 0) {
+      // 영상이 버퍼링/스로틀링되어도 실제 재생 길이만큼은 보장 (+5초 여유)
+      setTimeout(finishLoading, (video.duration + 5) * 1000);
+    }
+  });
+
+  // 음소거 자동재생(브라우저 정책상 항상 허용) → 반드시 실행
+  const p = video.play();
+  if (p && p.catch) p.catch(() => { /* 자동재생 차단 시 건너뛰기/소리켜기 버튼 제공 */ });
+
+  // 메타데이터조차 못 읽는 최악의 경우 30초 후 강제 종료
+  setTimeout(() => { if (!finished && (!video.duration || isNaN(video.duration))) finishLoading(); }, 30000);
+}
+
+// ===== LOOP =====
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.1);
+  if (state.mode === 'roaming') updateRoaming(delta);
+  else if (state.mode === 'fsa') updateFsa(delta);
+  else if (state.mode === 'building') updateBuilding(delta);
+  else if (state.mode === 'evolving') updateEvolving(delta);
+  updateCamera();
+  renderer.render(scene, camera);
+}
+showTitle();
+startLoading();
+animate();
+</script>
+</body>
+</html>
