@@ -171,6 +171,14 @@ html, body {
 .btn.fsa { background: linear-gradient(180deg, #c8f, #639); color: #fff; }
 .btn.full-width { grid-column: 1 / -1; }
 .btn.primary-glow { box-shadow: 0 0 0 2px #fc6, 0 3px 0 #2c1810; }
+#modalContent .action-grid .btn.attack.full-width:not(.kbd-active) {
+  background: linear-gradient(180deg, #fff, #d8c896);
+  color: #2c1810;
+}
+#modalContent .action-grid .btn.attack.kbd-active {
+  background: linear-gradient(180deg, #f88, #c33);
+  color: #fff;
+}
 .skill-info { font-size: 10px; font-weight: normal; opacity: 0.9; }
 .skill-row { background: #fff; border: 2px solid #2c1810; padding: 10px; margin-bottom: 8px; border-radius: 4px; }
 .skill-row .skill-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 13px; flex-wrap: wrap; }
@@ -1057,6 +1065,40 @@ function mkChair(x, z, rot=0) {
   const back = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.8,0.12), new THREE.MeshLambertMaterial({color:0x333})); back.position.set(0,1.1,-0.3); g.add(back);
   g.position.set(x,0,z); g.rotation.y = rot; return g;
 }
+function addOfficeBlocker(parent, x, z, rot=0, w=3.2, d=2.9) {
+  if (!parent.userData.officeBlockers) parent.userData.officeBlockers = [];
+  parent.userData.officeBlockers.push({ x, z, rot, w, d });
+}
+function isBlockedByOfficeFurniture(group, x, z, radius=0.55) {
+  const blockers = group && group.userData ? (group.userData.officeBlockers || []) : [];
+  return blockers.some(b => {
+    const rot = -(b.rot || 0);
+    const c = Math.cos(rot), s = Math.sin(rot);
+    const dx = x - b.x, dz = z - b.z;
+    const lx = dx * c - dz * s;
+    const lz = dx * s + dz * c;
+    return Math.abs(lx) <= b.w / 2 + radius && Math.abs(lz) <= b.d / 2 + radius;
+  });
+}
+function isBlockedByFloorFixtures(x, z) {
+  return dist2D({x,z}, ELEV_POS) <= 2 || dist2D({x,z}, UP_STAIRS_POS) <= 2 || dist2D({x,z}, DOWN_STAIRS_POS) <= 2;
+}
+function moveWithOfficeCollision(mesh, dx, dz, roomHalf, group, radius=0.55, extraBlocked=null) {
+  const clamp = (v) => Math.max(-roomHalf, Math.min(roomHalf, v));
+  const ox = mesh.position.x, oz = mesh.position.z;
+  const tries = [
+    { x: clamp(ox + dx), z: clamp(oz + dz) },
+    { x: clamp(ox + dx), z: oz },
+    { x: ox, z: clamp(oz + dz) }
+  ];
+  for (const p of tries) {
+    if (!(extraBlocked && extraBlocked(p.x, p.z)) && !isBlockedByOfficeFurniture(group, p.x, p.z, radius)) {
+      mesh.position.x = p.x; mesh.position.z = p.z;
+      return true;
+    }
+  }
+  return false;
+}
 function mkDeskStation(parent, x, z, rot=0, name) {
   const station = { x, z, rot };
   parent.add(mkDesk(x, z, rot));
@@ -1065,6 +1107,7 @@ function mkDeskStation(parent, x, z, rot=0, name) {
   const chairZ = chairPos.z;
   const chairRot = chairRotationForDesk(rot);
   parent.add(mkChair(chairX, chairZ, chairRot));
+  addOfficeBlocker(parent, x, z, rot);
   if (name) {
     const sign = createSign(`🧑‍💻 ${name}`, 'rgba(35,70,90,0.92)', '#fff');
     sign.scale.set(2.8,0.8,1);
@@ -1115,21 +1158,33 @@ function mkCafe(parent) {
   }
   const counter = new THREE.Mesh(new THREE.BoxGeometry(8,1.2,1.5), new THREE.MeshLambertMaterial({color:0x8b5a2b})); counter.position.set(4,0.6,-14); parent.add(counter);
 }
-function mkElevator(parent) {
+function mkElevator(parent, broken=false) {
   const g = new THREE.Group();
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(3.4,5,1), new THREE.MeshLambertMaterial({color:0x666a70})); frame.position.y = 2.5; g.add(frame);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(2.6,4,0.2), new THREE.MeshLambertMaterial({color:0x3a3a3a, emissive:0x220000})); door.position.set(0,2.2,0.55); g.add(door);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(3.4,5,1), new THREE.MeshLambertMaterial({color: broken ? 0x666a70 : 0x95a5a6})); frame.position.y = 2.5; g.add(frame);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(2.6,4,0.2), new THREE.MeshLambertMaterial({color: broken ? 0x3a3a3a : 0xbdc3c7, emissive: broken ? 0x220000 : 0x223})); door.position.set(0,2.2,0.55); g.add(door);
   const line = new THREE.Mesh(new THREE.BoxGeometry(0.08,4,0.25), new THREE.MeshLambertMaterial({color:0x333})); line.position.set(0,2.2,0.62); g.add(line);
-  const btn = new THREE.Mesh(new THREE.SphereGeometry(0.18,10,10), new THREE.MeshBasicMaterial({color:0xff2200})); btn.position.set(1.7,2,0.6); g.add(btn);
-  const crossA = new THREE.Mesh(new THREE.BoxGeometry(2.6,0.18,0.28), new THREE.MeshBasicMaterial({color:0xff2200})); crossA.position.set(0,2.2,0.72); crossA.rotation.z = Math.PI/4; g.add(crossA);
-  const crossB = crossA.clone(); crossB.rotation.z = -Math.PI/4; g.add(crossB);
-  const sign = createSign('🛗 고장난 엘리베이터', 'rgba(90,20,20,0.95)', '#fff'); sign.scale.set(4.6,1,1); sign.position.set(0,5.6,0); g.add(sign);
+  const btn = new THREE.Mesh(new THREE.SphereGeometry(0.18,10,10), new THREE.MeshBasicMaterial({color: broken ? 0xff2200 : 0xffcc00})); btn.position.set(1.7,2,0.6); g.add(btn);
+  if (broken) {
+    const crossA = new THREE.Mesh(new THREE.BoxGeometry(2.6,0.18,0.28), new THREE.MeshBasicMaterial({color:0xff2200})); crossA.position.set(0,2.2,0.72); crossA.rotation.z = Math.PI/4; g.add(crossA);
+    const crossB = crossA.clone(); crossB.rotation.z = -Math.PI/4; g.add(crossB);
+  }
+  const sign = createSign(broken ? '🛗 고장난 엘리베이터' : '🛗 엘리베이터', broken ? 'rgba(90,20,20,0.95)' : 'rgba(40,60,80,0.9)', '#fff'); sign.scale.set(broken ? 4.6 : 4,1,1); sign.position.set(0,5.6,0); g.add(sign);
   g.position.set(ELEV_POS.x,0,ELEV_POS.z); g.rotation.y = Math.PI/4; parent.add(g);
 }
+function stairStepHeight(i, isUp) { return isUp ? 0.4 + i * 0.4 : 2.0 - i * 0.4; }
 function mkStairs(parent, pos=UP_STAIRS_POS, dir='up') {
   const g = new THREE.Group();
-  for (let i=0;i<5;i++){ const step = new THREE.Mesh(new THREE.BoxGeometry(3,0.4+i*0.4,1), new THREE.MeshLambertMaterial({color:0x9aa})); step.position.set(0,(0.4+i*0.4)/2, -i*1); step.castShadow = true; g.add(step); }
   const isUp = dir === 'up';
+  for (let i=0;i<5;i++){
+    const h = stairStepHeight(i, isUp);
+    const step = new THREE.Mesh(new THREE.BoxGeometry(3,h,1), new THREE.MeshLambertMaterial({color: isUp ? 0x9aa : 0x7f8f9a}));
+    step.position.set(0, h / 2, isUp ? -i * 1 : i * 1);
+    step.castShadow = true; g.add(step);
+  }
+  if (!isUp) {
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(3.4,0.12,5.6), new THREE.MeshLambertMaterial({color:0x23313a}));
+    shaft.position.set(0,0.02,2); g.add(shaft);
+  }
   const sign = createSign(isUp ? '🪜 올라가는 계단' : '🪜 내려가는 계단', 'rgba(40,60,80,0.9)', '#fff'); sign.scale.set(isUp ? 4 : 4.2,0.9,1); sign.position.set(0,4.5,0); g.add(sign);
   g.position.set(pos.x,0,pos.z); g.rotation.y = isUp ? -Math.PI*0.75 : Math.PI*0.75; parent.add(g);
 }
@@ -1266,7 +1321,7 @@ function buildFsa() {
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(56,56), new THREE.MeshLambertMaterial({ color: fl.floorColor }));
     floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; fg.add(floor);
     mkWalls(fg, 56);          // 사무실 공간 확장(넓게)
-    mkElevator(fg);
+    mkElevator(fg, true);
     mkStairs(fg, UP_STAIRS_POS, 'up');
     mkStairs(fg, DOWN_STAIRS_POS, 'down');
     HIDES.forEach(h => fg.add(mkLocker(h.x, h.z)));
@@ -1657,7 +1712,8 @@ function spawnBldNpc(floorNum) {
     ok = dist2D({ x, z }, player.position) > 8
       && dist2D({ x, z }, ELEV_POS) > 4
       && dist2D({ x, z }, UP_STAIRS_POS) > 4
-      && dist2D({ x, z }, DOWN_STAIRS_POS) > 4;
+      && dist2D({ x, z }, DOWN_STAIRS_POS) > 4
+      && !isBlockedByOfficeFurniture(bldCurFloorGroup, x, z, 0.8);
   }
   mesh.position.set(x, 0, z);
   mesh.userData = Object.assign(ud, { timer: 0, changeAt: 2 + Math.random() * 3, dirX: (Math.random() - 0.5) * 2, dirZ: (Math.random() - 0.5) * 2, indicator: mesh.userData.indicator });
@@ -1704,7 +1760,7 @@ function startBuilding(gym) {
   document.getElementById('hudStats').style.display = 'block';
   document.getElementById('hudControls').style.display = 'block';
   hideModal();
-  fsaToast(`🏢 ${gym.name} 입장! (엘리베이터 고장 · 위/아래 계단으로 층 이동, E 조사)`);
+  fsaToast(`🏢 ${gym.name} 입장! (🛗엘리베이터/🪜계단으로 층 이동, E 조사)`);
   updateStatsHUD(); updateModeHUD();
 }
 function resumeBuilding() {
@@ -1727,12 +1783,13 @@ function finishBuilding() {
   bldRoot.visible = false; overworldRoot.visible = true;
   setOverworldVisuals();
   state.mode = 'roaming'; state.currentBuilding = null;
+  clearHudHint();
   const gym = GYMS.find(g => g.id === (state.lastGymId || 'yeonggang'));
   player.position.set((gym ? gym.x : 0) + 8, 0, (gym ? gym.z : -45) + 8); player.rotation.y = 0;
   camCtrl.cur = { x: player.position.x, y: 12, z: player.position.z + 14 };
   clearAllNPCs(); initSpawn(7);
   document.getElementById('hudInfo').style.display = 'block';
-  updateStatsHUD(); updateInfoHUD(); updateModeHUD();
+  updateHint(); updateStatsHUD(); updateInfoHUD(); updateModeHUD();
 }
 function setBldVisuals() {
   scene.background = new THREE.Color(0x223040);
@@ -1742,7 +1799,7 @@ function setBldVisuals() {
 
 function bldNearest() {
   const b = state.bld; const cands = [];
-  cands.push({ type: 'broken-elevator', label: '🛗 엘리베이터 고장', pos: ELEV_POS, r: 3 });
+  cands.push({ type: 'elevator', label: '🛗 엘리베이터', pos: ELEV_POS, r: 3 });
   if (b.floor < b.gym.floors) cands.push({ type: 'stairs-up', label: `🪜 올라가는 계단 (${b.floor + 1}층)`, pos: UP_STAIRS_POS, r: 3 });
   if (b.floor > 1) cands.push({ type: 'stairs-down', label: `🪜 내려가는 계단 (${b.floor - 1}층)`, pos: DOWN_STAIRS_POS, r: 3 });
   if (b.floor === 1) cands.push({ type: 'exit', label: '🚪 건물 나가기', pos: EXIT_POS, r: 3 });
@@ -1770,7 +1827,7 @@ function bldInteract() {
   if (b.leaderMesh && !b.leaderDefeated && dist2D(player.position, b.leaderMesh.position) < 2.7) { startLeaderBattle(b.gym); return; }
   if (b.floor === 1 && nearestGuard()) { showGuardGuide(); return; }
   const it = bldNearest(); if (!it) return;
-  if (it.type === 'broken-elevator') showBldBrokenElevator();
+  if (it.type === 'elevator') showBldElevator();
   else if (it.type === 'stairs-up') bldStairsGo('up');
   else if (it.type === 'stairs-down') bldStairsGo('down');
   else if (it.type === 'exit') finishBuilding();
@@ -1818,7 +1875,7 @@ function showBldStairs() {
     <button class="btn fsa" data-action="bld-stairs" data-arg="down" ${down?'':'disabled'}>▼ 아래층 (${down?(b.floor-1)+'층':'없음'})</button>
     <button class="btn full-width" data-action="bld-close">← 닫기</button></div></div>`);
 }
-function bldElevGo(n) { showBldBrokenElevator(); }
+function bldElevGo(n) { hideModal(); state.mode = 'building'; setBldFloor(n, { x: ELEV_POS.x + 3, z: ELEV_POS.z + 3 }); fsaToast(`🛗 ${n}층 도착`); }
 function bldStairsGo(dir) { const b = state.bld; const ni = dir === 'up' ? b.floor + 1 : b.floor - 1; if (ni < 1 || ni > b.gym.floors) return; hideModal(); state.mode = 'building'; setBldFloor(ni, landingPosForStairs(dir)); fsaToast(`🪜 ${ni}층 이동`); }
 function bldClose() { hideModal(); state.mode = 'building'; }
 
@@ -1848,7 +1905,7 @@ function updateBuilding(delta) {
   if (mv.len > 0) {
     let nx = player.position.x + dx, nz = player.position.z + dz;
     nx = Math.max(-ROOM, Math.min(ROOM, nx)); nz = Math.max(-ROOM, Math.min(ROOM, nz));
-    if (dist2D({x:nx,z:nz}, ELEV_POS) > 2 && dist2D({x:nx,z:nz}, UP_STAIRS_POS) > 2 && dist2D({x:nx,z:nz}, DOWN_STAIRS_POS) > 2) { player.position.x = nx; player.position.z = nz; }
+    moveWithOfficeCollision(player, dx, dz, ROOM, bldCurFloorGroup, 0.65, isBlockedByFloorFixtures);
     player.rotation.y = camCtrl.mode === 'first' ? camCtrl.yaw : Math.atan2(dx, dz);
     player.position.y = Math.abs(Math.sin(frameTime*12))*0.08;
   } else player.position.y *= 0.85;
@@ -1864,7 +1921,8 @@ function updateBuilding(delta) {
     let nx = npc.position.x + u.dirX*0.05, nz = npc.position.z + u.dirZ*0.05;
     if (Math.abs(nx) > ROOM-2) { u.dirX *= -1; nx = Math.sign(nx)*(ROOM-2); }
     if (Math.abs(nz) > ROOM-2) { u.dirZ *= -1; nz = Math.sign(nz)*(ROOM-2); }
-    npc.position.x = nx; npc.position.z = nz;
+    const moved = moveWithOfficeCollision(npc, u.dirX*0.05, u.dirZ*0.05, ROOM, bldCurFloorGroup, 0.6, isBlockedByFloorFixtures);
+    if (!moved) { u.dirX *= -1; u.dirZ *= -1; }
     if (Math.hypot(u.dirX,u.dirZ) > 0.1) npc.rotation.y = Math.atan2(u.dirX, u.dirZ);
     if (u.indicator) { const s=1+Math.sin(frameTime*5)*0.25; u.indicator.scale.set(s,s,s); u.indicator.position.y = 3.3+Math.sin(frameTime*3)*0.1; }
   });
@@ -1909,8 +1967,8 @@ function updateFsa(delta) {
     if (mv.len > 0) {
       let nx = player.position.x + dx, nz = player.position.z + dz;
       nx = Math.max(-FSA_ROOM, Math.min(FSA_ROOM, nx)); nz = Math.max(-FSA_ROOM, Math.min(FSA_ROOM, nz));
-      // 고장 엘리베이터/계단 약한 충돌
-      if (dist2D({x:nx,z:nz}, ELEV_POS) > 2 && dist2D({x:nx,z:nz}, UP_STAIRS_POS) > 2 && dist2D({x:nx,z:nz}, DOWN_STAIRS_POS) > 2) { player.position.x = nx; player.position.z = nz; }
+      // 고장 엘리베이터/계단/책상 충돌
+      moveWithOfficeCollision(player, dx, dz, FSA_ROOM, floorGroups[f.floor], 0.65, isBlockedByFloorFixtures);
       player.rotation.y = camCtrl.mode === 'first' ? camCtrl.yaw : Math.atan2(dx, dz);
       player.position.y = Math.abs(Math.sin(frameTime*12))*0.08;
     } else player.position.y *= 0.85;
@@ -1935,11 +1993,11 @@ function updateFsa(delta) {
       if (u.wt > 1.5) { u.wdx = (Math.random()-0.5)*2; u.wdz = (Math.random()-0.5)*2; u.wt = 0; }
       let nx = oniMesh.position.x + (u.wdx||0)*0.12, nz = oniMesh.position.z + (u.wdz||0)*0.12;
       nx = Math.max(-FSA_ROOM,Math.min(FSA_ROOM,nx)); nz = Math.max(-FSA_ROOM,Math.min(FSA_ROOM,nz));
-      oniMesh.position.x = nx; oniMesh.position.z = nz;
+      moveWithOfficeCollision(oniMesh, (u.wdx||0)*0.12, (u.wdz||0)*0.12, FSA_ROOM, floorGroups[f.floor], 0.85, isBlockedByFloorFixtures);
     } else {
       const dx = player.position.x - oniMesh.position.x, dz = player.position.z - oniMesh.position.z;
       const d = Math.hypot(dx, dz);
-      if (d > 0.01) { const sp = 0.155; oniMesh.position.x += (dx/d)*sp; oniMesh.position.z += (dz/d)*sp; oniMesh.rotation.y = Math.atan2(dx, dz); }
+      if (d > 0.01) { const sp = 0.155; moveWithOfficeCollision(oniMesh, (dx/d)*sp, (dz/d)*sp, FSA_ROOM, floorGroups[f.floor], 0.85, isBlockedByFloorFixtures); oniMesh.rotation.y = Math.atan2(dx, dz); }
       oniMesh.position.y = Math.abs(Math.sin(frameTime*10))*0.15;
       if (d < 1.8) {
         // 1회라도 부딪히면 즉시 게임 종료 → 재입사 시퀀스
@@ -1961,7 +2019,7 @@ function updateFsa(delta) {
   if (f.vaccinated && normalYong.visible) {
     const dx = player.position.x - normalYong.position.x, dz = player.position.z - normalYong.position.z;
     const d = Math.hypot(dx, dz);
-    if (d > 2.3) { const sp = 0.2; normalYong.position.x += (dx/d)*sp; normalYong.position.z += (dz/d)*sp; normalYong.rotation.y = Math.atan2(dx, dz); }
+    if (d > 2.3) { const sp = 0.2; moveWithOfficeCollision(normalYong, (dx/d)*sp, (dz/d)*sp, FSA_ROOM, floorGroups[f.floor], 0.6, isBlockedByFloorFixtures); normalYong.rotation.y = Math.atan2(dx, dz); }
     normalYong.position.y = d > 2.3 ? Math.abs(Math.sin(frameTime*11))*0.07 : 0;
   }
 
@@ -2210,6 +2268,12 @@ function updateHint() {
     else if (t === 'tower') action = '🗼 사대천왕 도전';
     hint.innerHTML = `${action} <span class="key-cap" style="background:#fc6;">E</span>`;
   } else hint.style.display = 'none';
+}
+function clearHudHint() {
+  const hint = document.getElementById('hudHint');
+  if (!hint) return;
+  hint.style.display = 'none';
+  hint.innerHTML = '';
 }
 function updateFsaHud(f) {
   const hud = document.getElementById('fsaHud'); hud.style.display = 'block';
@@ -2766,10 +2830,10 @@ function renderBattle() {
       if (b.enemy.element) { if (active.skill.element === b.enemy.element) eh = ' 😐'; else if (ELEMENTS[active.skill.element].counters === b.enemy.element) eh = ' ⭐'; else if (ELEMENTS[b.enemy.element]?.counters === active.skill.element) eh = ' 😣'; }
       actions = `<button class="btn attack full-width" data-action="use-captured-skill">${el.icon} ${active.skill.name} Lv.${active.level}${eh}<br><span class="skill-info">${active.skill.element}속성 · ${active.skill.dmg[0]}~${active.skill.dmg[1]}</span></button><button class="btn full-width" data-action="back-to-choose">← 취소</button>`;
     } else {
-      actions = Object.entries(state.player.skills).map(([s,lvl]) => { const sk = SKILLS[s], el = ELEMENTS[sk.element]; const mult = calcLevelMult(lvl); const minD = Math.floor(sk.dmg[0]*mult), maxD = Math.floor(sk.dmg[1]*mult); let eh = '';
+      actions = Object.entries(state.player.skills).map(([s,lvl], i) => { const sk = SKILLS[s], el = ELEMENTS[sk.element]; const mult = calcLevelMult(lvl); const minD = Math.floor(sk.dmg[0]*mult), maxD = Math.floor(sk.dmg[1]*mult); let eh = '';
         if (b.enemy.element) { if (sk.element === b.enemy.element) eh = ' 😐'; else if (ELEMENTS[sk.element].counters === b.enemy.element) eh = ' ⭐'; else if (ELEMENTS[b.enemy.element]?.counters === sk.element) eh = ' 😣'; }
         const hyN = lvl >= MAX_SKILL_LEVEL ? '🔥험한 ' : ''; const hyHint = (lvl >= MAX_SKILL_LEVEL && sk.hyper) ? ` · ⚡${sk.hyper.desc}` : '';
-        return `<button class="btn attack full-width" data-action="use-skill" data-arg="${s}">${el.icon} ${hyN}${s} <span style="opacity:0.85;">Lv.${lvl}</span>${sk.ultimate?' 👑':''}${eh}<br><span class="skill-info">${sk.element}속성 · ${minD}~${maxD}${hyHint}</span></button>`; }).join('') + `<button class="btn full-width" data-action="back-to-choose">← 취소</button>`;
+        return `<button class="${battleBtnClass('btn attack full-width', i)}" data-action="use-skill" data-arg="${s}">${el.icon} ${hyN}${s} <span style="opacity:0.85;">Lv.${lvl}</span>${sk.ultimate?' 👑':''}${eh}<br><span class="skill-info">${sk.element}속성 · ${minD}~${maxD}${hyHint}</span></button>`; }).join('') + `<button class="btn full-width" data-action="back-to-choose">← 취소</button>`;
     }
   } else if (b.phase === 'bag') {
     const cnt = state.player.items['박카스']||0;
@@ -2801,6 +2865,10 @@ function renderBattle() {
   updateStatsHUD();
 }
 // 전투 서브메뉴(스킬/가방/포획/교체)에 방향키 선택 하이라이트 부여
+function battleBtnClass(base, index) {
+  const b = state.battle;
+  return b && b.menuIndex === index ? `${base} sel kbd-active` : base;
+}
 function decorateBattleMenu() {
   const b = state.battle; if (!b) return;
   // 모든 단계(공격/가방/도망 선택 = choose 포함)에 키보드 커서 부여
@@ -2808,7 +2876,7 @@ function decorateBattleMenu() {
   if (!btns.length) return;
   if (b.lastPhase !== b.phase) { b.menuIndex = 0; b.lastPhase = b.phase; } // 단계 바뀌면 커서 초기화
   if (b.menuIndex == null || b.menuIndex >= btns.length) b.menuIndex = 0;
-  btns.forEach((el, i) => { el.setAttribute('data-mi', i); el.classList.toggle('sel', i === b.menuIndex); });
+  btns.forEach((el, i) => { el.setAttribute('data-mi', i); el.classList.toggle('sel', i === b.menuIndex); el.classList.toggle('kbd-active', i === b.menuIndex); });
 }
 // 전투 키 입력: 공격/가방/도망 및 서브메뉴 모두 ↑↓(또는 ←→)로 커서 이동 + Space 선택. B=가방, R=도망 단축키.
 function battleKey(k, isConfirm) {
@@ -2870,7 +2938,7 @@ function closeDialog() {
   resetPhoneArmPose();
   if (state.pendingEvolution) { const lv = state.pendingEvolution; state.pendingEvolution = null; playEvolution(lv); return; }
   if (state.bld && state.bld.active) { resumeBuilding(); return; }
-  state.mode = 'roaming'; state.currentBuilding = null; updateHint(); updateStatsHUD(); updateInfoHUD();
+  state.mode = 'roaming'; state.currentBuilding = null; clearHudHint(); updateHint(); updateStatsHUD(); updateInfoHUD();
 }
 // ===== 진화 연출 (30초 3D) =====
 function playEvolution(level) {
